@@ -1,11 +1,7 @@
 import React from "react";
 import "./Home.css";
 
-const BOARD_OPTIONS = [
-  1, 2, 3, 4, 5, 6, 7, 8,
-  9, 10, 11, 12, 13, 14, 15, 16,
-  20, 24, 28, 32
-];
+const BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
 
 function ModeRow({ title, desc, buttonText, onClick, variant = "green", titleRight }) {
   return (

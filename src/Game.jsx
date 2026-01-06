@@ -6,6 +6,8 @@ const WORD_LENGTH = 5;
 // Flip settings (one-by-one but not painfully slow)
 const FLIP_MS = 500;      // how long a single tile flip takes
 const FLIP_STEP_MS = 180; // how long until the next tile starts (sequential feel, faster overall)
+// Total time for all tiles to finish flipping: last tile delay + flip duration
+const FLIP_COMPLETE_MS = (WORD_LENGTH - 1) * FLIP_STEP_MS + FLIP_MS;
 
 const KEYBOARD_ROWS = [
   "QWERTYUIOP".split(""),
@@ -157,6 +159,101 @@ function getGreenPattern(guesses) {
 function getTurnsUsed(boards) {
   if (!boards || boards.length === 0) return 0;
   return Math.max(...boards.map((b) => b.guesses.length));
+}
+
+// Calculate score for non-speedrun modes
+function calculateNonSpeedrunScore(boards, turnsUsed, maxTurns, numBoards) {
+  const solvedCount = boards.filter((b) => b.isSolved).length;
+  const allSolved = solvedCount === numBoards;
+  const minGuesses = numBoards; // Minimum guesses possible (one per board)
+
+  if (allSolved) {
+    // All boards solved: score 50-100 based on efficiency
+    // Minimum 50 even if all guesses used
+    if (turnsUsed <= minGuesses) {
+      return 100;
+    }
+    if (turnsUsed >= maxTurns) {
+      return 50; // Minimum for solved
+    }
+    // Linear interpolation: 100 at minGuesses, 50 at maxTurns
+    const score = 100 - (turnsUsed - minGuesses) * (50 / (maxTurns - minGuesses));
+    return Math.max(50, Math.min(100, Math.round(score)));
+  } else {
+    // Not all solved: score 30-50
+    // Base score from solved ratio
+    const solvedRatio = solvedCount / numBoards;
+    let score = 30 + solvedRatio * 15; // 30-45 from solved ratio
+    
+    // Add partial credit for unsolved boards based on how close they were
+    const unsolvedBoards = boards.filter((b) => !b.isSolved);
+    if (unsolvedBoards.length > 0) {
+      const avgProgress = unsolvedBoards.reduce((sum, b) => {
+        return sum + (b.guesses.length / maxTurns);
+      }, 0) / unsolvedBoards.length;
+      score += avgProgress * 5; // Up to 5 more points for progress on unsolved
+    }
+    
+    return Math.max(30, Math.min(50, Math.round(score)));
+  }
+}
+
+// Calculate score for speedrun modes
+function calculateSpeedrunScore(timeMs, numBoards) {
+  const timeSeconds = timeMs / 1000;
+  
+  // Define excellent, very good, and good times based on number of boards
+  // Interpolate between known points:
+  // 1 board: excellent=10s, veryGood=20s, good=30s
+  // 4 boards: excellent=30s, veryGood=40s, good=60s
+  // 8 boards: excellent=60s, veryGood=70s, good=90s
+  
+  // Use linear interpolation for other board counts
+  const getTimeThreshold = (board1, board4, board8, numBoards) => {
+    if (numBoards <= 1) return board1;
+    if (numBoards >= 8) {
+      // Extrapolate beyond 8 boards: linear extension
+      return board8 + (numBoards - 8) * ((board8 - board4) / 4);
+    }
+    if (numBoards <= 4) {
+      // Interpolate between 1 and 4
+      return board1 + (numBoards - 1) * ((board4 - board1) / 3);
+    }
+    // Interpolate between 4 and 8
+    return board4 + (numBoards - 4) * ((board8 - board4) / 4);
+  };
+  
+  const excellentTime = getTimeThreshold(10, 30, 60, numBoards);
+  const veryGoodTime = getTimeThreshold(20, 40, 70, numBoards);
+  const goodTime = getTimeThreshold(30, 60, 90, numBoards);
+  
+  // Score mapping:
+  // excellent time or faster: 100
+  // very good time: 85
+  // good time: 70
+  // Beyond good time: linear decrease, minimum 30
+  
+  if (timeSeconds <= excellentTime) {
+    return 100;
+  } else if (timeSeconds <= veryGoodTime) {
+    // Linear interpolation between excellent and very good
+    const ratio = (timeSeconds - excellentTime) / (veryGoodTime - excellentTime);
+    return Math.round(100 - ratio * 15); // 100 to 85
+  } else if (timeSeconds <= goodTime) {
+    // Linear interpolation between very good and good
+    const ratio = (timeSeconds - veryGoodTime) / (goodTime - veryGoodTime);
+    return Math.round(85 - ratio * 15); // 85 to 70
+  } else {
+    // Beyond good time: linear decrease to minimum 30
+    // Extend the trend: good time gives 70, then decrease
+    // Use 2x good time as the point where score reaches 30
+    const extendedTime = goodTime * 2;
+    if (timeSeconds >= extendedTime) {
+      return 30;
+    }
+    const ratio = (timeSeconds - goodTime) / (extendedTime - goodTime);
+    return Math.max(30, Math.round(70 - ratio * 40)); // 70 down to 30
+  }
 }
 
 function formatElapsed(ms) {
@@ -433,7 +530,10 @@ const Game = ({
     if (finished && allSolvedNow) {
       const finalStageMs = freezeStageTimer();
       if (isMarathonSpeedrun) commitStageIfNeeded(finalStageMs);
-      setShowPopup(true);
+      // Wait for flip animation to complete before showing popup
+      setTimeout(() => {
+        setShowPopup(true);
+      }, FLIP_COMPLETE_MS);
     }
   };
 
@@ -476,7 +576,10 @@ const Game = ({
   const exitFromOutOfGuesses = () => {
     freezeStageTimer();
     setShowOutOfGuesses(false);
-    setShowPopup(true);
+    // Wait for any flip animations to complete before showing popup
+    setTimeout(() => {
+      setShowPopup(true);
+    }, FLIP_COMPLETE_MS);
   };
 
   const continueAfterOutOfGuesses = () => {
@@ -491,7 +594,10 @@ const Game = ({
     if (!canManualEnd) return;
     const finalStageMs = freezeStageTimer();
     if (isMarathonSpeedrun) commitStageIfNeeded(finalStageMs);
-    setShowPopup(true);
+    // Wait for any flip animations to complete before showing popup
+    setTimeout(() => {
+      setShowPopup(true);
+    }, FLIP_COMPLETE_MS);
   };
 
   const speedrunRows = useMemo(() => {
@@ -515,6 +621,15 @@ const Game = ({
       ? sumMs(speedrunRows)
       : stageElapsedMs
     : 0;
+
+  // Calculate score
+  const score = useMemo(() => {
+    if (speedrunEnabled) {
+      return calculateSpeedrunScore(popupTotalMs || stageElapsedMs, numBoards);
+    } else {
+      return calculateNonSpeedrunScore(boards, turnsUsed, maxTurns, numBoards);
+    }
+  }, [speedrunEnabled, popupTotalMs, stageElapsedMs, numBoards, boards, turnsUsed, maxTurns]);
 
   if (isLoading) {
     return (
@@ -1170,6 +1285,10 @@ const Game = ({
               {allSolved
                 ? `You solved all ${boards.length} word${boards.length > 1 ? "s" : ""}.`
                 : `You solved ${solvedCount} of ${boards.length} word${boards.length > 1 ? "s" : ""}.`}
+            </div>
+
+            <div style={{ marginBottom: 14, fontSize: 20, color: "#ffffff", fontWeight: "bold" }}>
+              Score: {score}
             </div>
 
             <div style={{ marginBottom: 10, color: "#ffffff", fontWeight: "bold" }}>Solutions</div>
