@@ -277,6 +277,64 @@ function bgForColor(color) {
   return "#121213";
 }
 
+// Convert color to emoji for sharing
+function colorToEmoji(color) {
+  if (color === "green") return "🟩";
+  if (color === "yellow") return "🟨";
+  if (color === "grey") return "⬛";
+  return "⬛";
+}
+
+// Generate share text for the game results
+function generateShareText(boards, score, mode, numBoards, speedrunEnabled, stageElapsedMs, popupTotalMs, formatElapsed, turnsUsed, maxTurns, allSolved, solvedCount) {
+  const lines = [];
+  
+  // Add header based on mode
+  if (numBoards === 1) {
+    // Single board: show Wordle-style grid
+    const board = boards[0];
+    board.guesses.forEach((guess) => {
+      const row = guess.colors.map(colorToEmoji).join("");
+      lines.push(row);
+    });
+    
+    lines.push(""); // Empty line
+    lines.push(`Score: ${score}`);
+    if (speedrunEnabled) {
+      const timeMs = popupTotalMs || stageElapsedMs;
+      lines.push(`Time: ${formatElapsed(timeMs)}`);
+    }
+    lines.push(`Guesses: ${turnsUsed}/${maxTurns}`);
+    lines.push(allSolved ? "✅ Solved!" : "❌ Not solved");
+  } else {
+    // Multiple boards: show first board's grid + summary
+    const firstBoard = boards[0];
+    if (firstBoard.guesses.length > 0) {
+      firstBoard.guesses.forEach((guess) => {
+        const row = guess.colors.map(colorToEmoji).join("");
+        lines.push(row);
+      });
+      lines.push(""); // Empty line
+    }
+    
+    lines.push(`Multi Wordle - ${numBoards} boards`);
+    lines.push(`Score: ${score}`);
+    if (speedrunEnabled) {
+      const timeMs = popupTotalMs || stageElapsedMs;
+      lines.push(`Time: ${formatElapsed(timeMs)}`);
+    }
+    lines.push(`Solved: ${solvedCount}/${numBoards}`);
+    if (mode === "marathon") {
+      lines.push("Marathon Mode");
+    }
+  }
+  
+  lines.push(""); // Empty line
+  lines.push("Play Better Wordle!");
+  
+  return lines.join("\n");
+}
+
 const Game = ({
   mode,
   numBoards,
@@ -631,6 +689,57 @@ const Game = ({
     }
   }, [speedrunEnabled, popupTotalMs, stageElapsedMs, numBoards, boards, turnsUsed, maxTurns]);
 
+  // Generate share text
+  const shareText = useMemo(() => {
+    return generateShareText(
+      boards,
+      score,
+      mode,
+      numBoards,
+      speedrunEnabled,
+      stageElapsedMs,
+      popupTotalMs,
+      formatElapsed,
+      turnsUsed,
+      maxTurns,
+      allSolved,
+      solvedCount
+    );
+  }, [boards, score, mode, numBoards, speedrunEnabled, stageElapsedMs, popupTotalMs, turnsUsed, maxTurns, allSolved, solvedCount]);
+
+  // Handle share button click
+  const handleShare = async () => {
+    try {
+      if (navigator.share) {
+        // Use Web Share API if available (mobile)
+        await navigator.share({
+          title: "Better Wordle",
+          text: shareText
+        });
+      } else if (navigator.clipboard) {
+        // Fallback to clipboard
+        await navigator.clipboard.writeText(shareText);
+        setTimedMessage("Copied to clipboard!", 2000);
+      } else {
+        // Fallback for older browsers
+        const textArea = document.createElement("textarea");
+        textArea.value = shareText;
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+        setTimedMessage("Copied to clipboard!", 2000);
+      }
+    } catch (err) {
+      // User cancelled share or error occurred
+      if (err.name !== "AbortError") {
+        console.error("Error sharing:", err);
+      }
+    }
+  };
+
   if (isLoading) {
     return (
       <div
@@ -664,6 +773,7 @@ const Game = ({
           width: 32px;
           height: 32px;
           margin: 2px;
+          flex-shrink: 0;
           perspective: 900px;
         }
 
@@ -672,6 +782,7 @@ const Game = ({
           height: 100%;
           position: relative;
           transform-style: preserve-3d;
+          will-change: transform;
         }
 
         @keyframes mwFlipCard {
@@ -681,6 +792,7 @@ const Game = ({
 
         .mw-flip {
           animation: mwFlipCard ${FLIP_MS}ms ease-in-out both;
+          animation-fill-mode: both;
         }
 
         .mw-face {
@@ -863,7 +975,7 @@ const Game = ({
                   const isJustRevealedRow = !!row && rowIdx === board.guesses.length - 1;
 
                   return (
-                    <div key={rowIdx} style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>
+                    <div key={rowIdx} style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: 4, minHeight: "36px" }}>
                       {Array.from({ length: WORD_LENGTH }).map((__, colIdx) => {
                         const typedChar = isCurrentRow ? currentGuess[colIdx] : "";
 
@@ -1319,6 +1431,26 @@ const Game = ({
             </div>
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button
+                onClick={handleShare}
+                style={{
+                  flex: 1,
+                  minWidth: 160,
+                  padding: "12px 0",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#6aaa64",
+                  color: "#ffffff",
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                  letterSpacing: 1,
+                  textTransform: "uppercase"
+                }}
+              >
+                Share
+              </button>
+
               <button
                 onClick={() => setShowPopup(false)}
                 style={{

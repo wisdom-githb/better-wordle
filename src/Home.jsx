@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import "./Home.css";
+import FeedbackModal from "./components/FeedbackModal";
 
 const BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
 
@@ -39,6 +40,7 @@ export default function Home({
 
   onResetAll                  // NEW: clears all persisted states
 }) {
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const marathonMaxLabel = marathonLevels[marathonLevels.length - 1];
   const currentBoards = marathonLevels[marathonIndex];
 
@@ -53,10 +55,23 @@ export default function Home({
             </div>
           </div>
 
-          <button className="homeBtn homeBtnOutline" onClick={onResetAll}>
-            Reset all
-          </button>
+          <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
+            <button
+              className="homeBtn homeBtnOutline"
+              onClick={() => setShowFeedbackModal(true)}
+            >
+              Feedback
+            </button>
+            <button className="homeBtn homeBtnOutline" onClick={onResetAll}>
+              Reset all
+            </button>
+          </div>
         </header>
+
+        <FeedbackModal
+          isOpen={showFeedbackModal}
+          onRequestClose={() => setShowFeedbackModal(false)}
+        />
 
         {/* DAILY */}
         <section className="panel">
