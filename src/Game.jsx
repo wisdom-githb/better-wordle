@@ -24,6 +24,13 @@ async function loadWordLists() {
     fetch(`${baseUrl}valid-wordle-words.txt`)
   ]);
 
+  if (!answersRes.ok) {
+    throw new Error(`Failed to load answers: ${answersRes.status} ${answersRes.statusText}`);
+  }
+  if (!guessesRes.ok) {
+    throw new Error(`Failed to load guesses: ${guessesRes.status} ${guessesRes.statusText}`);
+  }
+
   const answersText = await answersRes.text();
   const guessesText = await guessesRes.text();
 
@@ -289,14 +296,21 @@ function colorToEmoji(color) {
 function generateShareText(boards, score, mode, numBoards, speedrunEnabled, stageElapsedMs, popupTotalMs, formatElapsed, turnsUsed, maxTurns, allSolved, solvedCount) {
   const lines = [];
   
+  // Guard against empty boards
+  if (!boards || boards.length === 0) {
+    return "Play Better Wordle!";
+  }
+  
   // Add header based on mode
   if (numBoards === 1) {
     // Single board: show Wordle-style grid
     const board = boards[0];
-    board.guesses.forEach((guess) => {
-      const row = guess.colors.map(colorToEmoji).join("");
-      lines.push(row);
-    });
+    if (board && board.guesses) {
+      board.guesses.forEach((guess) => {
+        const row = guess.colors.map(colorToEmoji).join("");
+        lines.push(row);
+      });
+    }
     
     lines.push(""); // Empty line
     lines.push(`Score: ${score}`);
@@ -309,7 +323,7 @@ function generateShareText(boards, score, mode, numBoards, speedrunEnabled, stag
   } else {
     // Multiple boards: show first board's grid + summary
     const firstBoard = boards[0];
-    if (firstBoard.guesses.length > 0) {
+    if (firstBoard && firstBoard.guesses && firstBoard.guesses.length > 0) {
       firstBoard.guesses.forEach((guess) => {
         const row = guess.colors.map(colorToEmoji).join("");
         lines.push(row);
@@ -410,41 +424,47 @@ const Game = ({
 
   useEffect(() => {
     async function initGame() {
-      setIsLoading(true);
+      try {
+        setIsLoading(true);
 
-      const { ANSWER_WORDS, ALLOWED_GUESSES } = await loadWordLists();
-      setAllowedSet(new Set(ALLOWED_GUESSES));
+        const { ANSWER_WORDS, ALLOWED_GUESSES } = await loadWordLists();
+        setAllowedSet(new Set(ALLOWED_GUESSES));
 
-      const turns = getMaxTurns(numBoards);
-      setMaxTurns(turns);
+        const turns = getMaxTurns(numBoards);
+        setMaxTurns(turns);
 
-      const newBoards = [];
-      for (let i = 0; i < numBoards; i++) {
-        const solution = ANSWER_WORDS[Math.floor(Math.random() * ANSWER_WORDS.length)];
-        newBoards.push(createBoardState(solution));
+        const newBoards = [];
+        for (let i = 0; i < numBoards; i++) {
+          const solution = ANSWER_WORDS[Math.floor(Math.random() * ANSWER_WORDS.length)];
+          newBoards.push(createBoardState(solution));
+        }
+
+        setBoards(newBoards);
+        setCurrentGuess("");
+        setMessage("");
+        clearMessageTimer();
+        setShowPopup(false);
+        setShowOutOfGuesses(false);
+
+        // Speedrun starts unlimited immediately
+        setIsUnlimited(!!speedrunEnabled);
+        setSelectedBoardIndex(null);
+
+        // Reset stage timer + commit guard for each stage
+        stageStartRef.current = Date.now();
+        stageEndRef.current = null;
+        committedRef.current = false;
+        committedStageMsRef.current = 0;
+
+        // Reset flip id
+        setRevealId(0);
+
+        setIsLoading(false);
+      } catch (error) {
+        console.error("Error initializing game:", error);
+        setIsLoading(false);
+        setTimedMessage("Failed to load word lists. Please refresh the page.", 10000);
       }
-
-      setBoards(newBoards);
-      setCurrentGuess("");
-      setMessage("");
-      clearMessageTimer();
-      setShowPopup(false);
-      setShowOutOfGuesses(false);
-
-      // Speedrun starts unlimited immediately
-      setIsUnlimited(!!speedrunEnabled);
-      setSelectedBoardIndex(null);
-
-      setIsLoading(false);
-
-      // Reset stage timer + commit guard for each stage
-      stageStartRef.current = Date.now();
-      stageEndRef.current = null;
-      committedRef.current = false;
-      committedStageMsRef.current = 0;
-
-      // Reset flip id
-      setRevealId(0);
     }
 
     initGame();
@@ -691,6 +711,10 @@ const Game = ({
 
   // Generate share text
   const shareText = useMemo(() => {
+    // Guard against empty boards
+    if (!boards || boards.length === 0) {
+      return "Play Better Wordle!";
+    }
     return generateShareText(
       boards,
       score,
@@ -710,14 +734,14 @@ const Game = ({
   // Handle share button click
   const handleShare = async () => {
     try {
-      if (navigator.share) {
+      if (navigator.share && navigator.canShare && navigator.canShare({ text: shareText })) {
         // Use Web Share API if available (mobile)
         await navigator.share({
           title: "Better Wordle",
           text: shareText
         });
-      } else if (navigator.clipboard) {
-        // Fallback to clipboard
+      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        // Fallback to clipboard API
         await navigator.clipboard.writeText(shareText);
         setTimedMessage("Copied to clipboard!", 2000);
       } else {
@@ -725,17 +749,46 @@ const Game = ({
         const textArea = document.createElement("textarea");
         textArea.value = shareText;
         textArea.style.position = "fixed";
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        textArea.style.width = "2em";
+        textArea.style.height = "2em";
+        textArea.style.padding = "0";
+        textArea.style.border = "none";
+        textArea.style.outline = "none";
+        textArea.style.boxShadow = "none";
+        textArea.style.background = "transparent";
         textArea.style.opacity = "0";
         document.body.appendChild(textArea);
+        textArea.focus();
         textArea.select();
-        document.execCommand("copy");
+        try {
+          const successful = document.execCommand("copy");
+          if (successful) {
+            setTimedMessage("Copied to clipboard!", 2000);
+          } else {
+            setTimedMessage("Failed to copy. Please copy manually.", 3000);
+          }
+        } catch (err) {
+          console.error("Fallback copy failed:", err);
+          setTimedMessage("Failed to copy. Please copy manually.", 3000);
+        }
         document.body.removeChild(textArea);
-        setTimedMessage("Copied to clipboard!", 2000);
       }
     } catch (err) {
       // User cancelled share or error occurred
       if (err.name !== "AbortError") {
         console.error("Error sharing:", err);
+        // Try clipboard as fallback if share failed
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(shareText);
+            setTimedMessage("Copied to clipboard!", 2000);
+          }
+        } catch (clipboardErr) {
+          console.error("Clipboard fallback also failed:", clipboardErr);
+          setTimedMessage("Failed to copy. Please copy manually.", 3000);
+        }
       }
     }
   };
@@ -935,7 +988,10 @@ const Game = ({
                   padding: 8,
                   background: "#1a1a1b",
                   cursor: "pointer",
-                  boxShadow: isSelected ? "0 0 0 1px rgba(250,204,21,0.53)" : "none"
+                  boxShadow: isSelected ? "0 0 0 1px rgba(250,204,21,0.53)" : "none",
+                  display: "flex",
+                  flexDirection: "column",
+                  minWidth: 0
                 }}
               >
                 <div
@@ -975,7 +1031,7 @@ const Game = ({
                   const isJustRevealedRow = !!row && rowIdx === board.guesses.length - 1;
 
                   return (
-                    <div key={rowIdx} style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: 4, minHeight: "36px" }}>
+                    <div key={rowIdx} style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: 4, minHeight: "36px", flexShrink: 0, height: "36px" }}>
                       {Array.from({ length: WORD_LENGTH }).map((__, colIdx) => {
                         const typedChar = isCurrentRow ? currentGuess[colIdx] : "";
 
@@ -1020,7 +1076,9 @@ const Game = ({
                                 fontSize: 18,
                                 backgroundColor: bg,
                                 textTransform: "uppercase",
-                                color: fg
+                                color: fg,
+                                flexShrink: 0,
+                                boxSizing: "border-box"
                               }}
                             >
                               {displayChar}
@@ -1048,7 +1106,9 @@ const Game = ({
                                 fontSize: 18,
                                 backgroundColor: bg,
                                 textTransform: "uppercase",
-                                color: "#ffffff"
+                                color: "#ffffff",
+                                flexShrink: 0,
+                                boxSizing: "border-box"
                               }}
                             >
                               {displayChar}
