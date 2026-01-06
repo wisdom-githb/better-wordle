@@ -292,6 +292,14 @@ function colorToEmoji(color) {
   return "⬛";
 }
 
+// Detect if the device is mobile
+function isMobileDevice() {
+  return (
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    (typeof window !== "undefined" && window.innerWidth <= 768 && "ontouchstart" in window)
+  );
+}
+
 // Generate share text for the game results
 function generateShareText(boards, score, mode, numBoards, speedrunEnabled, stageElapsedMs, popupTotalMs, formatElapsed, turnsUsed, maxTurns, allSolved, solvedCount) {
   const lines = [];
@@ -733,19 +741,33 @@ const Game = ({
 
   // Handle share button click
   const handleShare = async () => {
+    const isMobile = isMobileDevice();
+    
     try {
-      if (navigator.share && navigator.canShare && navigator.canShare({ text: shareText })) {
-        // Use Web Share API if available (mobile)
-        await navigator.share({
-          title: "Better Wordle",
-          text: shareText
-        });
-      } else if (navigator.clipboard && navigator.clipboard.writeText) {
-        // Fallback to clipboard API
+      // Mobile: Use native share API
+      if (isMobile && navigator.share) {
+        try {
+          await navigator.share({
+            title: "Better Wordle",
+            text: shareText
+          });
+          return; // Successfully shared, exit
+        } catch (shareErr) {
+          // If user cancelled, don't show error
+          if (shareErr.name === "AbortError") {
+            return;
+          }
+          // If share failed, fall through to clipboard
+          console.error("Share failed, falling back to clipboard:", shareErr);
+        }
+      }
+      
+      // Desktop (or mobile if share failed): Copy to clipboard
+      if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(shareText);
         setTimedMessage("Copied to clipboard!", 2000);
       } else {
-        // Fallback for older browsers
+        // Fallback for older browsers that don't support clipboard API
         const textArea = document.createElement("textarea");
         textArea.value = shareText;
         textArea.style.position = "fixed";
@@ -776,20 +798,8 @@ const Game = ({
         document.body.removeChild(textArea);
       }
     } catch (err) {
-      // User cancelled share or error occurred
-      if (err.name !== "AbortError") {
-        console.error("Error sharing:", err);
-        // Try clipboard as fallback if share failed
-        try {
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(shareText);
-            setTimedMessage("Copied to clipboard!", 2000);
-          }
-        } catch (clipboardErr) {
-          console.error("Clipboard fallback also failed:", clipboardErr);
-          setTimedMessage("Failed to copy. Please copy manually.", 3000);
-        }
-      }
+      console.error("Error in handleShare:", err);
+      setTimedMessage("Failed to copy. Please copy manually.", 3000);
     }
   };
 
