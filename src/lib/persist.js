@@ -51,3 +51,10 @@ export function makeMarathonKey(speedrunEnabled) {
 export function marathonMetaKey(speedrunEnabled) {
   return `${PREFIX}meta:marathon:${speedrunEnabled ? "speedrun" : "standard"}`;
 }
+
+export function makeSolvedKey(mode, numBoards, speedrunEnabled, marathonIndex = null) {
+  if (mode === "marathon") {
+    return `${PREFIX}solved:${mode}:${numBoards}:${speedrunEnabled ? "speedrun" : "standard"}:${marathonIndex}`;
+  }
+  return `${PREFIX}solved:${mode}:${numBoards}:${speedrunEnabled ? "speedrun" : "standard"}`;
+}

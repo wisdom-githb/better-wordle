@@ -7,7 +7,8 @@ import {
   clearAllMultiWordle,
   makeDailyKey,
   makeMarathonKey,
-  marathonMetaKey
+  marathonMetaKey,
+  makeSolvedKey
 } from "./lib/persist";
 
 const MARATHON_LEVELS = [1, 4, 8, 16, 32];

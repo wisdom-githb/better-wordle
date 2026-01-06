@@ -1,13 +1,13 @@
 // src/Game.js
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { loadJSON, saveJSON, makeSolvedKey, makeDailyKey, makeMarathonKey } from "./lib/persist";
 
 const WORD_LENGTH = 5;
 
-// Flip settings (one-by-one but not painfully slow)
+// Flip settings - all tiles flip simultaneously
 const FLIP_MS = 500;      // how long a single tile flip takes
-const FLIP_STEP_MS = 180; // how long until the next tile starts (sequential feel, faster overall)
-// Total time for all tiles to finish flipping: last tile delay + flip duration
-const FLIP_COMPLETE_MS = (WORD_LENGTH - 1) * FLIP_STEP_MS + FLIP_MS;
+// Total time for all tiles to finish flipping: just the flip duration since they all start at once
+const FLIP_COMPLETE_MS = FLIP_MS;
 
 const KEYBOARD_ROWS = [
   "QWERTYUIOP".split(""),
@@ -292,6 +292,12 @@ function colorToEmoji(color) {
   return "⬛";
 }
 
+// Convert number to emoji number (0-9)
+function numberToEmoji(num) {
+  const emojiNumbers = ["0️⃣", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣"];
+  return num.toString().split("").map(digit => emojiNumbers[parseInt(digit)]).join("");
+}
+
 // Detect if the device is mobile
 function isMobileDevice() {
   return (
@@ -329,17 +335,17 @@ function generateShareText(boards, score, mode, numBoards, speedrunEnabled, stag
     lines.push(`Guesses: ${turnsUsed}/${maxTurns}`);
     lines.push(allSolved ? "✅ Solved!" : "❌ Not solved");
   } else {
-    // Multiple boards: show first board's grid + summary
-    const firstBoard = boards[0];
-    if (firstBoard && firstBoard.guesses && firstBoard.guesses.length > 0) {
-      firstBoard.guesses.forEach((guess) => {
-        const row = guess.colors.map(colorToEmoji).join("");
-        lines.push(row);
-      });
-      lines.push(""); // Empty line
-    }
+    // Multiple boards: show guess counts for each board in emoji format
+    const modePrefix = mode === "marathon" ? "Marathon" : "Daily";
+    lines.push(`🙂 ${modePrefix} Better Wordle ${numBoards > 4 ? numBoards : ""}`);
     
-    lines.push(`Multi Wordle - ${numBoards} boards`);
+    // Create guess count emojis for each board (like 7️⃣5️⃣4️⃣6️⃣)
+    const guessCounts = boards.map(board => board.guesses.length);
+    const guessCountsEmoji = guessCounts.map(count => numberToEmoji(count)).join("");
+    lines.push(guessCountsEmoji);
+    lines.push(""); // Empty line
+    
+    lines.push(`Better Wordle - ${numBoards} boards`);
     lines.push(`Score: ${score}`);
     if (speedrunEnabled) {
       const timeMs = popupTotalMs || stageElapsedMs;
@@ -353,6 +359,7 @@ function generateShareText(boards, score, mode, numBoards, speedrunEnabled, stag
   
   lines.push(""); // Empty line
   lines.push("Play Better Wordle!");
+  lines.push("https://wisdom-githb.github.io/better-wordle/");
   
   return lines.join("\n");
 }
@@ -383,6 +390,9 @@ const Game = ({
 
   const [showPopup, setShowPopup] = useState(false);
   const [showOutOfGuesses, setShowOutOfGuesses] = useState(false);
+
+  // Track if we're showing a previously solved game
+  const savedSolvedStateRef = useRef(null);
 
   // Unlimited (true in speedrun from the start; otherwise enabled after "Continue")
   const [isUnlimited, setIsUnlimited] = useState(false);
@@ -430,11 +440,144 @@ const Game = ({
     return () => clearMessageTimer();
   }, []);
 
+  // Helper function to get the game state key for incomplete games
+  const getGameStateKey = () => {
+    if (mode === "marathon") {
+      return makeMarathonKey(speedrunEnabled);
+    }
+    return makeDailyKey(numBoards, speedrunEnabled);
+  };
+
+  // Helper function to save incomplete game state
+  const saveGameState = () => {
+    if (boards.length === 0) return; // Don't save empty state
+    
+    const allSolved = boards.every((b) => b.isSolved);
+    if (allSolved) return; // Don't save if all solved (handled by solved state)
+    
+    const gameStateKey = getGameStateKey();
+    const gameState = {
+      boards,
+      currentGuess,
+      isUnlimited,
+      maxTurns,
+      stageStartTime: stageStartRef.current,
+      stageElapsedMs: speedrunEnabled && stageStartRef.current 
+        ? (stageEndRef.current ? (stageEndRef.current - stageStartRef.current) : (Date.now() - stageStartRef.current))
+        : 0,
+      committedRef: committedRef.current,
+      committedStageMs: committedStageMsRef.current,
+      revealId,
+      timestamp: Date.now()
+    };
+    saveJSON(gameStateKey, gameState);
+  };
+
+  // Helper function to clear saved game state
+  const clearGameState = () => {
+    const gameStateKey = getGameStateKey();
+    saveJSON(gameStateKey, null);
+  };
+
   useEffect(() => {
     async function initGame() {
       try {
         setIsLoading(true);
 
+        // Check if this mode has already been solved
+        const solvedKey = makeSolvedKey(mode, numBoards, speedrunEnabled, mode === "marathon" ? marathonIndex : null);
+        const solvedState = loadJSON(solvedKey, null);
+
+        if (solvedState && solvedState.allSolved) {
+          // Mode already solved - load saved state and show popup
+          savedSolvedStateRef.current = solvedState;
+          setBoards(solvedState.boards);
+          setCurrentGuess("");
+          setMessage("");
+          clearMessageTimer();
+          setShowPopup(true);
+          setShowOutOfGuesses(false);
+          setIsUnlimited(false);
+          setSelectedBoardIndex(null);
+          
+          const turns = getMaxTurns(numBoards);
+          setMaxTurns(turns);
+          
+          // For speedrun, restore timing state
+          if (speedrunEnabled) {
+            stageStartRef.current = Date.now() - (solvedState.stageElapsedMs || 0);
+            stageEndRef.current = Date.now();
+          } else {
+            stageStartRef.current = Date.now();
+            stageEndRef.current = null;
+          }
+          
+          committedRef.current = true;
+          committedStageMsRef.current = solvedState.stageElapsedMs || 0;
+          
+          const { ALLOWED_GUESSES } = await loadWordLists();
+          setAllowedSet(new Set(ALLOWED_GUESSES));
+          
+          setIsLoading(false);
+          return;
+        }
+        
+        // Reset saved state ref when starting a new game
+        savedSolvedStateRef.current = null;
+
+        // Check if there's an incomplete game state to resume
+        const gameStateKey = getGameStateKey();
+        const savedGameState = loadJSON(gameStateKey, null);
+
+        if (savedGameState && savedGameState.boards && savedGameState.boards.length > 0) {
+          // Check if the saved state matches current configuration
+          const allSolvedInSaved = savedGameState.boards.every((b) => b.isSolved);
+          if (!allSolvedInSaved) {
+            // Resume incomplete game
+            const { ALLOWED_GUESSES } = await loadWordLists();
+            setAllowedSet(new Set(ALLOWED_GUESSES));
+            
+            setBoards(savedGameState.boards);
+            setCurrentGuess(savedGameState.currentGuess || "");
+            setMaxTurns(savedGameState.maxTurns || getMaxTurns(numBoards));
+            setIsUnlimited(savedGameState.isUnlimited || false);
+            setSelectedBoardIndex(null);
+            
+            // Restore timing state
+            if (speedrunEnabled && savedGameState.stageStartTime) {
+              if (savedGameState.stageElapsedMs > 0 && savedGameState.stageElapsedMs === savedGameState.committedStageMs) {
+                // Was frozen/committed
+                stageStartRef.current = savedGameState.stageStartTime;
+                stageEndRef.current = savedGameState.stageStartTime + (savedGameState.stageElapsedMs || 0);
+                committedRef.current = savedGameState.committedRef || false;
+                committedStageMsRef.current = savedGameState.committedStageMs || 0;
+              } else {
+                // Was active, resume timing
+                const elapsed = savedGameState.stageElapsedMs || 0;
+                stageStartRef.current = Date.now() - elapsed;
+                stageEndRef.current = null;
+                committedRef.current = false;
+                committedStageMsRef.current = 0;
+              }
+            } else {
+              stageStartRef.current = Date.now();
+              stageEndRef.current = null;
+              committedRef.current = false;
+              committedStageMsRef.current = 0;
+            }
+            
+            setRevealId(savedGameState.revealId || 0);
+            setShowPopup(false);
+            setShowOutOfGuesses(false);
+            setMessage("");
+            clearMessageTimer();
+            
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        // No saved state - start new game
         const { ANSWER_WORDS, ALLOWED_GUESSES } = await loadWordLists();
         setAllowedSet(new Set(ALLOWED_GUESSES));
 
@@ -477,9 +620,12 @@ const Game = ({
 
     initGame();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [numBoards]);
+  }, [numBoards, mode, speedrunEnabled, marathonIndex]);
 
   const stageElapsedMs = (() => {
+    if (savedSolvedStateRef.current?.stageElapsedMs !== undefined) {
+      return savedSolvedStateRef.current.stageElapsedMs;
+    }
     if (!speedrunEnabled || !stageStartRef.current) return 0;
     const end = stageEndRef.current ?? nowMs;
     return end - stageStartRef.current;
@@ -616,11 +762,69 @@ const Game = ({
     if (finished && allSolvedNow) {
       const finalStageMs = freezeStageTimer();
       if (isMarathonSpeedrun) commitStageIfNeeded(finalStageMs);
+      
+      // Save solved state
+      const solvedKey = makeSolvedKey(mode, numBoards, speedrunEnabled, mode === "marathon" ? marathonIndex : null);
+      const currentTurnsUsed = getTurnsUsed(newBoards);
+      
+      // Calculate popupTotalMs for saving (same logic as display)
+      let savedPopupTotalMs = 0;
+      if (speedrunEnabled) {
+        if (isMarathonSpeedrun) {
+          // For marathon speedrun, calculate total from all stages
+          // Since we just committed, the stage should be in marathonStageTimes after commit
+          // But to be safe, we'll calculate it: if already committed, use cumulative, else add current
+          const stageAlreadyCommitted = marathonStageTimes.some((x) => x.boards === numBoards);
+          savedPopupTotalMs = stageAlreadyCommitted 
+            ? marathonCumulativeMs 
+            : marathonCumulativeMs + finalStageMs;
+        } else {
+          savedPopupTotalMs = finalStageMs;
+        }
+      }
+      
+      const currentScore = speedrunEnabled 
+        ? calculateSpeedrunScore(savedPopupTotalMs || finalStageMs, numBoards)
+        : calculateNonSpeedrunScore(newBoards, currentTurnsUsed, maxTurns, numBoards);
+      
+      const solvedState = {
+        boards: newBoards,
+        score: currentScore,
+        turnsUsed: currentTurnsUsed,
+        maxTurns,
+        allSolved: true,
+        solvedCount: newBoards.length,
+        stageElapsedMs: finalStageMs,
+        popupTotalMs: savedPopupTotalMs,
+        timestamp: Date.now()
+      };
+      saveJSON(solvedKey, solvedState);
+      
+      // Clear incomplete game state since game is now solved
+      clearGameState();
+      
       // Wait for flip animation to complete before showing popup
       setTimeout(() => {
         setShowPopup(true);
       }, FLIP_COMPLETE_MS);
     }
+  };
+
+  // Save game state whenever boards change (for incomplete games)
+  useEffect(() => {
+    if (boards.length > 0 && !isLoading) {
+      const allSolved = boards.every((b) => b.isSolved);
+      if (!allSolved) {
+        saveGameState();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boards, currentGuess, isUnlimited]);
+
+  // Save game state when user navigates back
+  const handleBack = () => {
+    saveGameState();
+    onBack();
   };
 
   const handleVirtualKey = (key) => {
@@ -702,7 +906,9 @@ const Game = ({
     return [{ boards: numBoards, ms: stageElapsedMs }];
   }, [speedrunEnabled, isMarathonSpeedrun, marathonStageTimes, numBoards, stageElapsedMs, marathonLevels]);
 
-  const popupTotalMs = speedrunEnabled
+  const popupTotalMs = savedSolvedStateRef.current?.popupTotalMs !== undefined
+    ? savedSolvedStateRef.current.popupTotalMs
+    : speedrunEnabled
     ? isMarathonSpeedrun
       ? sumMs(speedrunRows)
       : stageElapsedMs
@@ -833,9 +1039,6 @@ const Game = ({
       {/* Wordle-style 2-sided flip: back face is colored and only visible after 90deg */}
       <style>{`
         .mw-tile {
-          width: 32px;
-          height: 32px;
-          margin: 2px;
           flex-shrink: 0;
           perspective: 900px;
         }
@@ -887,7 +1090,7 @@ const Game = ({
         }}
       >
         <button
-          onClick={onBack}
+          onClick={handleBack}
           style={{
             border: "none",
             background: "transparent",
@@ -967,7 +1170,31 @@ const Game = ({
           )}
         </div>
 
-        {message && <div style={{ marginBottom: 8, color: "#f06272", fontSize: 13 }}>{message}</div>}
+        {/* Toast message - displayed above popups */}
+        {message && (
+          <div
+            style={{
+              position: "fixed",
+              top: "20px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              backgroundColor: "#1a1a1b",
+              color: "#f06272",
+              padding: "12px 20px",
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: "bold",
+              border: "1px solid #3a3a3c",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+              zIndex: 3000,
+              pointerEvents: "none",
+              maxWidth: "90vw",
+              textAlign: "center"
+            }}
+          >
+            {message}
+          </div>
+        )}
 
         <div
           style={{
@@ -988,6 +1215,13 @@ const Game = ({
 
             const greenPattern = getGreenPattern(board.guesses);
 
+            // Calculate tile size based on number of boards to ensure proper fit
+            // 5 tiles: tileWidth + (2 * margin) = per tile, so total = 5 * (tileWidth + 4)
+            // For smaller boards, reduce tile size and margin proportionally
+            const tileSize = numBoards >= 16 ? 28 : 32;
+            const tileMargin = numBoards >= 16 ? 1.5 : 2;
+            const rowWidth = 5 * (tileSize + tileMargin * 2);
+
             return (
               <div
                 key={index}
@@ -1001,7 +1235,9 @@ const Game = ({
                   boxShadow: isSelected ? "0 0 0 1px rgba(250,204,21,0.53)" : "none",
                   display: "flex",
                   flexDirection: "column",
-                  minWidth: 0
+                  minWidth: 0,
+                  width: "100%",
+                  boxSizing: "border-box"
                 }}
               >
                 <div
@@ -1041,7 +1277,22 @@ const Game = ({
                   const isJustRevealedRow = !!row && rowIdx === board.guesses.length - 1;
 
                   return (
-                    <div key={rowIdx} style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: 4, minHeight: "36px", flexShrink: 0, height: "36px" }}>
+                    <div 
+                      key={rowIdx} 
+                      style={{ 
+                        display: "flex", 
+                        justifyContent: "center", 
+                        alignItems: "center", 
+                        marginBottom: 4, 
+                        minHeight: `${tileSize + 4}px`, 
+                        flexShrink: 0, 
+                        height: `${tileSize + 4}px`,
+                        width: "100%",
+                        maxWidth: `${rowWidth}px`,
+                        marginLeft: "auto",
+                        marginRight: "auto"
+                      }}
+                    >
                       {Array.from({ length: WORD_LENGTH }).map((__, colIdx) => {
                         const typedChar = isCurrentRow ? currentGuess[colIdx] : "";
 
@@ -1074,16 +1325,16 @@ const Game = ({
                             <div
                               key={colIdx}
                               style={{
-                                width: 32,
-                                height: 32,
-                                margin: 2,
+                                width: tileSize,
+                                height: tileSize,
+                                margin: tileMargin,
                                 borderRadius: 4,
                                 border: `2px solid ${borderColor}`,
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
                                 fontWeight: "bold",
-                                fontSize: 18,
+                                fontSize: numBoards >= 16 ? 16 : 18,
                                 backgroundColor: bg,
                                 textTransform: "uppercase",
                                 color: fg,
@@ -1104,16 +1355,16 @@ const Game = ({
                             <div
                               key={colIdx}
                               style={{
-                                width: 32,
-                                height: 32,
-                                margin: 2,
+                                width: tileSize,
+                                height: tileSize,
+                                margin: tileMargin,
                                 borderRadius: 4,
                                 border: "2px solid transparent",
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
                                 fontWeight: "bold",
-                                fontSize: 18,
+                                fontSize: numBoards >= 16 ? 16 : 18,
                                 backgroundColor: bg,
                                 textTransform: "uppercase",
                                 color: "#ffffff",
@@ -1126,16 +1377,56 @@ const Game = ({
                           );
                         }
 
-                        // Newest revealed row: flip sequentially (one by one, fast)
+                        // Newest revealed row: flip simultaneously (all tiles at once)
+                        // Only flip if the board is not solved
+                        const shouldFlip = !board.isSolved;
+
+                        // If board is solved, show static colored tile immediately (no flip)
+                        if (!shouldFlip) {
+                          const bg = bgForColor(color);
+                          return (
+                            <div
+                              key={colIdx}
+                              style={{
+                                width: tileSize,
+                                height: tileSize,
+                                margin: tileMargin,
+                                borderRadius: 4,
+                                border: "2px solid transparent",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontWeight: "bold",
+                                fontSize: numBoards >= 16 ? 16 : 18,
+                                backgroundColor: bg,
+                                textTransform: "uppercase",
+                                color: "#ffffff",
+                                flexShrink: 0,
+                                boxSizing: "border-box"
+                              }}
+                            >
+                              {displayChar}
+                            </div>
+                          );
+                        }
+                        
                         const frontBg = "#121213";
                         const frontBorder = "#3a3a3c";
                         const backBg = bgForColor(color);
 
-                        // each tile starts after a fixed step (sequential feel, not too slow)
-                        const delayMs = colIdx * FLIP_STEP_MS;
+                        // All tiles start at the same time (no delay)
+                        const delayMs = 0;
 
                         return (
-                          <div key={colIdx} className="mw-tile">
+                          <div 
+                            key={colIdx} 
+                            className="mw-tile"
+                            style={{
+                              width: tileSize,
+                              height: tileSize,
+                              margin: tileMargin
+                            }}
+                          >
                             <div
                               key={`${revealId}-${index}-${rowIdx}-${colIdx}`}
                               className="mw-card mw-flip"
@@ -1146,7 +1437,8 @@ const Game = ({
                                 style={{
                                   backgroundColor: frontBg,
                                   border: `2px solid ${frontBorder}`,
-                                  color: "#ffffff"
+                                  color: "#ffffff",
+                                  fontSize: numBoards >= 16 ? 16 : 18
                                 }}
                               >
                                 {displayChar}
@@ -1157,7 +1449,8 @@ const Game = ({
                                 style={{
                                   backgroundColor: backBg,
                                   border: "2px solid transparent",
-                                  color: "#ffffff"
+                                  color: "#ffffff",
+                                  fontSize: numBoards >= 16 ? 16 : 18
                                 }}
                               >
                                 {displayChar}
@@ -1221,13 +1514,13 @@ const Game = ({
           bottom: 0,
           zIndex: 1000,
           borderTop: "1px solid #3a3a3c",
-          padding: "8px 8px 16px",
+          padding: "8px 4px calc(16px + env(safe-area-inset-bottom, 0px))",
           background: "#121213"
         }}
       >
-        <div style={{ maxWidth: 680, margin: "0 auto", display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ maxWidth: "100%", width: "100%", padding: "0 4px", margin: "0 auto", display: "flex", flexDirection: "column", gap: 6 }}>
           {KEYBOARD_ROWS.map((row, rIndex) => (
-            <div key={rIndex} style={{ display: "flex", justifyContent: "center", gap: 4 }}>
+            <div key={rIndex} style={{ display: "flex", justifyContent: "center", gap: 3, padding: "0 2px" }}>
               {row.map((key) => {
                 const isAction = key === "ENTER" || key === "BACK";
                 const isLetter = /^[A-Z]$/.test(key);
@@ -1246,6 +1539,15 @@ const Game = ({
                 const showGridOverlay = isLetter && isMultiNoFocus;
                 const multiStatuses = isLetter ? perBoardLetterMaps.map((m) => m[key] ?? "none") : [];
 
+                // Calculate responsive sizes for mobile
+                const isMobile = window.innerWidth <= 768;
+                const actionButtonMaxWidth = isMobile ? "none" : 92;
+                const letterButtonMaxWidth = isMobile ? "none" : 44;
+                const buttonGap = isMobile ? 3 : 4;
+                const fontSize = isMobile ? (isAction ? 11 : 14) : (isAction ? 20 : 25);
+                const buttonHeight = isMobile ? 42 : 52;
+                const buttonPadding = isMobile ? "4px 2px" : "6px 4px";
+
                 return (
                   <button
                     key={key}
@@ -1253,21 +1555,25 @@ const Game = ({
                     style={{
                       position: "relative",
                       flex: isAction ? 1.6 : 1,
-                      maxWidth: isAction ? 92 : 44,
-                      height: 52,
-                      padding: "6px 4px",
-                      borderRadius: 8,
+                      maxWidth: isAction ? actionButtonMaxWidth : letterButtonMaxWidth,
+                      minWidth: 0,
+                      height: buttonHeight,
+                      padding: buttonPadding,
+                      borderRadius: 6,
                       border: "none",
                       backgroundColor: baseBg,
                       color: "#ffffff",
                       fontWeight: "bold",
-                      fontSize: isAction ? 20 : 25,
+                      fontSize: fontSize,
                       cursor: "pointer",
                       textTransform: "uppercase",
-                      overflow: "hidden"
+                      overflow: "hidden",
+                      whiteSpace: "nowrap",
+                      textOverflow: "ellipsis",
+                      boxSizing: "border-box"
                     }}
                   >
-                    <div style={{ position: "relative", zIndex: 2, lineHeight: "22px" }}>{display}</div>
+                    <div style={{ position: "relative", zIndex: 2, lineHeight: isMobile ? "18px" : "22px", overflow: "hidden", textOverflow: "ellipsis" }}>{display}</div>
 
                     {showGridOverlay && (
                       <div
