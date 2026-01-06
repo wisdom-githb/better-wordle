@@ -14,9 +14,9 @@
 // Note: These are public keys and safe to expose in client-side code
 
 export const EMAILJS_CONFIG = {
-  SERVICE_ID: "YOUR_SERVICE_ID",
-  TEMPLATE_ID: "YOUR_TEMPLATE_ID",
-  PUBLIC_KEY: "YOUR_PUBLIC_KEY",
+  SERVICE_ID: "gmail-better-wordle",
+  TEMPLATE_ID: "feedback_better_wordle",
+  PUBLIC_KEY: "jIpS9TFRU6hC_kPiN",
   TO_EMAIL: "abhijeetsridhar14@gmail.com",
   SUBJECT: "feedback for better-wordle",
 };
