@@ -1547,10 +1547,13 @@ const Game = ({
                 const letterButtonMaxWidth = isMobile ? "none" : 44;
                 const buttonGap = isMobile ? 3 : 4;
                 const buttonHeight = isMobile ? 42 : 52;
-                const buttonPadding = isMobile ? "4px 2px" : "6px 4px";
+                const buttonPadding = isMobile ? (isAction ? "4px 4px" : "4px 2px") : "6px 4px";
                 // Font size is 70% of button height for letters, smaller for action buttons to fit text
+                // On mobile, use even smaller font for action buttons to prevent overflow
                 const fontSize = isAction 
-                  ? `${Math.round(buttonHeight * 0.5)}px` 
+                  ? isMobile 
+                    ? `${Math.round(buttonHeight * 0.4)}px`
+                    : `${Math.round(buttonHeight * 0.5)}px`
                   : `${Math.round(buttonHeight * 0.7)}px`;
 
                 return (
@@ -1572,16 +1575,16 @@ const Game = ({
                       fontSize: fontSize,
                       cursor: "pointer",
                       textTransform: "uppercase",
-                      overflow: isAction ? "visible" : "hidden",
+                      overflow: "hidden",
                       whiteSpace: "nowrap",
-                      textOverflow: isAction ? "clip" : "ellipsis",
+                      textOverflow: "ellipsis",
                       boxSizing: "border-box",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center"
                     }}
                   >
-                    <div style={{ position: "relative", zIndex: 2, lineHeight: `${buttonHeight}px`, overflow: isAction ? "visible" : "hidden", textOverflow: isAction ? "clip" : "ellipsis", display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%" }}>{display}</div>
+                    <div style={{ position: "relative", zIndex: 2, lineHeight: `${buttonHeight}px`, overflow: "hidden", textOverflow: "ellipsis", display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%", padding: isAction ? "0 4px" : "0" }}>{display}</div>
 
                     {showGridOverlay && (
                       <div
