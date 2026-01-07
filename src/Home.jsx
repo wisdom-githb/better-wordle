@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Home.css";
 import FeedbackModal from "./components/FeedbackModal";
@@ -8,7 +8,7 @@ import { saveJSON, loadJSON, marathonMetaKey } from "./lib/persist";
 
 const BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
 
-function ModeRow({ title, desc, buttonText, onClick, variant = "green", titleRight }) {
+const ModeRow = React.memo(function ModeRow({ title, desc, buttonText, onClick, variant = "green", titleRight }) {
   return (
     <div className="modeRow">
       <div className="modeRowText">
@@ -27,7 +27,7 @@ function ModeRow({ title, desc, buttonText, onClick, variant = "green", titleRig
       </button>
     </div>
   );
-}
+});
 
 export default function Home({
   dailyBoards,
@@ -42,8 +42,34 @@ export default function Home({
   const { user, signOut } = useAuth();
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const marathonMaxLabel = marathonLevels[marathonLevels.length - 1];
-  const currentBoards = marathonLevels[marathonIndex];
+  
+  const marathonMaxLabel = useMemo(() => marathonLevels[marathonLevels.length - 1], [marathonLevels]);
+  const currentBoards = useMemo(() => marathonLevels[marathonIndex], [marathonLevels, marathonIndex]);
+  
+  const handleCloseFeedback = useCallback(() => setShowFeedbackModal(false), []);
+  const handleOpenFeedback = useCallback(() => setShowFeedbackModal(true), []);
+  const handleCloseAuth = useCallback(() => setShowAuthModal(false), []);
+  const handleOpenAuth = useCallback(() => setShowAuthModal(true), []);
+  
+  const handleDailyStandard = useCallback(() => {
+    saveJSON("mw:dailyBoards", dailyBoards);
+    navigate(`/game?mode=daily&boards=${dailyBoards}&speedrun=false`);
+  }, [dailyBoards, navigate]);
+  
+  const handleDailySpeedrun = useCallback(() => {
+    saveJSON("mw:dailyBoards", dailyBoards);
+    navigate(`/game?mode=daily&boards=${dailyBoards}&speedrun=true`);
+  }, [dailyBoards, navigate]);
+  
+  const handleMarathonStandard = useCallback(() => {
+    navigate(`/game?mode=marathon&speedrun=false`);
+  }, [navigate]);
+  
+  const handleMarathonSpeedrun = useCallback(() => {
+    navigate(`/game?mode=marathon&speedrun=true`);
+  }, [navigate]);
+  
+  const dailyTitleRight = useMemo(() => `${dailyBoards} board${dailyBoards > 1 ? "s" : ""}`, [dailyBoards]);
 
   return (
     <div className="homeRoot">
@@ -79,14 +105,14 @@ export default function Home({
               ) : (
                 <button
                   className="homeBtn homeBtnOutline"
-                  onClick={() => setShowAuthModal(true)}
+                  onClick={handleOpenAuth}
                 >
                   Sign In
                 </button>
               )}
               <button
                 className="homeBtn homeBtnOutline"
-                onClick={() => setShowFeedbackModal(true)}
+                onClick={handleOpenFeedback}
               >
                 Feedback
               </button>
@@ -99,12 +125,12 @@ export default function Home({
 
         <AuthModal
           isOpen={showAuthModal}
-          onRequestClose={() => setShowAuthModal(false)}
+          onRequestClose={handleCloseAuth}
         />
 
         <FeedbackModal
           isOpen={showFeedbackModal}
-          onRequestClose={() => setShowFeedbackModal(false)}
+          onRequestClose={handleCloseFeedback}
         />
 
         {/* DAILY */}
@@ -141,24 +167,18 @@ export default function Home({
               title="Daily (standard)"
               desc="Limited turns. No timer. Good for casual play."
               buttonText="Play daily"
-              onClick={() => {
-                saveJSON("mw:dailyBoards", dailyBoards);
-                navigate(`/game?mode=daily&boards=${dailyBoards}&speedrun=false`);
-              }}
+              onClick={handleDailyStandard}
               variant="green"
-              titleRight={`${dailyBoards} board${dailyBoards > 1 ? "s" : ""}`}
+              titleRight={dailyTitleRight}
             />
 
             <ModeRow
               title="Daily (speedrun)"
               desc="Unlimited guesses. Timer starts immediately."
               buttonText="Speedrun daily"
-              onClick={() => {
-                saveJSON("mw:dailyBoards", dailyBoards);
-                navigate(`/game?mode=daily&boards=${dailyBoards}&speedrun=true`);
-              }}
+              onClick={handleDailySpeedrun}
               variant="green"
-              titleRight={`${dailyBoards} board${dailyBoards > 1 ? "s" : ""}`}
+              titleRight={dailyTitleRight}
             />
           </div>
         </section>
@@ -191,9 +211,7 @@ export default function Home({
               title="Marathon (standard)"
               desc="Resume your current marathon stage."
               buttonText="Play marathon"
-              onClick={() => {
-                navigate(`/game?mode=marathon&speedrun=false`);
-              }}
+              onClick={handleMarathonStandard}
               variant="gold"
               titleRight={`${currentBoards} boards`}
             />
@@ -202,9 +220,7 @@ export default function Home({
               title="Marathon (speedrun)"
               desc="Resume your speedrun marathon (timed cumulative)."
               buttonText="Speedrun marathon"
-              onClick={() => {
-                navigate(`/game?mode=marathon&speedrun=true`);
-              }}
+              onClick={handleMarathonSpeedrun}
               variant="gold"
               titleRight={`${marathonLevels[0]} → ${marathonMaxLabel}`}
             />

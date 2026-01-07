@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   signInWithPopup, 
   signOut as firebaseSignOut, 
@@ -23,7 +23,7 @@ export function useAuth() {
     return () => unsubscribe();
   }, []);
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = useCallback(async () => {
     try {
       setError(null);
       setLoading(true);
@@ -35,9 +35,9 @@ export function useAuth() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const signUpWithEmail = async (email, password) => {
+  const signUpWithEmail = useCallback(async (email, password) => {
     try {
       setError(null);
       setLoading(true);
@@ -49,9 +49,9 @@ export function useAuth() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const signInWithEmail = async (email, password) => {
+  const signInWithEmail = useCallback(async (email, password) => {
     try {
       setError(null);
       setLoading(true);
@@ -63,9 +63,9 @@ export function useAuth() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
       setError(null);
       await firebaseSignOut(auth);
@@ -73,7 +73,7 @@ export function useAuth() {
       setError(err.message);
       throw err;
     }
-  };
+  }, []);
 
   return {
     user,

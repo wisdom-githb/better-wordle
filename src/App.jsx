@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Home from "./Home";
 import Game from "./Game";
@@ -33,12 +33,14 @@ function App() {
     }
   }, []);
 
-  const handleResetAll = () => {
+  const handleResetAll = useCallback(() => {
     clearAllMultiWordle();
     setDailyBoards(1);
     setMarathonIndex(0);
     saveJSON("mw:dailyBoards", 1);
-  };
+  }, []);
+  
+  const marathonLevelsMemo = useMemo(() => MARATHON_LEVELS, []);
 
   return (
     <Routes>
@@ -49,12 +51,12 @@ function App() {
             dailyBoards={dailyBoards}
             setDailyBoards={setDailyBoards}
             marathonIndex={marathonIndex}
-            marathonLevels={MARATHON_LEVELS}
+            marathonLevels={marathonLevelsMemo}
             onResetAll={handleResetAll}
           />
         } 
       />
-      <Route path="/game/*" element={<Game marathonLevels={MARATHON_LEVELS} />} />
+      <Route path="/game/*" element={<Game marathonLevels={marathonLevelsMemo} />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

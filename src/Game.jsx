@@ -1,5 +1,5 @@
 // src/Game.js
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { loadJSON, saveJSON, makeSolvedKey, makeDailyKey, makeMarathonKey, marathonMetaKey } from "./lib/persist";
 
@@ -470,15 +470,15 @@ const Game = ({
   }, []);
 
   // Helper function to get the game state key for incomplete games
-  const getGameStateKey = () => {
+  const getGameStateKey = useCallback(() => {
     if (mode === "marathon") {
       return makeMarathonKey(speedrunEnabled);
     }
     return makeDailyKey(numBoards, speedrunEnabled);
-  };
+  }, [mode, speedrunEnabled, numBoards]);
 
   // Helper function to save incomplete game state
-  const saveGameState = () => {
+  const saveGameState = useCallback(() => {
     if (boards.length === 0) return; // Don't save empty state
     
     const allSolved = boards.every((b) => b.isSolved);
@@ -500,13 +500,13 @@ const Game = ({
       timestamp: Date.now()
     };
     saveJSON(gameStateKey, gameState);
-  };
+  }, [boards, currentGuess, isUnlimited, maxTurns, speedrunEnabled, revealId, getGameStateKey]);
 
   // Helper function to clear saved game state
-  const clearGameState = () => {
+  const clearGameState = useCallback(() => {
     const gameStateKey = getGameStateKey();
     saveJSON(gameStateKey, null);
-  };
+  }, [getGameStateKey]);
 
   useEffect(() => {
     async function initGame() {
@@ -890,10 +890,10 @@ const Game = ({
   }, [boards, currentGuess, isUnlimited]);
 
   // Save game state when user navigates back
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     saveGameState();
     navigate("/");
-  };
+  }, [saveGameState, navigate]);
 
   const handleVirtualKey = (key) => {
     if (showPopup || showOutOfGuesses) return;
@@ -902,16 +902,19 @@ const Game = ({
     else addLetter(key);
   };
 
-  const solvedCount = boards.filter((b) => b.isSolved).length;
+  const solvedCount = useMemo(() => boards.filter((b) => b.isSolved).length, [boards]);
 
-  const finished = isUnlimited
-    ? boards.length > 0 && boards.every((b) => b.isSolved)
-    : boards.length > 0 && boards.every((b) => b.isSolved || b.isDead);
+  const finished = useMemo(() => {
+    if (boards.length === 0) return false;
+    return isUnlimited
+      ? boards.every((b) => b.isSolved)
+      : boards.every((b) => b.isSolved || b.isDead);
+  }, [boards, isUnlimited]);
 
-  const allSolved = boards.length > 0 && boards.every((b) => b.isSolved);
+  const allSolved = useMemo(() => boards.length > 0 && boards.every((b) => b.isSolved), [boards]);
 
-  const solutionsText = boards.map((b) => b.solution).join(" · ");
-  const turnsUsed = getTurnsUsed(boards);
+  const solutionsText = useMemo(() => boards.map((b) => b.solution).join(" · "), [boards]);
+  const turnsUsed = useMemo(() => getTurnsUsed(boards), [boards]);
 
   const statusText =
     speedrunEnabled
@@ -920,16 +923,22 @@ const Game = ({
       ? "Stage complete."
       : `Guesses used: ${turnsUsed}/${maxTurns}${isUnlimited ? " (unlimited)" : ""}`;
 
-  const gridCols = Math.ceil(Math.sqrt(numBoards));
-  const gridRows = Math.ceil(numBoards / gridCols);
+  const gridCols = useMemo(() => Math.ceil(Math.sqrt(numBoards)), [numBoards]);
+  const gridRows = useMemo(() => Math.ceil(numBoards / gridCols), [numBoards, gridCols]);
 
-  const marathonHasNext = mode === "marathon" && marathonIndex < marathonLevels.length - 1;
-  const marathonNextBoards = marathonHasNext ? marathonLevels[marathonIndex + 1] : null;
+  const marathonHasNext = useMemo(() => 
+    mode === "marathon" && marathonIndex < marathonLevels.length - 1,
+    [mode, marathonIndex, marathonLevels.length]
+  );
+  const marathonNextBoards = useMemo(() => 
+    marathonHasNext ? marathonLevels[marathonIndex + 1] : null,
+    [marathonHasNext, marathonLevels, marathonIndex]
+  );
 
   const showNextStageBar =
     mode === "marathon" && allSolved && !showPopup && !showOutOfGuesses && marathonHasNext;
 
-  const goNextStage = () => {
+  const goNextStage = useCallback(() => {
     if (marathonHasNext) {
       const newIndex = marathonIndex + 1;
       const metaKey = marathonMetaKey(speedrunEnabled);
@@ -939,7 +948,7 @@ const Game = ({
       navigate(`/game?mode=marathon&speedrun=${speedrunEnabled}`, { replace: true });
       window.location.reload(); // Reload to get new marathonIndex
     }
-  };
+  }, [marathonHasNext, marathonIndex, speedrunEnabled, navigate]);
 
   const exitFromOutOfGuesses = () => {
     freezeStageTimer();

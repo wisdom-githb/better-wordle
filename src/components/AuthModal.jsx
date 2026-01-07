@@ -1,16 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 
-export default function AuthModal({ isOpen, onRequestClose }) {
+export default React.memo(function AuthModal({ isOpen, onRequestClose }) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const { signInWithGoogle, signUpWithEmail, signInWithEmail, loading } = useAuth();
 
-  if (!isOpen) return null;
-
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignIn = useCallback(async () => {
     try {
       setError('');
       await signInWithGoogle();
@@ -18,9 +16,9 @@ export default function AuthModal({ isOpen, onRequestClose }) {
     } catch (err) {
       setError(err.message || 'Failed to sign in with Google');
     }
-  };
+  }, [signInWithGoogle, onRequestClose]);
 
-  const handleEmailSubmit = async (e) => {
+  const handleEmailSubmit = useCallback(async (e) => {
     e.preventDefault();
     setError('');
 
@@ -41,15 +39,25 @@ export default function AuthModal({ isOpen, onRequestClose }) {
     } catch (err) {
       setError(err.message || `Failed to ${isSignUp ? 'sign up' : 'sign in'}`);
     }
-  };
+  }, [isSignUp, email, password, signUpWithEmail, signInWithEmail, onRequestClose]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setEmail('');
     setPassword('');
     setError('');
     setIsSignUp(false);
     onRequestClose();
-  };
+  }, [onRequestClose]);
+
+  const handleToggleSignUp = useCallback(() => {
+    setIsSignUp(prev => !prev);
+    setError('');
+  }, []);
+
+  const handleEmailChange = useCallback((e) => setEmail(e.target.value), []);
+  const handlePasswordChange = useCallback((e) => setPassword(e.target.value), []);
+
+  if (!isOpen) return null;
 
   return (
     <div
@@ -161,7 +169,7 @@ export default function AuthModal({ isOpen, onRequestClose }) {
               type="email"
               placeholder="Email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={handleEmailChange}
               disabled={loading}
               style={{
                 width: '100%',
@@ -181,7 +189,7 @@ export default function AuthModal({ isOpen, onRequestClose }) {
               type="password"
               placeholder="Password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={handlePasswordChange}
               disabled={loading}
               style={{
                 width: '100%',
@@ -219,10 +227,7 @@ export default function AuthModal({ isOpen, onRequestClose }) {
 
         <div style={{ textAlign: 'center' }}>
           <button
-            onClick={() => {
-              setIsSignUp(!isSignUp);
-              setError('');
-            }}
+            onClick={handleToggleSignUp}
             disabled={loading}
             style={{
               background: 'none',
@@ -263,4 +268,4 @@ export default function AuthModal({ isOpen, onRequestClose }) {
       </div>
     </div>
   );
-}
+});
