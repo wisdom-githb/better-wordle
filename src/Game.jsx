@@ -407,6 +407,8 @@ const Game = ({
   
   // Refs for each board element for scrolling
   const boardRefs = useRef({});
+  // Track if board selection popup is open
+  const [showBoardSelector, setShowBoardSelector] = useState(false);
 
   // Speedrun timing (PER STAGE)
   const stageStartRef = useRef(null);
@@ -1168,78 +1170,12 @@ const Game = ({
       <main
         style={{
           flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          padding: "0 16px 16px 16px",
           overflowY: "auto",
+          overflowX: "hidden",
           paddingBottom: KEYBOARD_HEIGHT + (showNextStageBar ? 62 : 16)
         }}
       >
-        {/* Sticky board selector row */}
-        <div
-          style={{
-            position: "sticky",
-            top: 0,
-            zIndex: 100,
-            backgroundColor: "#121213",
-            padding: "16px 0 12px 0",
-            marginBottom: 8,
-            borderBottom: "1px solid #3a3a3c",
-            marginLeft: -16,
-            marginRight: -16,
-            paddingLeft: 16,
-            paddingRight: 16
-          }}
-        >
-          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            {/* Board number buttons */}
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-              {boards.map((board, index) => {
-                const isSelected = selectedBoardIndex === index;
-                const isSolved = board.isSolved;
-                const isDead = !isUnlimited && board.isDead;
-                
-                return (
-                  <button
-                    key={index}
-                    onClick={() => {
-                      setSelectedBoardIndex(index);
-                      const boardElement = boardRefs.current[index];
-                      if (boardElement) {
-                        boardElement.scrollIntoView({ behavior: "smooth", block: "center" });
-                      }
-                    }}
-                    style={{
-                      padding: "6px 12px",
-                      borderRadius: 6,
-                      border: isSelected ? "2px solid #facc15" : "1px solid #3a3a3c",
-                      background: isSolved
-                        ? "#6aaa64"
-                        : isDead
-                        ? "#3a3a3c"
-                        : isSelected
-                        ? "#1a1a1b"
-                        : "transparent",
-                      color: isSolved || isDead ? "#ffffff" : "#ffffff",
-                      fontSize: 13,
-                      fontWeight: "bold",
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                      minWidth: 40,
-                      textAlign: "center"
-                    }}
-                  >
-                    B{index + 1}
-                  </button>
-                );
-              })}
-            </div>
-            
-            {/* Status text on the right */}
-            <div style={{ fontSize: 14, color: "#d7dadc", marginLeft: "auto" }}>{statusText}</div>
-          </div>
-        </div>
-
+        <div style={{ padding: "16px" }}>
         {/* End game button row - only show if needed */}
         {canManualEnd && (
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
@@ -1531,6 +1467,7 @@ const Game = ({
             );
           })}
         </div>
+        </div>
       </main>
 
       {/* Next-stage bar (unchanged: only when all solved) */}
@@ -1609,9 +1546,12 @@ const Game = ({
                 const actionButtonMaxWidth = isMobile ? "none" : 92;
                 const letterButtonMaxWidth = isMobile ? "none" : 44;
                 const buttonGap = isMobile ? 3 : 4;
-                const fontSize = isMobile ? (isAction ? 11 : 14) : (isAction ? 20 : 25);
                 const buttonHeight = isMobile ? 42 : 52;
                 const buttonPadding = isMobile ? "4px 2px" : "6px 4px";
+                // Font size is 70% of button height for letters, smaller for action buttons to fit text
+                const fontSize = isAction 
+                  ? `${Math.round(buttonHeight * 0.5)}px` 
+                  : `${Math.round(buttonHeight * 0.7)}px`;
 
                 return (
                   <button
@@ -1632,13 +1572,16 @@ const Game = ({
                       fontSize: fontSize,
                       cursor: "pointer",
                       textTransform: "uppercase",
-                      overflow: "hidden",
+                      overflow: isAction ? "visible" : "hidden",
                       whiteSpace: "nowrap",
-                      textOverflow: "ellipsis",
-                      boxSizing: "border-box"
+                      textOverflow: isAction ? "clip" : "ellipsis",
+                      boxSizing: "border-box",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center"
                     }}
                   >
-                    <div style={{ position: "relative", zIndex: 2, lineHeight: isMobile ? "18px" : "22px", overflow: "hidden", textOverflow: "ellipsis" }}>{display}</div>
+                    <div style={{ position: "relative", zIndex: 2, lineHeight: `${buttonHeight}px`, overflow: isAction ? "visible" : "hidden", textOverflow: isAction ? "clip" : "ellipsis", display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%" }}>{display}</div>
 
                     {showGridOverlay && (
                       <div
@@ -1676,6 +1619,105 @@ const Game = ({
           ))}
         </div>
       </footer>
+
+      {/* Floating board selector button - bottom left */}
+      <button
+        onClick={() => setShowBoardSelector(!showBoardSelector)}
+        style={{
+          position: "fixed",
+          bottom: KEYBOARD_HEIGHT + 20,
+          left: 20,
+          padding: "6px 12px",
+          borderRadius: 6,
+          backgroundColor: "#121213",
+          border: "1px solid #ffffff",
+          color: "#ffffff",
+          fontSize: 11,
+          fontWeight: "bold",
+          cursor: "pointer",
+          zIndex: 9999,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.7)",
+          transition: "all 0.3s ease",
+          outline: "none",
+          whiteSpace: "nowrap"
+        }}
+        aria-label={showBoardSelector ? "Close board selection" : "Open board selection"}
+      >
+        {showBoardSelector ? "Close" : "Board Selection"}
+      </button>
+
+      {/* Board selector popup */}
+      {showBoardSelector && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: KEYBOARD_HEIGHT + 90,
+            left: 20,
+            backgroundColor: "#1a1a1b",
+            borderRadius: 12,
+            padding: "16px",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.8)",
+            zIndex: 9998,
+            border: "1px solid #3a3a3c",
+            maxWidth: "90vw",
+            minWidth: 200
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* Status text */}
+            <div style={{ fontSize: 14, color: "#d7dadc", fontWeight: "bold", marginBottom: 4 }}>
+              {statusText}
+            </div>
+            
+            {/* Board number buttons */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              {boards.map((board, index) => {
+                const isSelected = selectedBoardIndex === index;
+                const isSolved = board.isSolved;
+                const isDead = !isUnlimited && board.isDead;
+                
+                return (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      setSelectedBoardIndex(index);
+                      setShowBoardSelector(false);
+                      const boardElement = boardRefs.current[index];
+                      if (boardElement) {
+                        boardElement.scrollIntoView({ behavior: "smooth", block: "center" });
+                      }
+                    }}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 6,
+                      border: isSelected ? "2px solid #facc15" : "1px solid #3a3a3c",
+                      background: isSolved
+                        ? "#6aaa64"
+                        : isDead
+                        ? "#3a3a3c"
+                        : isSelected
+                        ? "#1a1a1b"
+                        : "transparent",
+                      color: isSolved || isDead ? "#ffffff" : "#ffffff",
+                      fontSize: 13,
+                      fontWeight: "bold",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      minWidth: 40,
+                      textAlign: "center"
+                    }}
+                  >
+                    B{index + 1}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Out-of-guesses popup */}
       {showOutOfGuesses && (
