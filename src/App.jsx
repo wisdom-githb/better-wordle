@@ -34,13 +34,8 @@ function App() {
     }
   }, [location.pathname]);
 
-  // Load persisted state
+  // Load persisted state (only marathon index, not dailyBoards)
   useEffect(() => {
-    const savedDailyBoards = loadJSON("mw:dailyBoards", 1);
-    if (BOARD_OPTIONS.includes(savedDailyBoards)) {
-      setDailyBoards(savedDailyBoards);
-    }
-
     const standardMeta = loadJSON(marathonMetaKey(false), null);
     const speedrunMeta = loadJSON(marathonMetaKey(true), null);
 
@@ -50,6 +45,13 @@ function App() {
       setMarathonIndex(speedrunMeta.index);
     }
   }, []);
+
+  // Reset dailyBoards to 1 whenever navigating to home page
+  useEffect(() => {
+    if (location.pathname === '/' || location.pathname.endsWith('/')) {
+      setDailyBoards(1);
+    }
+  }, [location.pathname]);
 
   const marathonLevelsMemo = useMemo(() => MARATHON_LEVELS, []);
 

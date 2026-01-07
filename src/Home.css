@@ -12,24 +12,54 @@
 
 .homeHeader {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 20px;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #2b2b2e;
 }
 
 .homeTitle {
   margin: 0;
-  letter-spacing: 2px;
-  font-size: 34px;
-  line-height: 1.1;
+  letter-spacing: 3px;
+  font-size: 36px;
+  line-height: 1;
+  font-weight: 800;
 }
 
-.homeSubtitle {
-  margin-top: 8px;
+.homeHeaderRight {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.homeHeaderInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+}
+
+.resetTimer {
+  font-size: 11px;
+  color: #818384;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+
+.userInfo {
+  font-size: 12px;
   color: #d7dadc;
-  font-size: 14px;
-  line-height: 1.4;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.homeHeaderButtons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .panel {
@@ -37,8 +67,8 @@
   border-radius: 14px;
   background: linear-gradient(180deg, #1a1a1b 0%, #161617 100%);
   box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-  padding: 16px;
-  margin-bottom: 16px;
+  padding: 20px;
+  margin-bottom: 18px;
 }
 
 .panelTop {
@@ -205,17 +235,33 @@
 .homeBtnGreen {
   background: #6aaa64;
   color: #ffffff;
+  transition: all 0.2s ease;
+}
+
+.homeBtnGreen:hover {
+  background: #5a9a54;
 }
 
 .homeBtnGold {
   background: #c9b458;
   color: #121213;
+  transition: all 0.2s ease;
+}
+
+.homeBtnGold:hover {
+  background: #d4c267;
 }
 
 .homeBtnOutline {
   border: 1px solid #3a3a3c;
   background: transparent;
   color: #ffffff;
+  transition: all 0.2s ease;
+}
+
+.homeBtnOutline:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: #565758;
 }
 
 .homeBtn:active {
@@ -225,4 +271,32 @@
 .homeBtn:focus {
   outline: none;
   box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.25);
+}
+
+@media (max-width: 768px) {
+  .homeHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .homeHeaderRight {
+    width: 100%;
+    align-items: flex-start;
+  }
+
+  .homeHeaderButtons {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .homeHeaderButtons .homeBtn {
+    flex: 1;
+    min-width: 100px;
+  }
+
+  .homeTitle {
+    font-size: 28px;
+    letter-spacing: 2px;
+  }
 }

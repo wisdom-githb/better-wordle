@@ -78,35 +78,20 @@ export default function Home({
     <div className="homeRoot">
       <div className="homeInner">
         <header className="homeHeader">
-          <div>
-            <h1 className="homeTitle">BETTER WORDLE</h1>
-            <div className="homeSubtitle">
-              Daily and Marathon modes. Speedrun uses unlimited guesses and tracks time.
-            </div>
-          </div>
+          <h1 className="homeTitle">BETTER WORDLE</h1>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "flex-end" }}>
-            <div style={{ 
-              fontSize: "11px", 
-              color: "#d7dadc", 
-              display: "flex", 
-              alignItems: "center",
-              whiteSpace: "nowrap"
-            }}>
-              Reset in: {resetTime}
-            </div>
-            {user && (
-              <div style={{ 
-                fontSize: "12px", 
-                color: "#d7dadc", 
-                display: "flex", 
-                alignItems: "center",
-                whiteSpace: "nowrap"
-              }}>
-                Logged in with {user.email || user.displayName || "Unknown"}
+          <div className="homeHeaderRight">
+            <div className="homeHeaderInfo">
+              <div className="resetTimer">
+                Reset in: {resetTime}
               </div>
-            )}
-            <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
+              {user && (
+                <div className="userInfo">
+                  {user.email || user.displayName || "Unknown"}
+                </div>
+              )}
+            </div>
+            <div className="homeHeaderButtons">
               {user ? (
                 <button
                   className="homeBtn homeBtnOutline"
