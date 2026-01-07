@@ -1,6 +1,7 @@
 // src/Game.js
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { loadJSON, saveJSON, makeSolvedKey, makeDailyKey, makeMarathonKey } from "./lib/persist";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { loadJSON, saveJSON, makeSolvedKey, makeDailyKey, makeMarathonKey, marathonMetaKey } from "./lib/persist";
 
 const WORD_LENGTH = 5;
 
@@ -366,19 +367,26 @@ function generateShareText(boards, score, mode, numBoards, speedrunEnabled, stag
 }
 
 const Game = ({
-  mode,
-  numBoards,
-  marathonIndex = 0,
-  marathonLevels = [1, 4, 8, 16, 32],
-  onMarathonNext,
-  onBack,
-
-  speedrunEnabled = false,
-
-  marathonCumulativeMs = 0,
-  marathonStageTimes = [], // [{boards, ms}]
-  onCommitMarathonStageTime
+  marathonLevels = [1, 4, 8, 16, 32]
 }) => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  
+  // Get game params from URL
+  const mode = searchParams.get("mode") || "daily";
+  const speedrunEnabled = searchParams.get("speedrun") === "true";
+  const boardsParam = searchParams.get("boards");
+  
+  // Load marathon state from localStorage
+  const marathonMeta = loadJSON(marathonMetaKey(speedrunEnabled), { index: 0, cumulativeMs: 0, stageTimes: [] });
+  const marathonIndex = marathonMeta.index || 0;
+  const marathonCumulativeMs = marathonMeta.cumulativeMs || 0;
+  const marathonStageTimes = marathonMeta.stageTimes || [];
+  
+  // Determine numBoards
+  const numBoards = mode === "marathon" 
+    ? marathonLevels[marathonIndex] 
+    : (boardsParam ? parseInt(boardsParam, 10) : 1);
   const [boards, setBoards] = useState([]);
   const [currentGuess, setCurrentGuess] = useState("");
 
@@ -438,6 +446,8 @@ const Game = ({
       mainElement.scrollTop = 0;
     }
   }, [mode, numBoards, speedrunEnabled]);
+
+  // No need for popstate handler - React Router handles browser back button automatically
 
   const clearMessageTimer = () => {
     if (messageTimeoutRef.current) {
@@ -680,8 +690,24 @@ const Game = ({
     committedRef.current = true;
     committedStageMsRef.current = ms;
 
-    if (typeof onCommitMarathonStageTime === "function") {
-      onCommitMarathonStageTime(numBoards, ms);
+    // Save marathon stage time to localStorage
+    if (speedrunEnabled && mode === "marathon") {
+      const metaKey = marathonMetaKey(true);
+      const currentMeta = loadJSON(metaKey, { index: marathonIndex, cumulativeMs: 0, stageTimes: [] });
+      const newStageTimes = [...(currentMeta.stageTimes || [])];
+      const existing = newStageTimes.findIndex((st) => st.boards === numBoards);
+      if (existing >= 0) {
+        newStageTimes[existing] = { boards: numBoards, ms };
+      } else {
+        newStageTimes.push({ boards: numBoards, ms });
+      }
+      const cumulative = newStageTimes.reduce((sum, st) => sum + st.ms, 0);
+      saveJSON(metaKey, {
+        ...currentMeta,
+        index: marathonIndex,
+        cumulativeMs: cumulative,
+        stageTimes: newStageTimes
+      });
     }
   };
 
@@ -866,7 +892,7 @@ const Game = ({
   // Save game state when user navigates back
   const handleBack = () => {
     saveGameState();
-    onBack();
+    navigate("/");
   };
 
   const handleVirtualKey = (key) => {
@@ -904,7 +930,15 @@ const Game = ({
     mode === "marathon" && allSolved && !showPopup && !showOutOfGuesses && marathonHasNext;
 
   const goNextStage = () => {
-    if (marathonHasNext && typeof onMarathonNext === "function") onMarathonNext();
+    if (marathonHasNext) {
+      const newIndex = marathonIndex + 1;
+      const metaKey = marathonMetaKey(speedrunEnabled);
+      const meta = loadJSON(metaKey, { index: marathonIndex });
+      saveJSON(metaKey, { ...meta, index: newIndex });
+      // Navigate to new stage (URL will reload with new marathonIndex from localStorage)
+      navigate(`/game?mode=marathon&speedrun=${speedrunEnabled}`, { replace: true });
+      window.location.reload(); // Reload to get new marathonIndex
+    }
   };
 
   const exitFromOutOfGuesses = () => {
@@ -1742,7 +1776,7 @@ const Game = ({
             <button
               onClick={() => {
                 setShowBoardSelector(false);
-                onBack();
+                navigate("/");
               }}
               style={{
                 padding: "8px 16px",
@@ -2000,7 +2034,7 @@ const Game = ({
               </button>
 
               <button
-                onClick={onBack}
+                onClick={() => navigate("/")}
                 style={{
                   flex: 1,
                   minWidth: 160,

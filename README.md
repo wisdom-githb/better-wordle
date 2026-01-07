@@ -43,6 +43,76 @@ This will:
 ### Note:
 The base path is configured as `/better-wordle/` in `vite.config.js`. If your repository name is different, update the `base` property in `vite.config.js` accordingly.
 
+## Firebase Authentication Setup
+
+The sign-in button on the homepage allows users to authenticate using Google Sign-In or email/password. To enable this feature, you need to set up Firebase:
+
+1. **Create a Firebase Project**:
+   - Go to https://console.firebase.google.com/
+   - Click "Add project" or select an existing project
+   - Follow the setup wizard to create your project
+
+2. **Enable Authentication**:
+   - In your Firebase project, go to "Authentication" in the left sidebar
+   - Click "Get started"
+   - Go to the "Sign-in method" tab
+   - Enable "Google" as a sign-in provider:
+     - Click on "Google"
+     - Toggle "Enable"
+     - Enter your project support email
+     - Click "Save"
+   - Enable "Email/Password" as a sign-in provider:
+     - Click on "Email/Password"
+     - Toggle "Enable"
+     - Toggle "Email link (passwordless sign-in)" if desired (optional)
+     - Click "Save"
+
+3. **Get Your Firebase Configuration**:
+   - In Firebase Console, go to "Project Settings" (gear icon)
+   - Scroll down to "Your apps" section
+   - If you haven't created a web app, click "Add app" and select the web icon (`</>`)
+   - Copy the Firebase configuration object (it will look like this):
+     ```javascript
+     {
+       apiKey: "AIza...",
+       authDomain: "your-project.firebaseapp.com",
+       projectId: "your-project-id",
+       storageBucket: "your-project.appspot.com",
+       messagingSenderId: "123456789",
+       appId: "1:123456789:web:abc123..."
+     }
+     ```
+
+4. **Configure Environment Variables** (Recommended):
+   - Create a `.env` file in the root of your project (if it doesn't exist)
+   - Add your Firebase configuration as environment variables:
+     ```env
+     VITE_FIREBASE_API_KEY=your-api-key
+     VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+     VITE_FIREBASE_PROJECT_ID=your-project-id
+     VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+     VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
+     VITE_FIREBASE_APP_ID=1:123456789:web:abc123
+     ```
+   - **Important**: Add `.env` to your `.gitignore` file to keep your credentials secure
+
+5. **Alternative: Direct Configuration** (Less Secure):
+   - If you don't want to use environment variables, you can directly edit `src/config/firebase.js`
+   - Replace the placeholder values with your actual Firebase configuration
+   - **Warning**: This is less secure and your credentials will be visible in your code
+
+6. **Authorized Domains** (For Production):
+   - In Firebase Console, go to "Authentication" > "Settings" > "Authorized domains"
+   - Add your production domain (e.g., `your-username.github.io`)
+   - Firebase automatically includes `localhost` for development
+
+7. **Test the Feature**:
+   - Run the development server: `npm run dev`
+   - Click the "Sign In" button on the homepage
+   - Try signing in with Google or creating an account with email/password
+
+The authentication feature will work once Firebase is configured. Users can sign in to sync their game progress across devices (when you implement that feature).
+
 ## Feedback Feature Setup
 
 The feedback button on the homepage allows users to send anonymous feedback via email. To enable this feature, you need to set up EmailJS:

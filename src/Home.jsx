@@ -1,6 +1,10 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import "./Home.css";
 import FeedbackModal from "./components/FeedbackModal";
+import AuthModal from "./components/AuthModal";
+import { useAuth } from "./hooks/useAuth";
+import { saveJSON, loadJSON, marathonMetaKey } from "./lib/persist";
 
 const BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
 
@@ -32,15 +36,12 @@ export default function Home({
   marathonIndex,
   marathonLevels,
 
-  onStartDaily,
-  onStartDailySpeedrun,
-
-  onStartMarathon,            // should resume if progress exists
-  onStartMarathonSpeedrun,    // should resume if progress exists
-
   onResetAll                  // NEW: clears all persisted states
 }) {
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const marathonMaxLabel = marathonLevels[marathonLevels.length - 1];
   const currentBoards = marathonLevels[marathonIndex];
 
@@ -55,18 +56,51 @@ export default function Home({
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
-            <button
-              className="homeBtn homeBtnOutline"
-              onClick={() => setShowFeedbackModal(true)}
-            >
-              Feedback
-            </button>
-            <button className="homeBtn homeBtnOutline" onClick={onResetAll}>
-              Reset all
-            </button>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "flex-end" }}>
+            {user && (
+              <div style={{ 
+                fontSize: "12px", 
+                color: "#d7dadc", 
+                display: "flex", 
+                alignItems: "center",
+                whiteSpace: "nowrap"
+              }}>
+                Logged in with {user.email || user.displayName || "Unknown"}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
+              {user ? (
+                <button
+                  className="homeBtn homeBtnOutline"
+                  onClick={signOut}
+                >
+                  Sign Out
+                </button>
+              ) : (
+                <button
+                  className="homeBtn homeBtnOutline"
+                  onClick={() => setShowAuthModal(true)}
+                >
+                  Sign In
+                </button>
+              )}
+              <button
+                className="homeBtn homeBtnOutline"
+                onClick={() => setShowFeedbackModal(true)}
+              >
+                Feedback
+              </button>
+              <button className="homeBtn homeBtnOutline" onClick={onResetAll}>
+                Reset all
+              </button>
+            </div>
           </div>
         </header>
+
+        <AuthModal
+          isOpen={showAuthModal}
+          onRequestClose={() => setShowAuthModal(false)}
+        />
 
         <FeedbackModal
           isOpen={showFeedbackModal}
@@ -107,7 +141,10 @@ export default function Home({
               title="Daily (standard)"
               desc="Limited turns. No timer. Good for casual play."
               buttonText="Play daily"
-              onClick={() => onStartDaily(dailyBoards)}
+              onClick={() => {
+                saveJSON("mw:dailyBoards", dailyBoards);
+                navigate(`/game?mode=daily&boards=${dailyBoards}&speedrun=false`);
+              }}
               variant="green"
               titleRight={`${dailyBoards} board${dailyBoards > 1 ? "s" : ""}`}
             />
@@ -116,7 +153,10 @@ export default function Home({
               title="Daily (speedrun)"
               desc="Unlimited guesses. Timer starts immediately."
               buttonText="Speedrun daily"
-              onClick={() => onStartDailySpeedrun(dailyBoards)}
+              onClick={() => {
+                saveJSON("mw:dailyBoards", dailyBoards);
+                navigate(`/game?mode=daily&boards=${dailyBoards}&speedrun=true`);
+              }}
               variant="green"
               titleRight={`${dailyBoards} board${dailyBoards > 1 ? "s" : ""}`}
             />
@@ -151,7 +191,9 @@ export default function Home({
               title="Marathon (standard)"
               desc="Resume your current marathon stage."
               buttonText="Play marathon"
-              onClick={onStartMarathon}
+              onClick={() => {
+                navigate(`/game?mode=marathon&speedrun=false`);
+              }}
               variant="gold"
               titleRight={`${currentBoards} boards`}
             />
@@ -160,7 +202,9 @@ export default function Home({
               title="Marathon (speedrun)"
               desc="Resume your speedrun marathon (timed cumulative)."
               buttonText="Speedrun marathon"
-              onClick={onStartMarathonSpeedrun}
+              onClick={() => {
+                navigate(`/game?mode=marathon&speedrun=true`);
+              }}
               variant="gold"
               titleRight={`${marathonLevels[0]} → ${marathonMaxLabel}`}
             />
