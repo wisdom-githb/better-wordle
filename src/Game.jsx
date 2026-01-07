@@ -4,10 +4,11 @@ import { loadJSON, saveJSON, makeSolvedKey, makeDailyKey, makeMarathonKey } from
 
 const WORD_LENGTH = 5;
 
-// Flip settings - all tiles flip simultaneously
+// Flip settings - tiles flip sequentially
 const FLIP_MS = 500;      // how long a single tile flip takes
-// Total time for all tiles to finish flipping: just the flip duration since they all start at once
-const FLIP_COMPLETE_MS = FLIP_MS;
+const FLIP_DELAY_PER_TILE = 300;  // delay between each tile starting its flip
+// Total time for all tiles to finish flipping: flip duration + (number of tiles - 1) * delay per tile
+const FLIP_COMPLETE_MS = FLIP_MS + (WORD_LENGTH - 1) * FLIP_DELAY_PER_TILE;
 
 const KEYBOARD_ROWS = [
   "QWERTYUIOP".split(""),
@@ -401,6 +402,11 @@ const Game = ({
 
   // Flip animation trigger for the latest submitted guess row
   const [revealId, setRevealId] = useState(0);
+  // Track if a flip animation is currently in progress
+  const [isFlipping, setIsFlipping] = useState(false);
+  
+  // Refs for each board element for scrolling
+  const boardRefs = useRef({});
 
   // Speedrun timing (PER STAGE)
   const stageStartRef = useRef(null);
@@ -495,10 +501,13 @@ const Game = ({
           setCurrentGuess("");
           setMessage("");
           clearMessageTimer();
-          setShowPopup(true);
           setShowOutOfGuesses(false);
           setIsUnlimited(false);
           setSelectedBoardIndex(null);
+          
+          // Reset flip state and revealId to prevent any animations
+          setRevealId(0);
+          setIsFlipping(false);
           
           const turns = getMaxTurns(numBoards);
           setMaxTurns(turns);
@@ -519,6 +528,12 @@ const Game = ({
           setAllowedSet(new Set(ALLOWED_GUESSES));
           
           setIsLoading(false);
+          
+          // Delay popup to ensure any potential animations are complete
+          // Wait for flip animation time in case there are any animations
+          setTimeout(() => {
+            setShowPopup(true);
+          }, FLIP_COMPLETE_MS);
           return;
         }
         
@@ -567,6 +582,7 @@ const Game = ({
             }
             
             setRevealId(savedGameState.revealId || 0);
+            setIsFlipping(false); // No animation in progress when resuming
             setShowPopup(false);
             setShowOutOfGuesses(false);
             setMessage("");
@@ -607,8 +623,9 @@ const Game = ({
         committedRef.current = false;
         committedStageMsRef.current = 0;
 
-        // Reset flip id
+        // Reset flip id and state
         setRevealId(0);
+        setIsFlipping(false);
 
         setIsLoading(false);
       } catch (error) {
@@ -742,10 +759,19 @@ const Game = ({
 
     // trigger reveal animation for the row that was just added
     setRevealId((x) => x + 1);
+    
+    // Mark that flip animation is in progress
+    setIsFlipping(true);
 
+    // Clear current guess immediately but delay showing next row until animation completes
     setCurrentGuess("");
     setMessage("");
     clearMessageTimer();
+    
+    // Allow next row to show after flip animation completes
+    setTimeout(() => {
+      setIsFlipping(false);
+    }, FLIP_COMPLETE_MS);
 
     const finished = isUnlimited
       ? newBoards.every((b) => b.isSolved)
@@ -755,7 +781,10 @@ const Game = ({
 
     if (finished && !allSolvedNow && !isUnlimited) {
       freezeStageTimer();
-      setShowOutOfGuesses(true);
+      // Wait for flip animation to complete before showing popup
+      setTimeout(() => {
+        setShowOutOfGuesses(true);
+      }, FLIP_COMPLETE_MS);
       return;
     }
 
@@ -1141,15 +1170,79 @@ const Game = ({
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          padding: 16,
+          padding: "0 16px 16px 16px",
           overflowY: "auto",
           paddingBottom: KEYBOARD_HEIGHT + (showNextStageBar ? 62 : 16)
         }}
       >
-        <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
-          <div style={{ fontSize: 14, color: "#d7dadc" }}>{statusText}</div>
+        {/* Sticky board selector row */}
+        <div
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 100,
+            backgroundColor: "#121213",
+            padding: "16px 0 12px 0",
+            marginBottom: 8,
+            borderBottom: "1px solid #3a3a3c",
+            marginLeft: -16,
+            marginRight: -16,
+            paddingLeft: 16,
+            paddingRight: 16
+          }}
+        >
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            {/* Board number buttons */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              {boards.map((board, index) => {
+                const isSelected = selectedBoardIndex === index;
+                const isSolved = board.isSolved;
+                const isDead = !isUnlimited && board.isDead;
+                
+                return (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      setSelectedBoardIndex(index);
+                      const boardElement = boardRefs.current[index];
+                      if (boardElement) {
+                        boardElement.scrollIntoView({ behavior: "smooth", block: "center" });
+                      }
+                    }}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 6,
+                      border: isSelected ? "2px solid #facc15" : "1px solid #3a3a3c",
+                      background: isSolved
+                        ? "#6aaa64"
+                        : isDead
+                        ? "#3a3a3c"
+                        : isSelected
+                        ? "#1a1a1b"
+                        : "transparent",
+                      color: isSolved || isDead ? "#ffffff" : "#ffffff",
+                      fontSize: 13,
+                      fontWeight: "bold",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      minWidth: 40,
+                      textAlign: "center"
+                    }}
+                  >
+                    B{index + 1}
+                  </button>
+                );
+              })}
+            </div>
+            
+            {/* Status text on the right */}
+            <div style={{ fontSize: 14, color: "#d7dadc", marginLeft: "auto" }}>{statusText}</div>
+          </div>
+        </div>
 
-          {canManualEnd && (
+        {/* End game button row - only show if needed */}
+        {canManualEnd && (
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
             <button
               onClick={manualEndGame}
               style={{
@@ -1167,8 +1260,8 @@ const Game = ({
             >
               End game
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Toast message - displayed above popups */}
         {message && (
@@ -1225,6 +1318,9 @@ const Game = ({
             return (
               <div
                 key={index}
+                ref={(el) => {
+                  boardRefs.current[index] = el;
+                }}
                 onClick={() => setSelectedBoardIndex((prev) => (prev === index ? null : index))}
                 style={{
                   borderRadius: 8,
@@ -1377,45 +1473,14 @@ const Game = ({
                           );
                         }
 
-                        // Newest revealed row: flip simultaneously (all tiles at once)
-                        // Only flip if the board is not solved
-                        const shouldFlip = !board.isSolved;
-
-                        // If board is solved, show static colored tile immediately (no flip)
-                        if (!shouldFlip) {
-                          const bg = bgForColor(color);
-                          return (
-                            <div
-                              key={colIdx}
-                              style={{
-                                width: tileSize,
-                                height: tileSize,
-                                margin: tileMargin,
-                                borderRadius: 4,
-                                border: "2px solid transparent",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontWeight: "bold",
-                                fontSize: numBoards >= 16 ? 16 : 18,
-                                backgroundColor: bg,
-                                textTransform: "uppercase",
-                                color: "#ffffff",
-                                flexShrink: 0,
-                                boxSizing: "border-box"
-                              }}
-                            >
-                              {displayChar}
-                            </div>
-                          );
-                        }
-                        
+                        // Newest revealed row: always flip, even if board is solved
+                        // This ensures the flip animation plays for the correct word guess too
                         const frontBg = "#121213";
                         const frontBorder = "#3a3a3c";
                         const backBg = bgForColor(color);
 
-                        // All tiles start at the same time (no delay)
-                        const delayMs = 0;
+                        // Tiles flip sequentially with a delay per tile
+                        const delayMs = colIdx * FLIP_DELAY_PER_TILE;
 
                         return (
                           <div 

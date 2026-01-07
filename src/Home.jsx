@@ -49,7 +49,7 @@ export default function Home({
       <div className="homeInner">
         <header className="homeHeader">
           <div>
-            <h1 className="homeTitle">MULTI WORDLE</h1>
+            <h1 className="homeTitle">BETTER WORDLE</h1>
             <div className="homeSubtitle">
               Daily and Marathon modes. Speedrun uses unlimited guesses and tracks time.
             </div>
