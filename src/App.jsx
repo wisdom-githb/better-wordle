@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Home from "./Home";
 import Game from "./Game";
+import Leaderboard from "./components/Leaderboard";
 import {
   loadJSON,
   saveJSON,
@@ -66,6 +67,7 @@ function App() {
         } 
       />
       <Route path="/game/*" element={<Game marathonLevels={marathonLevelsMemo} />} />
+      <Route path="/leaderboard" element={<Leaderboard />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

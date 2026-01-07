@@ -17,9 +17,22 @@ export default function GamePopup({
   onNextStage,
   freezeStageTimer,
   isMarathonSpeedrun,
-  commitStageIfNeeded
+  commitStageIfNeeded,
+  isOneVOne,
+  oneVOneGameState,
+  myScore,
+  opponentScore,
+  winner,
+  isPlayerHost,
+  onRematch
 }) {
   const navigate = useNavigate();
+  
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
 
   const handleNextStage = () => {
     const finalStageMs = freezeStageTimer();
@@ -30,6 +43,7 @@ export default function GamePopup({
 
   return (
     <div
+      onClick={handleBackdropClick}
       style={{
         position: "fixed",
         top: 0,
@@ -56,83 +70,202 @@ export default function GamePopup({
           boxShadow: "0 20px 60px rgba(0,0,0,0.8)"
         }}
       >
-        <h2
-          style={{
-            margin: 0,
-            marginBottom: 10,
-            fontSize: 22,
-            fontWeight: "bold",
-            letterSpacing: 1,
-            color: allSolved ? "#6aaa64" : "#d7dadc"
-          }}
-        >
-          {allSolved ? "Congratulations!" : "Stage ended"}
-        </h2>
+        {isOneVOne ? (() => {
+          const isSpeedrun = oneVOneGameState?.speedrun || false;
+          let titleColor = "#c9b458";
+          if (winner !== null) {
+            if (isSpeedrun && myScore !== null && opponentScore !== null && myScore === opponentScore) {
+              titleColor = "#c9b458";
+            } else if (!isSpeedrun && myScore === opponentScore) {
+              titleColor = "#c9b458";
+            } else {
+              titleColor = ((winner === 'host' && isPlayerHost) || (winner === 'guest' && !isPlayerHost)) ? "#6aaa64" : "#d7dadc";
+            }
+          }
+          return (
+          <>
+            <h2
+              style={{
+                margin: 0,
+                marginBottom: 20,
+                fontSize: 24,
+                fontWeight: "bold",
+                letterSpacing: 1,
+                color: titleColor
+              }}
+            >
+              {(() => {
+                const isSpeedrun = oneVOneGameState?.speedrun || false;
+                if (winner === null) {
+                  return "It's a tie!";
+                }
+                if (isSpeedrun) {
+                  if (myScore !== null && opponentScore !== null && myScore === opponentScore) {
+                    return "It's a tie!";
+                  }
+                } else {
+                  if (myScore === opponentScore) {
+                    return "It's a tie!";
+                  }
+                }
+                return ((winner === 'host' && isPlayerHost) || (winner === 'guest' && !isPlayerHost))
+                  ? "You Won!" 
+                  : "You Lost";
+              })()}
+            </h2>
 
-        {speedrunEnabled && (
-          <div style={{ marginBottom: 12, color: "#d7dadc", fontSize: 15 }}>
-            <div>Total time: {formatElapsed(popupTotalMs)}</div>
-            <div>Stage time: {formatElapsed(stageElapsedMs)}</div>
+            <div style={{ marginBottom: 20, fontSize: 18, color: "#d7dadc" }}>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 16, color: "#818384", marginBottom: 4 }}>
+                  {oneVOneGameState?.speedrun ? "Your Time" : "Your Score"}
+                </div>
+                <div style={{ fontSize: 24, color: "#ffffff", fontWeight: "bold" }}>
+                  {oneVOneGameState?.speedrun 
+                    ? (myScore !== null && myScore !== undefined ? formatElapsed(myScore) : "N/A")
+                    : (myScore || 0)}
+                </div>
+              </div>
+              <div style={{ borderTop: "1px solid #3a3a3c", paddingTop: 12 }}>
+                <div style={{ fontSize: 16, color: "#818384", marginBottom: 4 }}>
+                  {oneVOneGameState?.speedrun ? "Opponent's Time" : "Opponent's Score"}
+                </div>
+                <div style={{ fontSize: 24, color: "#ffffff", fontWeight: "bold" }}>
+                  {oneVOneGameState?.speedrun 
+                    ? (opponentScore !== null && opponentScore !== undefined ? formatElapsed(opponentScore) : "N/A")
+                    : (opponentScore || 0)}
+                </div>
+              </div>
+            </div>
+          </>
+          );
+        })() : (
+          <>
+            <h2
+              style={{
+                margin: 0,
+                marginBottom: 10,
+                fontSize: 22,
+                fontWeight: "bold",
+                letterSpacing: 1,
+                color: allSolved ? "#6aaa64" : "#d7dadc"
+              }}
+            >
+              {allSolved ? "Congratulations!" : "Stage ended"}
+            </h2>
+
+            {speedrunEnabled && (
+              <div style={{ marginBottom: 12, color: "#d7dadc", fontSize: 15 }}>
+                <div>Total time: {formatElapsed(popupTotalMs)}</div>
+                <div>Stage time: {formatElapsed(stageElapsedMs)}</div>
+              </div>
+            )}
+
+            <div style={{ marginBottom: 14, fontSize: 16, color: "#d7dadc" }}>
+              {allSolved
+                ? `You solved all ${boards.length} word${boards.length > 1 ? "s" : ""}.`
+                : `You solved ${solvedCount} of ${boards.length} word${boards.length > 1 ? "s" : ""}.`}
+            </div>
+
+            <div style={{ marginBottom: 14, fontSize: 20, color: "#ffffff", fontWeight: "bold" }}>
+              Score: {score}
+            </div>
+          </>
+        )}
+
+        {!isOneVOne && (
+          <>
+            <div style={{ marginBottom: 10, color: "#ffffff", fontWeight: "bold" }}>Solutions</div>
+
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
+                justifyContent: "center",
+                marginBottom: 16
+              }}
+            >
+              {boards.map((b, i) => (
+                <div
+                  key={i}
+                  style={{
+                    backgroundColor: b.isSolved ? "#6aaa64" : "#3a3a3c",
+                    color: "#ffffff",
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    fontSize: 13
+                  }}
+                >
+                  Board {i + 1}: {b.solution}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {isOneVOne && oneVOneGameState?.solution && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 8, color: "#ffffff", fontWeight: "bold", fontSize: 16 }}>Solution</div>
+            <div
+              style={{
+                backgroundColor: "#6aaa64",
+                color: "#ffffff",
+                padding: "12px 16px",
+                borderRadius: 8,
+                fontSize: 18,
+                fontWeight: "bold",
+                letterSpacing: 2
+              }}
+            >
+              {oneVOneGameState.solution.toUpperCase()}
+            </div>
           </div>
         )}
 
-        <div style={{ marginBottom: 14, fontSize: 16, color: "#d7dadc" }}>
-          {allSolved
-            ? `You solved all ${boards.length} word${boards.length > 1 ? "s" : ""}.`
-            : `You solved ${solvedCount} of ${boards.length} word${boards.length > 1 ? "s" : ""}.`}
-        </div>
-
-        <div style={{ marginBottom: 14, fontSize: 20, color: "#ffffff", fontWeight: "bold" }}>
-          Score: {score}
-        </div>
-
-        <div style={{ marginBottom: 10, color: "#ffffff", fontWeight: "bold" }}>Solutions</div>
-
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 8,
-            justifyContent: "center",
-            marginBottom: 16
-          }}
-        >
-          {boards.map((b, i) => (
-            <div
-              key={i}
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          {!isOneVOne && (
+            <button
+              onClick={onShare}
               style={{
-                backgroundColor: b.isSolved ? "#6aaa64" : "#3a3a3c",
+                flex: 1,
+                minWidth: 160,
+                padding: "12px 0",
+                borderRadius: 10,
+                border: "none",
+                background: "#6aaa64",
                 color: "#ffffff",
-                padding: "8px 10px",
-                borderRadius: 8,
-                fontSize: 13
+                fontSize: 14,
+                fontWeight: "bold",
+                cursor: "pointer",
+                letterSpacing: 1,
+                textTransform: "uppercase"
               }}
             >
-              Board {i + 1}: {b.solution}
-            </div>
-          ))}
-        </div>
+              Share
+            </button>
+          )}
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button
-            onClick={onShare}
-            style={{
-              flex: 1,
-              minWidth: 160,
-              padding: "12px 0",
-              borderRadius: 10,
-              border: "none",
-              background: "#6aaa64",
-              color: "#ffffff",
-              fontSize: 14,
-              fontWeight: "bold",
-              cursor: "pointer",
-              letterSpacing: 1,
-              textTransform: "uppercase"
-            }}
-          >
-            Share
-          </button>
+          {isOneVOne && onRematch && (
+            <button
+              onClick={onRematch}
+              style={{
+                flex: 1,
+                minWidth: 160,
+                padding: "12px 0",
+                borderRadius: 10,
+                border: "none",
+                background: "#6aaa64",
+                color: "#ffffff",
+                fontSize: 14,
+                fontWeight: "bold",
+                cursor: "pointer",
+                letterSpacing: 1,
+                textTransform: "uppercase"
+              }}
+            >
+              Rematch
+            </button>
+          )}
 
           <button
             onClick={onClose}

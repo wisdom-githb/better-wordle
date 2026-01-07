@@ -113,6 +113,79 @@ The sign-in button on the homepage allows users to authenticate using Google Sig
 
 The authentication feature will work once Firebase is configured. Users can sign in to sync their game progress across devices (when you implement that feature).
 
+## Firebase Realtime Database Setup (for 1v1 Mode)
+
+The 1v1 mode requires Firebase Realtime Database to sync game state between players. To set this up:
+
+1. **Create Realtime Database**:
+   - In your Firebase Console, go to "Realtime Database" in the left sidebar
+   - Click "Create Database"
+   - Choose your preferred location
+   - **Start in locked mode** (recommended for security)
+   - Click "Enable"
+
+2. **Get Your Database URL**:
+   - After creation, you'll see your database URL at the top
+   - It will look like: `https://your-project-id-default-rtdb.firebaseio.com`
+   - Copy this URL
+
+3. **Add Database URL to Environment Variables**:
+   - Add this line to your `.env` file:
+     ```env
+     VITE_FIREBASE_DATABASE_URL=https://your-project-id-default-rtdb.firebaseio.com
+     ```
+   - Replace `your-project-id` with your actual project ID
+
+4. **Configure Security Rules** (Required):
+   - In Firebase Console, go to "Realtime Database" > "Rules" tab
+   - Replace the default rules with one of the following:
+
+   **Option 1: Simple (Recommended for Development)**:
+   ```json
+   {
+     "rules": {
+       "onevone": {
+         "$gameCode": {
+           ".read": "auth != null",
+           ".write": "auth != null"
+         }
+       }
+     }
+   }
+   ```
+
+   **Option 2: More Secure (Recommended for Production)**:
+   ```json
+   {
+     "rules": {
+       "onevone": {
+         "$gameCode": {
+           ".read": "auth != null && (
+             data.child('hostId').val() === auth.uid || 
+             data.child('guestId').val() === auth.uid ||
+             !data.exists()
+           )",
+           ".write": "auth != null && (
+             data.child('hostId').val() === auth.uid || 
+             data.child('guestId').val() === auth.uid ||
+             (!data.exists() && newData.child('hostId').val() === auth.uid) ||
+             (data.child('guestId').val() === null && newData.child('guestId').val() === auth.uid)
+           )"
+         }
+       }
+     }
+   }
+   ```
+   - Click "Publish" to save the rules
+
+5. **Test 1v1 Mode**:
+   - Sign in with two different accounts (or use two browsers/devices)
+   - One user clicks "Host 1v1" and shares the game code
+   - The other user enters the code and clicks "Join 1v1"
+   - Both should see the waiting room and can click "Ready" to start
+
+**Note**: The security rules ensure that only authenticated users can access 1v1 games, and with Option 2, only the host or guest of a specific game can read/write to that game.
+
 ## Feedback Feature Setup
 
 The feedback button on the homepage allows users to send anonymous feedback via email. To enable this feature, you need to set up EmailJS:

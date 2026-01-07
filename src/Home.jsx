@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "./Home.css";
 import FeedbackModal from "./components/FeedbackModal";
 import AuthModal from "./components/AuthModal";
+import OneVOneModal from "./components/OneVOneModal";
 import { useAuth } from "./hooks/useAuth";
 import { saveJSON, loadJSON, marathonMetaKey } from "./lib/persist";
 import { useDailyResetTimer } from "./hooks/useDailyResetTimer";
@@ -41,6 +42,8 @@ export default function Home({
   const { user, signOut } = useAuth();
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showOneVOneModal, setShowOneVOneModal] = useState(false);
+  const [oneVOneSpeedrun, setOneVOneSpeedrun] = useState(false);
   const resetTime = useDailyResetTimer();
   
   const marathonMaxLabel = useMemo(() => marathonLevels[marathonLevels.length - 1], [marathonLevels]);
@@ -121,6 +124,12 @@ export default function Home({
               )}
               <button
                 className="homeBtn homeBtnOutline"
+                onClick={() => navigate('/leaderboard')}
+              >
+                Leaderboard
+              </button>
+              <button
+                className="homeBtn homeBtnOutline"
                 onClick={handleOpenFeedback}
               >
                 Feedback
@@ -137,6 +146,15 @@ export default function Home({
         <FeedbackModal
           isOpen={showFeedbackModal}
           onRequestClose={handleCloseFeedback}
+        />
+
+        <OneVOneModal
+          isOpen={showOneVOneModal}
+          onRequestClose={() => {
+            setShowOneVOneModal(false);
+            setOneVOneSpeedrun(false);
+          }}
+          defaultSpeedrun={oneVOneSpeedrun}
         />
 
         {/* DAILY */}
@@ -229,6 +247,39 @@ export default function Home({
               onClick={handleMarathonSpeedrun}
               variant="gold"
               titleRight={`${marathonLevels[0]} → ${marathonMaxLabel}`}
+            />
+          </div>
+        </section>
+
+        {/* 1v1 MODE */}
+        <section className="panel">
+          <div className="panelTop">
+            <div>
+              <h2 className="panelTitle">1v1</h2>
+              <div className="panelDesc">
+                Challenge a friend to a head-to-head Wordle battle.
+              </div>
+            </div>
+          </div>
+
+          <div className="panelBody">
+            <ModeRow
+              title="1v1 Mode"
+              desc="Play against another player. Same word, different guesses. See only colors, not letters."
+              buttonText="Play 1v1"
+              onClick={() => setShowOneVOneModal(true)}
+              variant="gold"
+            />
+
+            <ModeRow
+              title="1v1 (speedrun)"
+              desc="Unlimited guesses. Timer starts immediately. Fastest time wins."
+              buttonText="Play 1v1 Speedrun"
+              onClick={() => {
+                setOneVOneSpeedrun(true);
+                setShowOneVOneModal(true);
+              }}
+              variant="gold"
             />
           </div>
         </section>

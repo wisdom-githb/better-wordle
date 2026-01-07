@@ -16,7 +16,7 @@ export function getCurrentDateString() {
  * Simple seeded random number generator
  * Based on a simple linear congruential generator (LCG)
  */
-class SeededRandom {
+export class SeededRandom {
   constructor(seed) {
     this.seed = seed % 2147483647;
     if (this.seed <= 0) this.seed += 2147483646;
