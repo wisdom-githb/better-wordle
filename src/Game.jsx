@@ -1770,7 +1770,6 @@ const Game = ({
               return calculateNonSpeedrunScore([mockBoard], opponentGuesses.length, maxTurns, 1);
             }
           })() : null}
-          formatElapsed={formatElapsed}
           winner={isOneVOne && oneVOneGame.gameState ? oneVOneGame.gameState.winner : null}
           isPlayerHost={isOneVOne && oneVOneGame.gameState && authUser ? (oneVOneGame.gameState.hostId === authUser.uid) : false}
           onRematch={isOneVOne ? async () => {
