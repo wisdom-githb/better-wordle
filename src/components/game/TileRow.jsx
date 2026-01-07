@@ -1,0 +1,187 @@
+import React from "react";
+import { WORD_LENGTH, getGreenPattern } from "../../lib/wordle";
+import { bgForColor } from "../../lib/gameUtils";
+import { FLIP_DELAY_PER_TILE } from "../../lib/gameConstants";
+
+export default function TileRow({
+  board,
+  rowIdx,
+  currentGuess,
+  invalidCurrentGuess,
+  numBoards,
+  maxTurns,
+  isUnlimited,
+  revealId,
+  isJustRevealedRow
+}) {
+  const row = board.guesses[rowIdx];
+  const guessCount = board.guesses.length;
+
+  const isCurrentRow =
+    !row &&
+    !board.isSolved &&
+    (isUnlimited || !board.isDead) &&
+    rowIdx === board.guesses.length;
+
+  const isInvalidRow = isCurrentRow && invalidCurrentGuess;
+
+  const greenPattern = getGreenPattern(board.guesses);
+
+  // Calculate tile size based on number of boards to ensure proper fit
+  const tileSize = numBoards >= 16 ? 28 : 32;
+  const tileMargin = numBoards >= 16 ? 1.5 : 2;
+  const rowWidth = 5 * (tileSize + tileMargin * 2);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        marginBottom: 4,
+        minHeight: `${tileSize + 4}px`,
+        flexShrink: 0,
+        height: `${tileSize + 4}px`,
+        width: "100%",
+        maxWidth: `${rowWidth}px`,
+        marginLeft: "auto",
+        marginRight: "auto"
+      }}
+    >
+      {Array.from({ length: WORD_LENGTH }).map((__, colIdx) => {
+        const typedChar = isCurrentRow ? currentGuess[colIdx] : "";
+
+        const displayChar = row
+          ? row.word[colIdx]
+          : typedChar
+          ? typedChar
+          : isCurrentRow
+          ? greenPattern[colIdx]
+          : "";
+
+        const isPlaceholder =
+          !row && isCurrentRow && !typedChar && !!greenPattern[colIdx];
+
+        const color = row ? row.colors[colIdx] : undefined;
+
+        // Input/current row (no flip, no reveal coloring)
+        if (!row) {
+          let bg = "#121213";
+          let borderColor = isCurrentRow ? "#565758" : "#3a3a3c";
+          let fg = isPlaceholder ? "rgba(255,255,255,0.45)" : "#ffffff";
+
+          if (isInvalidRow) {
+            borderColor = "#ef4444";
+            bg = "#2a0f10";
+            fg = "#ffffff";
+          }
+
+          return (
+            <div
+              key={colIdx}
+              style={{
+                width: tileSize,
+                height: tileSize,
+                margin: tileMargin,
+                borderRadius: 4,
+                border: `2px solid ${borderColor}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: "bold",
+                fontSize: numBoards >= 16 ? 16 : 18,
+                backgroundColor: bg,
+                textTransform: "uppercase",
+                color: fg,
+                flexShrink: 0,
+                boxSizing: "border-box"
+              }}
+            >
+              {displayChar}
+            </div>
+          );
+        }
+
+        // Revealed rows:
+        // - If this is NOT the newest revealed row, show static colored tile (no card)
+        if (!isJustRevealedRow) {
+          const bg = bgForColor(color);
+          return (
+            <div
+              key={colIdx}
+              style={{
+                width: tileSize,
+                height: tileSize,
+                margin: tileMargin,
+                borderRadius: 4,
+                border: "2px solid transparent",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: "bold",
+                fontSize: numBoards >= 16 ? 16 : 18,
+                backgroundColor: bg,
+                textTransform: "uppercase",
+                color: "#ffffff",
+                flexShrink: 0,
+                boxSizing: "border-box"
+              }}
+            >
+              {displayChar}
+            </div>
+          );
+        }
+
+        // Newest revealed row: always flip, even if board is solved
+        const frontBg = "#121213";
+        const frontBorder = "#3a3a3c";
+        const backBg = bgForColor(color);
+
+        // Tiles flip sequentially with a delay per tile
+        const delayMs = colIdx * FLIP_DELAY_PER_TILE;
+
+        return (
+          <div
+            key={colIdx}
+            className="mw-tile"
+            style={{
+              width: tileSize,
+              height: tileSize,
+              margin: tileMargin
+            }}
+          >
+            <div
+              key={`${revealId}-${rowIdx}-${colIdx}`}
+              className="mw-card mw-flip"
+              style={{ animationDelay: `${delayMs}ms` }}
+            >
+              <div
+                className="mw-face mw-front"
+                style={{
+                  backgroundColor: frontBg,
+                  border: `2px solid ${frontBorder}`,
+                  color: "#ffffff",
+                  fontSize: numBoards >= 16 ? 16 : 18
+                }}
+              >
+                {displayChar}
+              </div>
+
+              <div
+                className="mw-face mw-back"
+                style={{
+                  backgroundColor: backBg,
+                  border: "2px solid transparent",
+                  color: "#ffffff",
+                  fontSize: numBoards >= 16 ? 16 : 18
+                }}
+              >
+                {displayChar}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

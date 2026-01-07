@@ -5,6 +5,7 @@ import FeedbackModal from "./components/FeedbackModal";
 import AuthModal from "./components/AuthModal";
 import { useAuth } from "./hooks/useAuth";
 import { saveJSON, loadJSON, marathonMetaKey } from "./lib/persist";
+import { useDailyResetTimer } from "./hooks/useDailyResetTimer";
 
 const BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
 
@@ -34,14 +35,13 @@ export default function Home({
   setDailyBoards,
 
   marathonIndex,
-  marathonLevels,
-
-  onResetAll                  // NEW: clears all persisted states
+  marathonLevels
 }) {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const resetTime = useDailyResetTimer();
   
   const marathonMaxLabel = useMemo(() => marathonLevels[marathonLevels.length - 1], [marathonLevels]);
   const currentBoards = useMemo(() => marathonLevels[marathonIndex], [marathonLevels, marathonIndex]);
@@ -83,6 +83,15 @@ export default function Home({
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "flex-end" }}>
+            <div style={{ 
+              fontSize: "11px", 
+              color: "#d7dadc", 
+              display: "flex", 
+              alignItems: "center",
+              whiteSpace: "nowrap"
+            }}>
+              Reset in: {resetTime}
+            </div>
             {user && (
               <div style={{ 
                 fontSize: "12px", 
@@ -115,9 +124,6 @@ export default function Home({
                 onClick={handleOpenFeedback}
               >
                 Feedback
-              </button>
-              <button className="homeBtn homeBtnOutline" onClick={onResetAll}>
-                Reset all
               </button>
             </div>
           </div>
@@ -201,7 +207,7 @@ export default function Home({
                 </span>
               </div>
               <div className="metaHint">
-                Marathon can only be resumed (use “Reset all” to start over with new words).
+                Marathon can only be resumed. Words reset daily at midnight.
               </div>
             </div>
           </div>

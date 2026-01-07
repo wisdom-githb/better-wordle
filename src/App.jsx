@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Home from "./Home";
 import Game from "./Game";
 import {
   loadJSON,
   saveJSON,
-  clearAllMultiWordle,
   marathonMetaKey
 } from "./lib/persist";
 
@@ -13,8 +12,26 @@ const MARATHON_LEVELS = [1, 4, 8, 16, 32];
 const BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
 
 function App() {
+  const location = useLocation();
   const [dailyBoards, setDailyBoards] = useState(1);
   const [marathonIndex, setMarathonIndex] = useState(0);
+
+  // Normalize root path URL to always have trailing slash to match Vite base URL
+  // This ensures both /better-wordle and /better-wordle/ work correctly
+  useEffect(() => {
+    if (location.pathname === '/') {
+      const currentPath = window.location.pathname;
+      const rawBaseUrl = import.meta.env.BASE_URL || '/better-wordle/';
+      const baseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
+      const expectedPath = baseUrl + '/';
+      
+      // If URL is /better-wordle (without trailing slash), normalize to /better-wordle/
+      if (currentPath === baseUrl) {
+        const newUrl = expectedPath + window.location.search + window.location.hash;
+        window.history.replaceState(null, '', newUrl);
+      }
+    }
+  }, [location.pathname]);
 
   // Load persisted state
   useEffect(() => {
@@ -33,13 +50,6 @@ function App() {
     }
   }, []);
 
-  const handleResetAll = useCallback(() => {
-    clearAllMultiWordle();
-    setDailyBoards(1);
-    setMarathonIndex(0);
-    saveJSON("mw:dailyBoards", 1);
-  }, []);
-  
   const marathonLevelsMemo = useMemo(() => MARATHON_LEVELS, []);
 
   return (
@@ -52,7 +62,6 @@ function App() {
             setDailyBoards={setDailyBoards}
             marathonIndex={marathonIndex}
             marathonLevels={marathonLevelsMemo}
-            onResetAll={handleResetAll}
           />
         } 
       />

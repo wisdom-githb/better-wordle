@@ -1,3 +1,6 @@
+// Import getCurrentDateString for daily reset functionality
+import { getCurrentDateString } from "./dailyWords";
+
 const PREFIX = "mw:";
 export const SESSION_KEY = `${PREFIX}session`;
 
@@ -40,21 +43,25 @@ export function clearAllMultiWordle() {
   }
 }
 
-export function makeDailyKey(numBoards, speedrunEnabled) {
-  return `${PREFIX}game:daily:${numBoards}:${speedrunEnabled ? "speedrun" : "standard"}`;
+export function makeDailyKey(numBoards, speedrunEnabled, dateString = null) {
+  const date = dateString || getCurrentDateString();
+  return `${PREFIX}game:daily:${numBoards}:${speedrunEnabled ? "speedrun" : "standard"}:${date}`;
 }
 
-export function makeMarathonKey(speedrunEnabled) {
-  return `${PREFIX}game:marathon:${speedrunEnabled ? "speedrun" : "standard"}`;
+export function makeMarathonKey(speedrunEnabled, dateString = null) {
+  const date = dateString || getCurrentDateString();
+  return `${PREFIX}game:marathon:${speedrunEnabled ? "speedrun" : "standard"}:${date}`;
 }
 
 export function marathonMetaKey(speedrunEnabled) {
+  // Marathon meta doesn't reset daily, only on reset all
   return `${PREFIX}meta:marathon:${speedrunEnabled ? "speedrun" : "standard"}`;
 }
 
-export function makeSolvedKey(mode, numBoards, speedrunEnabled, marathonIndex = null) {
+export function makeSolvedKey(mode, numBoards, speedrunEnabled, marathonIndex = null, dateString = null) {
+  const date = dateString || getCurrentDateString();
   if (mode === "marathon") {
-    return `${PREFIX}solved:${mode}:${numBoards}:${speedrunEnabled ? "speedrun" : "standard"}:${marathonIndex}`;
+    return `${PREFIX}solved:${mode}:${numBoards}:${speedrunEnabled ? "speedrun" : "standard"}:${marathonIndex}:${date}`;
   }
-  return `${PREFIX}solved:${mode}:${numBoards}:${speedrunEnabled ? "speedrun" : "standard"}`;
+  return `${PREFIX}solved:${mode}:${numBoards}:${speedrunEnabled ? "speedrun" : "standard"}:${date}`;
 }
