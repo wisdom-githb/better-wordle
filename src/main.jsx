@@ -4,8 +4,9 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
 import './index.css'
 
-// Get base URL from environment or use /better-wordle/ for GitHub Pages
-const baseUrl = import.meta.env.BASE_URL || '/better-wordle/';
+// Get base URL from environment or use /better-wordle for GitHub Pages
+// Remove trailing slash for React Router basename
+const baseUrl = (import.meta.env.BASE_URL || '/better-wordle/').replace(/\/$/, '');
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
