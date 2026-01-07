@@ -51,6 +51,8 @@ function App() {
     setMarathonStageTimes([]);
     setScreen("game");
     saveJSON("mw:dailyBoards", numBoards);
+    // Scroll to top when starting game
+    window.scrollTo({ top: 0, behavior: "instant" });
   };
 
   const handleStartDailySpeedrun = (numBoards) => {
@@ -61,6 +63,8 @@ function App() {
     setMarathonStageTimes([]);
     setScreen("game");
     saveJSON("mw:dailyBoards", numBoards);
+    // Scroll to top when starting game
+    window.scrollTo({ top: 0, behavior: "instant" });
   };
 
   const handleStartMarathon = () => {
@@ -70,6 +74,8 @@ function App() {
     setMarathonCumulativeMs(0);
     setMarathonStageTimes([]);
     setScreen("game");
+    // Scroll to top when starting game
+    window.scrollTo({ top: 0, behavior: "instant" });
   };
 
   const handleStartMarathonSpeedrun = () => {
@@ -80,6 +86,8 @@ function App() {
     setMarathonCumulativeMs(meta.cumulativeMs || 0);
     setMarathonStageTimes(meta.stageTimes || []);
     setScreen("game");
+    // Scroll to top when starting game
+    window.scrollTo({ top: 0, behavior: "instant" });
   };
 
   const handleBack = () => {

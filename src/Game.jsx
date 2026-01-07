@@ -428,6 +428,17 @@ const Game = ({
     return () => clearInterval(id);
   }, [speedrunEnabled]);
 
+  // Scroll to top when game component mounts or mode changes
+  useEffect(() => {
+    // Scroll to top of the page when game starts
+    window.scrollTo({ top: 0, behavior: "instant" });
+    // Also try scrolling the main element if it exists
+    const mainElement = document.querySelector("main");
+    if (mainElement) {
+      mainElement.scrollTop = 0;
+    }
+  }, [mode, numBoards, speedrunEnabled]);
+
   const clearMessageTimer = () => {
     if (messageTimeoutRef.current) {
       clearTimeout(messageTimeoutRef.current);
@@ -877,7 +888,9 @@ const Game = ({
   const turnsUsed = getTurnsUsed(boards);
 
   const statusText =
-    finished && !showPopup && !showOutOfGuesses
+    speedrunEnabled
+      ? ""
+      : finished && !showPopup && !showOutOfGuesses
       ? "Stage complete."
       : `Guesses used: ${turnsUsed}/${maxTurns}${isUnlimited ? " (unlimited)" : ""}`;
 
@@ -1285,13 +1298,15 @@ const Game = ({
                   <span>
                     Board {index + 1} {isSelected ? "· focused" : ""}
                   </span>
-                  <span>
-                    {board.isSolved
-                      ? "Solved"
-                      : !isUnlimited && board.isDead
-                      ? "Failed"
-                      : `${board.guesses.length}/${maxTurns}`}
-                  </span>
+                  {!speedrunEnabled && (
+                    <span>
+                      {board.isSolved
+                        ? "Solved"
+                        : !isUnlimited && board.isDead
+                        ? "Failed"
+                        : `${board.guesses.length}/${maxTurns}`}
+                    </span>
+                  )}
                 </div>
 
                 {Array.from({ length: rowsToShow }).map((_, rowIdx) => {
@@ -1623,37 +1638,39 @@ const Game = ({
         </div>
       </footer>
 
-      {/* Floating board selector button - bottom left */}
-      <button
-        onClick={() => setShowBoardSelector(!showBoardSelector)}
-        style={{
-          position: "fixed",
-          bottom: KEYBOARD_HEIGHT + 20,
-          left: 20,
-          padding: "6px 12px",
-          borderRadius: 6,
-          backgroundColor: "#121213",
-          border: "1px solid #ffffff",
-          color: "#ffffff",
-          fontSize: 11,
-          fontWeight: "bold",
-          cursor: "pointer",
-          zIndex: 9999,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxShadow: "0 4px 16px rgba(0,0,0,0.7)",
-          transition: "all 0.3s ease",
-          outline: "none",
-          whiteSpace: "nowrap"
-        }}
-        aria-label={showBoardSelector ? "Close board selection" : "Open board selection"}
-      >
-        {showBoardSelector ? "Close" : "Board Selection"}
-      </button>
+      {/* Floating board selector button - bottom left (only show when more than 1 board) */}
+      {numBoards > 1 && (
+        <button
+          onClick={() => setShowBoardSelector(!showBoardSelector)}
+          style={{
+            position: "fixed",
+            bottom: KEYBOARD_HEIGHT + 20,
+            left: 20,
+            padding: "6px 12px",
+            borderRadius: 6,
+            backgroundColor: "#121213",
+            border: "1px solid #ffffff",
+            color: "#ffffff",
+            fontSize: 11,
+            fontWeight: "bold",
+            cursor: "pointer",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.7)",
+            transition: "all 0.3s ease",
+            outline: "none",
+            whiteSpace: "nowrap"
+          }}
+          aria-label={showBoardSelector ? "Close board selection" : "Open board selection"}
+        >
+          {showBoardSelector ? "Close" : "Board Selection"}
+        </button>
+      )}
 
-      {/* Board selector popup */}
-      {showBoardSelector && (
+      {/* Board selector popup (only show when more than 1 board) */}
+      {numBoards > 1 && showBoardSelector && (
         <div
           style={{
             position: "fixed",
@@ -1670,10 +1687,12 @@ const Game = ({
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {/* Status text */}
-            <div style={{ fontSize: 14, color: "#d7dadc", fontWeight: "bold", marginBottom: 4 }}>
-              {statusText}
-            </div>
+            {/* Status text (only show if not speedrun mode) */}
+            {!speedrunEnabled && statusText && (
+              <div style={{ fontSize: 14, color: "#d7dadc", fontWeight: "bold", marginBottom: 4 }}>
+                {statusText}
+              </div>
+            )}
             
             {/* Board number buttons */}
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
@@ -1718,6 +1737,29 @@ const Game = ({
                 );
               })}
             </div>
+            
+            {/* Go back to home button */}
+            <button
+              onClick={() => {
+                setShowBoardSelector(false);
+                onBack();
+              }}
+              style={{
+                padding: "8px 16px",
+                borderRadius: 6,
+                border: "1px solid #3a3a3c",
+                background: "transparent",
+                color: "#ffffff",
+                fontSize: 13,
+                fontWeight: "bold",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                marginTop: 4,
+                textAlign: "center"
+              }}
+            >
+              ← Back to Home
+            </button>
           </div>
         </div>
       )}
