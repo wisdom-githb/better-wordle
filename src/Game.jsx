@@ -20,7 +20,8 @@ import { loadWordLists } from "./lib/wordLists";
 import {
   calculateNonSpeedrunScore,
   calculateSpeedrunScore,
-  generateShareText
+  generateShareText,
+  isMobileDevice
 } from "./lib/gameUtils";
 import { selectDailyWords, getCurrentDateString, SeededRandom } from "./lib/dailyWords";
 import GameHeader from "./components/game/GameHeader";
@@ -30,6 +31,8 @@ import GamePopup from "./components/game/GamePopup";
 import OutOfGuessesPopup from "./components/game/OutOfGuessesPopup";
 import BoardSelector from "./components/game/BoardSelector";
 import NextStageBar from "./components/game/NextStageBar";
+import HamburgerMenu from "./components/HamburgerMenu";
+import FeedbackModal from "./components/FeedbackModal";
 import OneVOneWaitingRoom from "./components/game/OneVOneWaitingRoom";
 import OpponentBoardView from "./components/game/OpponentBoardView";
 import Keyboard from "./components/Keyboard";
@@ -38,7 +41,7 @@ import { useAuth } from "./hooks/useAuth";
 import { submitSpeedrunScore } from "./hooks/useLeaderboard";
 
 const Game = ({
-  marathonLevels = [1, 4, 8, 16, 32]
+  marathonLevels = [1, 2, 3, 4]
 }) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -52,7 +55,7 @@ const Game = ({
   const gameCode = searchParams.get("code") || null;
   
   // 1v1 game hook
-  const { user: authUser } = useAuth();
+  const { user: authUser, sendFriendRequest } = useAuth();
   const oneVOneGame = useOneVOneGame(isOneVOne ? (gameCode || null) : null, isHost);
   
   // Load marathon state from localStorage
@@ -74,6 +77,8 @@ const Game = ({
   const [maxTurns, setMaxTurns] = useState(6);
   const [allowedSet, setAllowedSet] = useState(new Set());
   const [isLoading, setIsLoading] = useState(true);
+  const [friendRequestSent, setFriendRequestSent] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   const [showPopup, setShowPopup] = useState(false);
   const [showOutOfGuesses, setShowOutOfGuesses] = useState(false);
@@ -1053,20 +1058,27 @@ const Game = ({
 
   // Handle share button click
   const handleShare = async () => {
+    console.log('handleShare called');
     const isMobile = isMobileDevice();
+    console.log('isMobile:', isMobile);
+    console.log('shareText:', shareText);
+    console.log('navigator.share available:', !!navigator.share);
     
     try {
       // Mobile: Use native share API
       if (isMobile && navigator.share) {
         try {
+          console.log('Attempting native share...');
           await navigator.share({
             title: "Better Wordle",
             text: shareText
           });
+          console.log('Share successful');
           return; // Successfully shared, exit
         } catch (shareErr) {
           // If user cancelled, don't show error
           if (shareErr.name === "AbortError") {
+            console.log('Share cancelled by user');
             return;
           }
           // If share failed, fall through to clipboard
@@ -1074,11 +1086,14 @@ const Game = ({
         }
       }
       
+      console.log('Using clipboard method...');
       // Desktop (or mobile if share failed): Copy to clipboard
       if (navigator.clipboard && navigator.clipboard.writeText) {
+        console.log('Using navigator.clipboard.writeText');
         await navigator.clipboard.writeText(shareText);
         setTimedMessage("Copied to clipboard!", 2000);
       } else {
+        console.log('Using fallback execCommand');
         // Fallback for older browsers that don't support clipboard API
         const textArea = document.createElement("textarea");
         textArea.value = shareText;
@@ -1099,8 +1114,10 @@ const Game = ({
         try {
           const successful = document.execCommand("copy");
           if (successful) {
+            console.log('Fallback copy successful');
             setTimedMessage("Copied to clipboard!", 2000);
           } else {
+            console.log('Fallback copy failed');
             setTimedMessage("Failed to copy. Please copy manually.", 3000);
           }
         } catch (err) {
@@ -1145,6 +1162,82 @@ const Game = ({
     }
   }, [gameCode, oneVOneGame]);
 
+  const handleShareCode = useCallback(async (code) => {
+    console.log('handleShareCode called with:', code);
+    const isMobile = isMobileDevice();
+    
+    try {
+      // Mobile: Use native share API
+      if (isMobile && navigator.share) {
+        try {
+          await navigator.share({
+            title: "Join my Better Wordle game!",
+            text: `Join my game with code: ${code}`
+          });
+          return;
+        } catch (shareErr) {
+          if (shareErr.name === "AbortError") {
+            return;
+          }
+          console.error("Share failed, falling back to clipboard:", shareErr);
+        }
+      }
+      
+      // Desktop (or mobile if share failed): Copy to clipboard
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(`Join my Better Wordle game with code: ${code}`);
+        setTimedMessage("Code copied to clipboard!", 2000);
+      } else {
+        // Fallback for older browsers
+        const textArea = document.createElement("textarea");
+        textArea.value = `Join my Better Wordle game with code: ${code}`;
+        textArea.style.position = "fixed";
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        textArea.style.width = "2em";
+        textArea.style.height = "2em";
+        textArea.style.padding = "0";
+        textArea.style.border = "none";
+        textArea.style.outline = "none";
+        textArea.style.boxShadow = "none";
+        textArea.style.background = "transparent";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          const successful = document.execCommand("copy");
+          if (successful) {
+            setTimedMessage("Code copied to clipboard!", 2000);
+          }
+        } catch (err) {
+          console.error("Fallback copy failed:", err);
+        }
+        document.body.removeChild(textArea);
+      }
+    } catch (err) {
+      console.error("Error in handleShareCode:", err);
+    }
+  }, []);
+
+  const handleAddFriendRequest = useCallback(async (opponentName, opponentId) => {
+    console.log('handleAddFriendRequest called:', { opponentName, opponentId, authUser: authUser?.uid });
+    if (!authUser) {
+      return;
+    }
+    if (!opponentId) {
+      return;
+    }
+    try {
+      console.log('Calling sendFriendRequest:', opponentName, opponentId);
+      await sendFriendRequest(opponentName, opponentId);
+      console.log('Friend request sent successfully');
+      setFriendRequestSent(true);
+    } catch (err) {
+      console.error('Failed to send friend request:', err);
+    }
+  }, [authUser, sendFriendRequest]);
+
   // Show waiting room for 1v1 mode (check before loading screen)
   if (isOneVOne && oneVOneGame.gameState && oneVOneGame.gameState.status === 'waiting') {
     const gameState = oneVOneGame.gameState;
@@ -1162,6 +1255,7 @@ const Game = ({
           displayTotalMs={0}
           formatElapsed={formatElapsed}
           onBack={handleBack}
+          onOpenFeedback={() => setShowFeedbackModal(true)}
         />
         <OneVOneWaitingRoom
           gameCode={gameCode || ""}
@@ -1169,6 +1263,12 @@ const Game = ({
           isHost={isPlayerHost}
           onReady={handleOneVOneReady}
           onStartGame={handleOneVOneStart}
+          friendRequestSent={friendRequestSent}
+          onShareCode={handleShareCode}
+          onAddFriend={(opponentName) => {
+            const opponentId = isPlayerHost ? gameState.guestId : gameState.hostId;
+            handleAddFriendRequest(opponentName, opponentId);
+          }}
         />
       </div>
     );
@@ -1323,6 +1423,7 @@ const Game = ({
         displayTotalMs={displayTotalMs}
         formatElapsed={formatElapsed}
         onBack={handleBack}
+        onOpenFeedback={() => setShowFeedbackModal(true)}
       />
 
       <main
@@ -1484,6 +1585,54 @@ const Game = ({
 
             {/* Boards side by side */}
             <div style={{ display: "flex", gap: "24px", justifyContent: "center", flexWrap: "wrap", width: "100%" }}>
+              {/* Add Friend Button */}
+              {oneVOneGame.gameState && authUser && (
+                <div style={{ width: "100%", textAlign: "center", marginBottom: "12px" }}>
+                  <button
+                    onClick={() => {
+                      if (friendRequestSent) return;
+                      const opponentName = authUser?.uid === oneVOneGame.gameState.hostId 
+                        ? oneVOneGame.gameState.guestName 
+                        : oneVOneGame.gameState.hostName;
+                      const opponentId = authUser?.uid === oneVOneGame.gameState.hostId 
+                        ? oneVOneGame.gameState.guestId 
+                        : oneVOneGame.gameState.hostId;
+                      if (opponentName && opponentId) {
+                        handleAddFriendRequest(opponentName, opponentId);
+                      }
+                    }}
+                    disabled={friendRequestSent}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: "8px",
+                      border: "1px solid #3a3a3c",
+                      background: "transparent",
+                      color: "#ffffff",
+                      fontSize: "12px",
+                      fontWeight: "bold",
+                      cursor: friendRequestSent ? "not-allowed" : "pointer",
+                      letterSpacing: "0.5px",
+                      transition: "all 0.2s ease",
+                      opacity: friendRequestSent ? 0.6 : 1
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!friendRequestSent) {
+                        e.target.style.background = "rgba(255, 255, 255, 0.05)";
+                        e.target.style.borderColor = "#565758";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!friendRequestSent) {
+                        e.target.style.background = "transparent";
+                        e.target.style.borderColor = "#3a3a3c";
+                      }
+                    }}
+                  >
+                    {friendRequestSent ? "Friend request sent" : `Add ${oneVOneGame.gameState.hostId === authUser?.uid ? oneVOneGame.gameState.guestName : oneVOneGame.gameState.hostName} as Friend`}
+                  </button>
+                </div>
+              )}
+              
               {/* Opponent Board */}
               {oneVOneGame.gameState && (
                 <div style={{ flex: "0 0 auto", width: "auto" }}>
@@ -1832,6 +1981,11 @@ const Game = ({
           </button>
         </div>
       )}
+
+      <FeedbackModal
+        isOpen={showFeedbackModal}
+        onRequestClose={() => setShowFeedbackModal(false)}
+      />
     </div>
   );
 };

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Home from "./Home";
 import Game from "./Game";
+import Profile from "./Profile";
 import Leaderboard from "./components/Leaderboard";
 import {
   loadJSON,
@@ -9,7 +10,7 @@ import {
   marathonMetaKey
 } from "./lib/persist";
 
-const MARATHON_LEVELS = [1, 4, 8, 16, 32];
+const MARATHON_LEVELS = [1, 2, 3, 4];
 const BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
 
 function App() {
@@ -69,6 +70,7 @@ function App() {
         } 
       />
       <Route path="/game/*" element={<Game marathonLevels={marathonLevelsMemo} />} />
+      <Route path="/profile" element={<Profile />} />
       <Route path="/leaderboard" element={<Leaderboard />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

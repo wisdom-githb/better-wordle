@@ -1,6 +1,7 @@
 import React from "react";
 import { useAuth } from "../../hooks/useAuth";
 import AuthModal from "../AuthModal";
+import HamburgerMenu from "../HamburgerMenu";
 import { useDailyResetTimer } from "../../hooks/useDailyResetTimer";
 
 export default function GameHeader({
@@ -12,7 +13,8 @@ export default function GameHeader({
   stageElapsedMs,
   displayTotalMs,
   formatElapsed,
-  onBack
+  onBack,
+  onOpenFeedback
 }) {
   const [showAuthModal, setShowAuthModal] = React.useState(false);
   const { user, signOut } = useAuth();
@@ -65,74 +67,55 @@ export default function GameHeader({
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "flex-end" }}>
-          <div style={{ 
-            fontSize: "10px", 
-            color: "#818384", 
-            display: "flex", 
-            alignItems: "center",
-            whiteSpace: "nowrap"
-          }}>
-            Reset in: {resetTime}
+        <div style={{ display: "flex", gap: "12px", alignItems: "center", flexShrink: 0 }}>
+          <div style={{ fontSize: 11, color: "#818384", whiteSpace: "nowrap" }}>
+            Reset: {resetTime} | {numBoards}B {maxTurns}T
           </div>
           {user && (
             <div style={{ 
-              fontSize: "11px", 
-              color: "#d7dadc", 
-              display: "flex", 
-              alignItems: "center",
+              fontSize: "10px", 
+              color: "#d7dadc",
               whiteSpace: "nowrap"
             }}>
-              Logged in with {user.email || user.displayName || "Unknown"}
+              {user.displayName || user.email?.split('@')[0]}
             </div>
           )}
-          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-            {user ? (
-              <button
-                onClick={signOut}
-                style={{
-                  padding: "4px 8px",
-                  borderRadius: 4,
-                  border: "1px solid #3a3a3c",
-                  background: "transparent",
-                  color: "#ffffff",
-                  fontSize: 11,
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                  whiteSpace: "nowrap"
-                }}
-              >
-                Sign Out
-              </button>
-            ) : (
-              <button
-                onClick={() => setShowAuthModal(true)}
-                style={{
-                  padding: "4px 8px",
-                  borderRadius: 4,
-                  border: "1px solid #3a3a3c",
-                  background: "transparent",
-                  color: "#ffffff",
-                  fontSize: 11,
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                  whiteSpace: "nowrap"
-                }}
-              >
-                Sign In
-              </button>
-            )}
-          </div>
-          <div style={{ fontSize: 12, color: "#d7dadc", whiteSpace: "nowrap", textAlign: "right" }}>
-            <div>Boards: {numBoards}</div>
-            <div>Max turns: {maxTurns}</div>
-            {speedrunEnabled && (
-              <>
-                <div>Stage: {formatElapsed(stageElapsedMs)}</div>
-                <div>Total: {formatElapsed(displayTotalMs)}</div>
-              </>
-            )}
-          </div>
+          {user ? (
+            <button
+              onClick={signOut}
+              style={{
+                padding: "4px 8px",
+                borderRadius: 4,
+                border: "1px solid #3a3a3c",
+                background: "transparent",
+                color: "#ffffff",
+                fontSize: 11,
+                fontWeight: "bold",
+                cursor: "pointer",
+                whiteSpace: "nowrap"
+              }}
+            >
+              Sign Out
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowAuthModal(true)}
+              style={{
+                padding: "4px 8px",
+                borderRadius: 4,
+                border: "1px solid #3a3a3c",
+                background: "transparent",
+                color: "#ffffff",
+                fontSize: 11,
+                fontWeight: "bold",
+                cursor: "pointer",
+                whiteSpace: "nowrap"
+              }}
+            >
+              Sign In
+            </button>
+          )}
+          {onOpenFeedback && <HamburgerMenu onOpenFeedback={onOpenFeedback} />}
         </div>
       </header>
 

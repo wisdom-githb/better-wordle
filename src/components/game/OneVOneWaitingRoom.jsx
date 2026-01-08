@@ -5,7 +5,10 @@ export default function OneVOneWaitingRoom({
   gameState,
   isHost,
   onReady,
-  onStartGame
+  onStartGame,
+  onAddFriend,
+  friendRequestSent,
+  onShareCode
 }) {
   const { hostName, guestName, hostReady, guestReady, status } = gameState || {};
   const currentUserReady = isHost ? hostReady : guestReady;
@@ -55,13 +58,39 @@ export default function OneVOneWaitingRoom({
                 fontWeight: 'bold',
                 color: '#6aaa64',
                 letterSpacing: '8px',
-                fontFamily: 'monospace'
+                fontFamily: 'monospace',
+                marginBottom: '12px'
               }}>
                 {gameCode}
               </div>
-              <p style={{ color: '#818384', fontSize: 12, marginTop: '12px' }}>
+              <p style={{ color: '#818384', fontSize: 12, marginTop: '0', marginBottom: '12px' }}>
                 Share this code with your opponent
               </p>
+              {isHost && onShareCode && (
+                <button
+                  onClick={() => onShareCode(gameCode)}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: '#6aaa64',
+                    color: '#ffffff',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = '#5a9b54';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = '#6aaa64';
+                  }}
+                >
+                  Share Code
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -174,6 +203,41 @@ export default function OneVOneWaitingRoom({
                 }}
               >
                 Start Game
+              </button>
+            )}
+
+            {guestName && onAddFriend && (
+              <button
+                onClick={() => !friendRequestSent && onAddFriend(otherPlayerName)}
+                disabled={friendRequestSent}
+                style={{
+                  width: '100%',
+                  marginTop: '12px',
+                  padding: '14px',
+                  borderRadius: 8,
+                  border: '1px solid #3a3a3c',
+                  background: 'transparent',
+                  color: '#ffffff',
+                  fontSize: 14,
+                  fontWeight: 'bold',
+                  cursor: friendRequestSent ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s ease',
+                  opacity: friendRequestSent ? 0.6 : 1
+                }}
+                onMouseEnter={(e) => {
+                  if (!friendRequestSent) {
+                    e.target.background = 'rgba(255, 255, 255, 0.05)';
+                    e.target.borderColor = '#565758';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!friendRequestSent) {
+                    e.target.background = 'transparent';
+                    e.target.borderColor = '#3a3a3c';
+                  }
+                }}
+              >
+                {friendRequestSent ? "Friend request sent" : `Add ${otherPlayerName} as Friend`}
               </button>
             )}
           </div>

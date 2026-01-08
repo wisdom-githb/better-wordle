@@ -4,6 +4,7 @@ import "./Home.css";
 import FeedbackModal from "./components/FeedbackModal";
 import AuthModal from "./components/AuthModal";
 import OneVOneModal from "./components/OneVOneModal";
+import HamburgerMenu from "./components/HamburgerMenu";
 import { useAuth } from "./hooks/useAuth";
 import { saveJSON, loadJSON, marathonMetaKey } from "./lib/persist";
 import { useDailyResetTimer } from "./hooks/useDailyResetTimer";
@@ -113,12 +114,7 @@ export default function Home({
               >
                 Leaderboard
               </button>
-              <button
-                className="homeBtn homeBtnOutline"
-                onClick={handleOpenFeedback}
-              >
-                Feedback
-              </button>
+              <HamburgerMenu onOpenFeedback={handleOpenFeedback} />
             </div>
           </div>
         </header>
@@ -198,7 +194,7 @@ export default function Home({
             <div>
               <h2 className="panelTitle">Marathon</h2>
               <div className="panelDesc">
-                Stages: {marathonLevels.join(" → ")}.
+                Stages: {marathonLevels.join("-")}.
               </div>
             </div>
 
@@ -231,7 +227,7 @@ export default function Home({
               buttonText="Speedrun marathon"
               onClick={handleMarathonSpeedrun}
               variant="gold"
-              titleRight={`${marathonLevels[0]} → ${marathonMaxLabel}`}
+              titleRight={`${marathonLevels[0]}-${marathonMaxLabel}`}
             />
           </div>
         </section>
