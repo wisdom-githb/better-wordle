@@ -5,7 +5,7 @@ import { useAuth } from "../hooks/useAuth";
 
 export default function HamburgerMenu({ onOpenFeedback }) {
   const navigate = useNavigate();
-  const { user, friendRequests } = useAuth();
+  const { user, friendRequests, isVerifiedUser } = useAuth();
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
   const [showFriendsModal, setShowFriendsModal] = useState(false);
 
@@ -16,11 +16,15 @@ export default function HamburgerMenu({ onOpenFeedback }) {
           className="homeBtn homeBtnOutline"
           onClick={() => setShowHamburgerMenu(!showHamburgerMenu)}
           style={{
-            padding: "7px 8px",
-            fontSize: "20px",
+            padding: "4px 6px",
+            fontSize: "18px",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center"
+            justifyContent: "center",
+            border: "none",
+            background: "transparent",
+            color: "#ffffff",
+            cursor: "pointer"
           }}
           title="Menu"
         >
@@ -40,6 +44,30 @@ export default function HamburgerMenu({ onOpenFeedback }) {
               boxShadow: "0 4px 12px rgba(0, 0, 0, 0.5)"
             }}
           >
+            <button
+              onClick={() => {
+                navigate('/');
+                setShowHamburgerMenu(false);
+              }}
+              style={{
+                width: "100%",
+                padding: "10px 16px",
+                background: "transparent",
+                border: "none",
+                color: "#ffffff",
+                fontSize: "13px",
+                textAlign: "left",
+                cursor: "pointer",
+                fontWeight: "600",
+                letterSpacing: "0.3px",
+                transition: "all 0.2s ease",
+                borderBottom: "1px solid #3a3a3c"
+              }}
+              onMouseEnter={(e) => e.target.style.background = "rgba(255, 255, 255, 0.1)"}
+              onMouseLeave={(e) => e.target.style.background = "transparent"}
+            >
+              Home
+            </button>
             {user && (
               <button
                 onClick={() => {
@@ -69,6 +97,11 @@ export default function HamburgerMenu({ onOpenFeedback }) {
             {user && (
               <button
                 onClick={() => {
+                  if (!isVerifiedUser) {
+                    alert('Verify your email or sign in with Google to use friends.');
+                    setShowHamburgerMenu(false);
+                    return;
+                  }
                   setShowFriendsModal(true);
                   setShowHamburgerMenu(false);
                 }}

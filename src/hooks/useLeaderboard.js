@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ref, push, set, query, orderByChild, limitToLast, onValue, off } from 'firebase/database';
+import { ref, push, set, query, limitToLast, onValue } from 'firebase/database';
 import { database } from '../config/firebase';
 
 /**
@@ -108,7 +108,7 @@ export function useLeaderboard(mode, numBoards = null, limit = 100) {
     );
 
     return () => {
-      off(leaderboardQuery, 'value', unsubscribe);
+      unsubscribe();
     };
   }, [mode, numBoards, limit]);
 

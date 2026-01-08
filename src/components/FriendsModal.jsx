@@ -3,7 +3,39 @@ import Modal from "./Modal";
 import { useAuth } from "../hooks/useAuth";
 
 export default function FriendsModal({ isOpen, onRequestClose }) {
-  const { friends, friendRequests, acceptFriendRequest, declineFriendRequest } = useAuth();
+  const { friends, friendRequests, acceptFriendRequest, declineFriendRequest, isVerifiedUser } = useAuth();
+  if (!isVerifiedUser) {
+    return (
+      <Modal isOpen={isOpen} onRequestClose={onRequestClose}>
+        <div style={{ textAlign: "center", minWidth: "320px", maxWidth: "420px" }}>
+          <h2 style={{ margin: "0 0 16px 0", fontSize: "22px", fontWeight: "bold" }}>
+            Verify your account
+          </h2>
+          <p style={{ marginBottom: "16px", color: "#d7dadc", fontSize: "14px" }}>
+            Friends are only available for verified accounts.
+            Please verify your email or sign in with Google to use this feature.
+          </p>
+          <button
+            onClick={onRequestClose}
+            style={{
+              padding: "10px 16px",
+              borderRadius: "8px",
+              border: "none",
+              background: "#6aaa64",
+              color: "#ffffff",
+              fontWeight: "bold",
+              fontSize: "13px",
+              cursor: "pointer",
+              letterSpacing: "0.5px"
+            }}
+          >
+            Close
+          </button>
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <Modal isOpen={isOpen} onRequestClose={onRequestClose}>
       <div style={{ textAlign: "center", minWidth: "400px", maxWidth: "500px" }}>

@@ -226,14 +226,14 @@ export default function OneVOneWaitingRoom({
                 }}
                 onMouseEnter={(e) => {
                   if (!friendRequestSent) {
-                    e.target.background = 'rgba(255, 255, 255, 0.05)';
-                    e.target.borderColor = '#565758';
+                    e.target.style.background = 'rgba(255, 255, 255, 0.05)';
+                    e.target.style.borderColor = '#565758';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!friendRequestSent) {
-                    e.target.background = 'transparent';
-                    e.target.borderColor = '#3a3a3c';
+                    e.target.style.background = 'transparent';
+                    e.target.style.borderColor = '#3a3a3c';
                   }
                 }}
               >

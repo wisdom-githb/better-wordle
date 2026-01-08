@@ -44,7 +44,7 @@ export default function Home({
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showOneVOneModal, setShowOneVOneModal] = useState(false);
-  const [oneVOneSpeedrun, setOneVOneSpeedrun] = useState(false);
+  const [showOneVOneConfig, setShowOneVOneConfig] = useState(false);
   const resetTime = useDailyResetTimer();
   
   const marathonMaxLabel = useMemo(() => marathonLevels[marathonLevels.length - 1], [marathonLevels]);
@@ -131,11 +131,10 @@ export default function Home({
 
         <OneVOneModal
           isOpen={showOneVOneModal}
-          onRequestClose={() => {
-            setShowOneVOneModal(false);
-            setOneVOneSpeedrun(false);
-          }}
-          defaultSpeedrun={oneVOneSpeedrun}
+          onRequestClose={() => setShowOneVOneModal(false)}
+          showConfigFirst={showOneVOneConfig}
+          onConfigClose={() => setShowOneVOneConfig(false)}
+          onConfigOpen={() => setShowOneVOneConfig(true)}
         />
 
         {/* DAILY */}
@@ -249,17 +248,6 @@ export default function Home({
               desc="Play against another player. Same word, different guesses. See only colors, not letters."
               buttonText="Play 1v1"
               onClick={() => setShowOneVOneModal(true)}
-              variant="gold"
-            />
-
-            <ModeRow
-              title="1v1 (speedrun)"
-              desc="Unlimited guesses. Timer starts immediately. Fastest time wins."
-              buttonText="Play 1v1 Speedrun"
-              onClick={() => {
-                setOneVOneSpeedrun(true);
-                setShowOneVOneModal(true);
-              }}
               variant="gold"
             />
           </div>

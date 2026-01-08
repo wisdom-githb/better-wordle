@@ -69,7 +69,7 @@ export default function GameHeader({
 
         <div style={{ display: "flex", gap: "12px", alignItems: "center", flexShrink: 0 }}>
           <div style={{ fontSize: 11, color: "#818384", whiteSpace: "nowrap" }}>
-            Reset: {resetTime} | {numBoards}B {maxTurns}T
+            Reset: {resetTime} | Boards: {numBoards} Guesses: {maxTurns}
           </div>
           {user && (
             <div style={{ 

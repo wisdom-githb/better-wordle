@@ -12,6 +12,7 @@ import {
   buildLetterMapFromGuesses,
   getTurnsUsed,
   formatElapsed,
+  sumMs,
   colorForStatus,
   colorForMiniCell
 } from "./lib/wordle";
@@ -39,6 +40,8 @@ import Keyboard from "./components/Keyboard";
 import { useOneVOneGame } from "./hooks/useOneVOneGame";
 import { useAuth } from "./hooks/useAuth";
 import { submitSpeedrunScore } from "./hooks/useLeaderboard";
+import { useTimedMessage } from "./hooks/useTimedMessage";
+import { useShare } from "./hooks/useShare";
 
 const Game = ({
   marathonLevels = [1, 2, 3, 4]
@@ -54,9 +57,13 @@ const Game = ({
   const isHost = searchParams.get("host") === "true";
   const gameCode = searchParams.get("code") || null;
   
-  // 1v1 game hook
-  const { user: authUser, sendFriendRequest } = useAuth();
-  const oneVOneGame = useOneVOneGame(isOneVOne ? (gameCode || null) : null, isHost);
+// 1v1 game hook
+  const { user: authUser, sendFriendRequest, isVerifiedUser } = useAuth();
+  const oneVOneGame = useOneVOneGame(
+    isOneVOne ? (gameCode || null) : null,
+    isHost,
+    speedrunEnabled
+  );
   
   // Load marathon state from localStorage
   const marathonMeta = loadJSON(marathonMetaKey(speedrunEnabled), { index: 0, cumulativeMs: 0, stageTimes: [] });
@@ -71,8 +78,7 @@ const Game = ({
   const [boards, setBoards] = useState([]);
   const [currentGuess, setCurrentGuess] = useState("");
 
-  const [message, setMessage] = useState("");
-  const messageTimeoutRef = useRef(null);
+  const { message, setMessage, setTimedMessage, clearMessageTimer } = useTimedMessage("");
 
   const [maxTurns, setMaxTurns] = useState(6);
   const [allowedSet, setAllowedSet] = useState(new Set());
@@ -84,6 +90,7 @@ const Game = ({
   const [showOutOfGuesses, setShowOutOfGuesses] = useState(false);
   const endingGameRef = useRef(false);
   const popupClosedRef = useRef(false);
+  const shouldShowPopupAfterFlipRef = useRef(false);
 
   // Track if we're showing a previously solved game
   const savedSolvedStateRef = useRef(null);
@@ -140,26 +147,6 @@ const Game = ({
 
   // No need for popstate handler - React Router handles browser back button automatically
 
-  const clearMessageTimer = () => {
-    if (messageTimeoutRef.current) {
-      clearTimeout(messageTimeoutRef.current);
-      messageTimeoutRef.current = null;
-    }
-  };
-
-  const setTimedMessage = (text, ms = 5000) => {
-    clearMessageTimer();
-    setMessage(text);
-    messageTimeoutRef.current = setTimeout(() => {
-      setMessage("");
-      messageTimeoutRef.current = null;
-    }, ms);
-  };
-
-  useEffect(() => {
-    return () => clearMessageTimer();
-  }, []);
-
   // Helper function to get the game state key for incomplete games
   const getGameStateKey = useCallback(() => {
     if (mode === "marathon") {
@@ -206,6 +193,11 @@ const Game = ({
         // If not 1v1 mode or not authenticated, don't block loading
         if (!isOneVOne) return;
         // If 1v1 but not authenticated, wait for auth
+        return;
+      }
+
+      if (!isVerifiedUser) {
+        setTimedMessage('You must verify your email or sign in with Google to play 1v1.', 8000);
         return;
       }
       
@@ -486,11 +478,11 @@ const Game = ({
         }
       }
       
-      // Handle game finished - only show popup when status is 'finished'
+      // Handle game finished - mark that we should show popup after flip completes
       // Don't reopen if user manually closed it
-      if (status === 'finished' && !popupClosedRef.current) {
-        setShowPopup(true);
-        endingGameRef.current = false;
+      if (status === 'finished' && !popupClosedRef.current && !shouldShowPopupAfterFlipRef.current) {
+        // Mark that popup should show, but the separate effect will handle timing
+        shouldShowPopupAfterFlipRef.current = true;
         return;
       }
       
@@ -580,7 +572,20 @@ const Game = ({
     }
     
     handleOneVOneGame();
-  }, [isOneVOne, oneVOneGame.gameState, authUser, maxTurns, gameCode, oneVOneGame, boards]);
+  }, [isOneVOne, oneVOneGame.gameState, authUser, maxTurns, gameCode, oneVOneGame, boards, isFlipping]);
+
+  // Handle showing popup after flip animation completes for 1v1
+  useEffect(() => {
+    if (isOneVOne && shouldShowPopupAfterFlipRef.current && !isFlipping && !popupClosedRef.current) {
+      // Ensure the flip is truly complete before showing popup
+      setTimeout(() => {
+        if (shouldShowPopupAfterFlipRef.current && !popupClosedRef.current) {
+          setShowPopup(true);
+          shouldShowPopupAfterFlipRef.current = false;
+        }
+      }, 50);
+    }
+  }, [isFlipping, isOneVOne]);
 
   const stageElapsedMs = (() => {
     if (savedSolvedStateRef.current?.stageElapsedMs !== undefined) {
@@ -739,19 +744,24 @@ const Game = ({
       const colors = colorStrings.map(c => c === "green" ? 2 : c === "yellow" ? 1 : 0);
       const isSolved = currentGuess === gameState.solution;
       
+      // Save the guess before clearing from state
+      const guessToSubmit = currentGuess;
+      
+      // Clear current guess immediately before Firebase updates
+      setCurrentGuess("");
+      setMessage("");
+      clearMessageTimer();
+      
       try {
-        await oneVOneGame.submitGuess(gameCode, currentGuess, colors);
+        await oneVOneGame.submitGuess(gameCode, guessToSubmit, colors);
         
         // Trigger flip animation
         setRevealId((x) => x + 1);
         setIsFlipping(true);
+        
         setTimeout(() => {
           setIsFlipping(false);
         }, FLIP_COMPLETE_MS);
-        
-        setCurrentGuess("");
-        setMessage("");
-        clearMessageTimer();
         
         // Note: Game ending logic is handled in the useEffect that monitors gameState
         // This ensures we check after Firebase updates both players' states
@@ -860,7 +870,7 @@ const Game = ({
       // For daily: submit when stage completes
       // For marathon: only submit when marathon is fully complete (last stage)
       const isMarathonComplete = mode === 'marathon' && marathonIndex >= marathonLevels.length - 1;
-      const shouldSubmit = speedrunEnabled && authUser && allSolvedNow && 
+      const shouldSubmit = speedrunEnabled && authUser && isVerifiedUser && allSolvedNow && 
         (mode === 'daily' || isMarathonComplete);
       
       if (shouldSubmit) {
@@ -1056,85 +1066,15 @@ const Game = ({
     );
   }, [boards, score, mode, numBoards, speedrunEnabled, stageElapsedMs, popupTotalMs, turnsUsed, maxTurns, allSolved, solvedCount]);
 
-  // Handle share button click
-  const handleShare = async () => {
-    console.log('handleShare called');
-    const isMobile = isMobileDevice();
-    console.log('isMobile:', isMobile);
-    console.log('shareText:', shareText);
-    console.log('navigator.share available:', !!navigator.share);
-    
-    try {
-      // Mobile: Use native share API
-      if (isMobile && navigator.share) {
-        try {
-          console.log('Attempting native share...');
-          await navigator.share({
-            title: "Better Wordle",
-            text: shareText
-          });
-          console.log('Share successful');
-          return; // Successfully shared, exit
-        } catch (shareErr) {
-          // If user cancelled, don't show error
-          if (shareErr.name === "AbortError") {
-            console.log('Share cancelled by user');
-            return;
-          }
-          // If share failed, fall through to clipboard
-          console.error("Share failed, falling back to clipboard:", shareErr);
-        }
-      }
-      
-      console.log('Using clipboard method...');
-      // Desktop (or mobile if share failed): Copy to clipboard
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        console.log('Using navigator.clipboard.writeText');
-        await navigator.clipboard.writeText(shareText);
-        setTimedMessage("Copied to clipboard!", 2000);
-      } else {
-        console.log('Using fallback execCommand');
-        // Fallback for older browsers that don't support clipboard API
-        const textArea = document.createElement("textarea");
-        textArea.value = shareText;
-        textArea.style.position = "fixed";
-        textArea.style.top = "0";
-        textArea.style.left = "0";
-        textArea.style.width = "2em";
-        textArea.style.height = "2em";
-        textArea.style.padding = "0";
-        textArea.style.border = "none";
-        textArea.style.outline = "none";
-        textArea.style.boxShadow = "none";
-        textArea.style.background = "transparent";
-        textArea.style.opacity = "0";
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        try {
-          const successful = document.execCommand("copy");
-          if (successful) {
-            console.log('Fallback copy successful');
-            setTimedMessage("Copied to clipboard!", 2000);
-          } else {
-            console.log('Fallback copy failed');
-            setTimedMessage("Failed to copy. Please copy manually.", 3000);
-          }
-        } catch (err) {
-          console.error("Fallback copy failed:", err);
-          setTimedMessage("Failed to copy. Please copy manually.", 3000);
-        }
-        document.body.removeChild(textArea);
-      }
-    } catch (err) {
-      console.error("Error in handleShare:", err);
-      setTimedMessage("Failed to copy. Please copy manually.", 3000);
-    }
-  };
+  const { handleShare, handleShareCode } = useShare(shareText, setTimedMessage);
 
   // 1v1 mode handlers
   const handleOneVOneReady = useCallback(async () => {
     if (!gameCode) return;
+    if (!isVerifiedUser) {
+      setTimedMessage('You must verify your email or sign in with Google to play 1v1.', 8000);
+      return;
+    }
     try {
       const currentReady = oneVOneGame.gameState?.hostId === authUser?.uid
         ? oneVOneGame.gameState.hostReady
@@ -1147,6 +1087,10 @@ const Game = ({
 
   const handleOneVOneStart = useCallback(async () => {
     if (!gameCode) return;
+    if (!isVerifiedUser) {
+      setTimedMessage('You must verify your email or sign in with Google to play 1v1.', 8000);
+      return;
+    }
     try {
       // Select a random word based on game code and timestamp (not daily word)
       const { ANSWER_WORDS } = await loadWordLists();
@@ -1162,66 +1106,7 @@ const Game = ({
     }
   }, [gameCode, oneVOneGame]);
 
-  const handleShareCode = useCallback(async (code) => {
-    console.log('handleShareCode called with:', code);
-    const isMobile = isMobileDevice();
-    
-    try {
-      // Mobile: Use native share API
-      if (isMobile && navigator.share) {
-        try {
-          await navigator.share({
-            title: "Join my Better Wordle game!",
-            text: `Join my game with code: ${code}`
-          });
-          return;
-        } catch (shareErr) {
-          if (shareErr.name === "AbortError") {
-            return;
-          }
-          console.error("Share failed, falling back to clipboard:", shareErr);
-        }
-      }
-      
-      // Desktop (or mobile if share failed): Copy to clipboard
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(`Join my Better Wordle game with code: ${code}`);
-        setTimedMessage("Code copied to clipboard!", 2000);
-      } else {
-        // Fallback for older browsers
-        const textArea = document.createElement("textarea");
-        textArea.value = `Join my Better Wordle game with code: ${code}`;
-        textArea.style.position = "fixed";
-        textArea.style.top = "0";
-        textArea.style.left = "0";
-        textArea.style.width = "2em";
-        textArea.style.height = "2em";
-        textArea.style.padding = "0";
-        textArea.style.border = "none";
-        textArea.style.outline = "none";
-        textArea.style.boxShadow = "none";
-        textArea.style.background = "transparent";
-        textArea.style.opacity = "0";
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        try {
-          const successful = document.execCommand("copy");
-          if (successful) {
-            setTimedMessage("Code copied to clipboard!", 2000);
-          }
-        } catch (err) {
-          console.error("Fallback copy failed:", err);
-        }
-        document.body.removeChild(textArea);
-      }
-    } catch (err) {
-      console.error("Error in handleShareCode:", err);
-    }
-  }, []);
-
   const handleAddFriendRequest = useCallback(async (opponentName, opponentId) => {
-    console.log('handleAddFriendRequest called:', { opponentName, opponentId, authUser: authUser?.uid });
     if (!authUser) {
       return;
     }
@@ -1229,9 +1114,7 @@ const Game = ({
       return;
     }
     try {
-      console.log('Calling sendFriendRequest:', opponentName, opponentId);
       await sendFriendRequest(opponentName, opponentId);
-      console.log('Friend request sent successfully');
       setFriendRequestSent(true);
     } catch (err) {
       console.error('Failed to send friend request:', err);
