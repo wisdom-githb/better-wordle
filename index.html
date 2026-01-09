@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Better Wordle</title>
     <style>
-      * {
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
         font-family: "Inter", system-ui, sans-serif;
       }
 
@@ -20,10 +23,23 @@
       }
 
       html,
+      body {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+      }
+
+      html,
       body,
       #root {
         height: 100%;
         margin: 0;
+        padding: 0;
+      }
+
+      #root {
+        max-width: 100%;
+        overflow-x: hidden;
       }
 
       body {
@@ -32,8 +48,8 @@
         color: #ffffff;
       }
     </style>
-    <script type="module" crossorigin src="/better-wordle/assets/index-CxqTokJ7.js"></script>
-    <link rel="stylesheet" crossorigin href="/better-wordle/assets/index-yDwGZPCu.css">
+    <script type="module" crossorigin src="/better-wordle/assets/index-h2HcjQtd.js"></script>
+    <link rel="stylesheet" crossorigin href="/better-wordle/assets/index-Cf7boHwo.css">
   </head>
   <body>
     <div id="root"></div>
