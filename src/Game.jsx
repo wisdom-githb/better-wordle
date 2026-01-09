@@ -37,11 +37,13 @@ import FeedbackModal from "./components/FeedbackModal";
 import OneVOneWaitingRoom from "./components/game/OneVOneWaitingRoom";
 import OpponentBoardView from "./components/game/OpponentBoardView";
 import Keyboard from "./components/Keyboard";
+import OneVOneGameView from "./components/game/OneVOneGameView";
 import { useOneVOneGame } from "./hooks/useOneVOneGame";
 import { useAuth } from "./hooks/useAuth";
 import { submitSpeedrunScore } from "./hooks/useLeaderboard";
 import { useTimedMessage } from "./hooks/useTimedMessage";
 import { useShare } from "./hooks/useShare";
+import { useSinglePlayerGame } from "./hooks/useSinglePlayerGame";
 
 const Game = ({
   marathonLevels = [1, 2, 3, 4]
@@ -83,7 +85,6 @@ const Game = ({
   const [maxTurns, setMaxTurns] = useState(6);
   const [allowedSet, setAllowedSet] = useState(new Set());
   const [isLoading, setIsLoading] = useState(true);
-  const [friendRequestSent, setFriendRequestSent] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   const [showPopup, setShowPopup] = useState(false);
@@ -122,6 +123,15 @@ const Game = ({
 
   const isMarathonSpeedrun = speedrunEnabled && mode === "marathon";
   const isDailySpeedrun = speedrunEnabled && mode === "daily";
+
+  // Derived friend request state for 1v1 waiting room / in-game UI, based on
+  // live Firebase gameState so updates are realtime without reloads.
+  const friendRequestSent = (() => {
+    if (!isOneVOne || !oneVOneGame.gameState || !authUser) return false;
+    const gs = oneVOneGame.gameState;
+    const isPlayerHost = gs.hostId === authUser.uid;
+    return isPlayerHost ? !!gs.hostFriendRequestSent : !!gs.guestFriendRequestSent;
+  })();
 
   useEffect(() => {
     if (!speedrunEnabled && !(isOneVOne && oneVOneGame.gameState?.speedrun)) return;
@@ -211,7 +221,11 @@ const Game = ({
         // If host, create game
         if (isHost && !gameCode) {
           const code = await oneVOneGame.createGame();
-          navigate(`/game?mode=1v1&code=${code}&host=true&speedrun=${speedrunEnabled}`, { replace: true });
+          const boardsQuery = boardsParam ? `&boards=${boardsParam}` : "";
+          navigate(
+            `/game?mode=1v1&code=${code}&host=true&speedrun=${speedrunEnabled}${boardsQuery}`,
+            { replace: true }
+          );
           setIsLoading(false);
           return;
         }
@@ -258,164 +272,35 @@ const Game = ({
     }
     
     initOneVOne();
-  }, [isOneVOne, isHost, gameCode, authUser, oneVOneGame, navigate]);
+  }, [isOneVOne, isHost, gameCode, authUser, oneVOneGame, navigate, boardsParam, speedrunEnabled]);
 
-  useEffect(() => {
-    async function initGame() {
-      // Skip regular init for 1v1 mode
-      if (isOneVOne) return;
-      
-      try {
-        setIsLoading(true);
-
-        // Check if this mode has already been solved (for today's date)
-        const dateString = getCurrentDateString();
-        const solvedKey = makeSolvedKey(mode, numBoards, speedrunEnabled, mode === "marathon" ? marathonIndex : null, dateString);
-        const solvedState = loadJSON(solvedKey, null);
-
-        if (solvedState && solvedState.allSolved) {
-          // Mode already solved - load saved state and show popup
-          savedSolvedStateRef.current = solvedState;
-          setBoards(solvedState.boards);
-          setCurrentGuess("");
-          setMessage("");
-          clearMessageTimer();
-          setShowOutOfGuesses(false);
-          setIsUnlimited(false);
-          setSelectedBoardIndex(null);
-          
-          // Reset flip state and revealId to prevent any animations
-          setRevealId(0);
-          setIsFlipping(false);
-          
-          const turns = getMaxTurns(numBoards);
-          setMaxTurns(turns);
-          
-          // For speedrun, restore timing state
-          if (speedrunEnabled) {
-            stageStartRef.current = Date.now() - (solvedState.stageElapsedMs || 0);
-            stageEndRef.current = Date.now();
-          } else {
-            stageStartRef.current = Date.now();
-            stageEndRef.current = null;
-          }
-          
-          committedRef.current = true;
-          committedStageMsRef.current = solvedState.stageElapsedMs || 0;
-          
-          const { ALLOWED_GUESSES } = await loadWordLists();
-          setAllowedSet(new Set(ALLOWED_GUESSES));
-          
-          setIsLoading(false);
-          
-          // Delay popup to ensure any potential animations are complete
-          // Wait for flip animation time in case there are any animations
-          setTimeout(() => {
-            setShowPopup(true);
-          }, FLIP_COMPLETE_MS);
-          return;
-        }
-        
-        // Reset saved state ref when starting a new game
-        savedSolvedStateRef.current = null;
-
-        // Check if there's an incomplete game state to resume
-        const gameStateKey = getGameStateKey();
-        const savedGameState = loadJSON(gameStateKey, null);
-
-        if (savedGameState && savedGameState.boards && savedGameState.boards.length > 0) {
-          // Check if the saved state matches current configuration
-          const allSolvedInSaved = savedGameState.boards.every((b) => b.isSolved);
-          if (!allSolvedInSaved) {
-            // Resume incomplete game
-            const { ALLOWED_GUESSES } = await loadWordLists();
-            setAllowedSet(new Set(ALLOWED_GUESSES));
-            
-            setBoards(savedGameState.boards);
-            setCurrentGuess(savedGameState.currentGuess || "");
-            setMaxTurns(savedGameState.maxTurns || getMaxTurns(numBoards));
-            setIsUnlimited(savedGameState.isUnlimited || false);
-            setSelectedBoardIndex(null);
-            
-            // Restore timing state
-            if (speedrunEnabled && savedGameState.stageStartTime) {
-              if (savedGameState.stageElapsedMs > 0 && savedGameState.stageElapsedMs === savedGameState.committedStageMs) {
-                // Was frozen/committed
-                stageStartRef.current = savedGameState.stageStartTime;
-                stageEndRef.current = savedGameState.stageStartTime + (savedGameState.stageElapsedMs || 0);
-                committedRef.current = savedGameState.committedRef || false;
-                committedStageMsRef.current = savedGameState.committedStageMs || 0;
-              } else {
-                // Was active, resume timing
-                const elapsed = savedGameState.stageElapsedMs || 0;
-                stageStartRef.current = Date.now() - elapsed;
-                stageEndRef.current = null;
-                committedRef.current = false;
-                committedStageMsRef.current = 0;
-              }
-            } else {
-              stageStartRef.current = Date.now();
-              stageEndRef.current = null;
-              committedRef.current = false;
-              committedStageMsRef.current = 0;
-            }
-            
-            setRevealId(savedGameState.revealId || 0);
-            setIsFlipping(false); // No animation in progress when resuming
-            setShowPopup(false);
-            setShowOutOfGuesses(false);
-            setMessage("");
-            clearMessageTimer();
-            
-            setIsLoading(false);
-            return;
-          }
-        }
-
-        // No saved state - start new game
-        const { ANSWER_WORDS, ALLOWED_GUESSES } = await loadWordLists();
-        setAllowedSet(new Set(ALLOWED_GUESSES));
-
-        const turns = getMaxTurns(numBoards);
-        setMaxTurns(turns);
-
-        // Select daily words deterministically based on date
-        const marathonIndexForSeed = mode === "marathon" ? marathonIndex : null;
-        const dailySolutions = selectDailyWords(ANSWER_WORDS, numBoards, mode, speedrunEnabled, marathonIndexForSeed);
-        const newBoards = dailySolutions.map(solution => createBoardState(solution));
-
-        setBoards(newBoards);
-        setCurrentGuess("");
-        setMessage("");
-        clearMessageTimer();
-        setShowPopup(false);
-        setShowOutOfGuesses(false);
-
-        // Speedrun starts unlimited immediately
-        setIsUnlimited(!!speedrunEnabled);
-        setSelectedBoardIndex(null);
-
-        // Reset stage timer + commit guard for each stage
-        stageStartRef.current = Date.now();
-        stageEndRef.current = null;
-        committedRef.current = false;
-        committedStageMsRef.current = 0;
-
-        // Reset flip id and state
-        setRevealId(0);
-        setIsFlipping(false);
-
-        setIsLoading(false);
-      } catch (error) {
-        console.error("Error initializing game:", error);
-        setIsLoading(false);
-        setTimedMessage("Failed to load word lists. Please refresh the page.", 10000);
-      }
-    }
-
-    initGame();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [numBoards, mode, speedrunEnabled, marathonIndex]);
+  useSinglePlayerGame({
+    isOneVOne,
+    mode,
+    speedrunEnabled,
+    numBoards,
+    marathonIndex,
+    getGameStateKey,
+    savedSolvedStateRef,
+    stageStartRef,
+    stageEndRef,
+    committedRef,
+    committedStageMsRef,
+    setBoards,
+    setCurrentGuess,
+    setMessage,
+    clearMessageTimer,
+    setShowOutOfGuesses,
+    setIsUnlimited,
+    setSelectedBoardIndex,
+    setRevealId,
+    setIsFlipping,
+    setMaxTurns,
+    setAllowedSet,
+    setIsLoading,
+    setShowPopup,
+    setTimedMessage,
+  });
 
   // Handle 1v1 game state changes and initialization
   useEffect(() => {
@@ -436,11 +321,30 @@ const Game = ({
       if (!oneVOneGame.gameState) return;
       
       const gameState = oneVOneGame.gameState;
-      const { status, solution, hostId, hostGuesses = [], guestGuesses = [], hostColors = [], guestColors = [] } = gameState;
+      const {
+        status,
+        solution,
+        solutions,
+        hostId,
+        hostGuesses = [],
+        guestGuesses = [],
+        hostColors = [],
+        guestColors = [],
+      } = gameState;
       const isPlayerHost = hostId === authUser.uid;
+      const isSpeedrun = gameState.speedrun || false;
+
+      // Normalize to an array of solutions for multi-board support
+      const solutionArray =
+        Array.isArray(solutions) && solutions.length > 0
+          ? solutions
+          : solution
+          ? [solution]
+          : [];
+      const boardCount = solutionArray.length || 1;
       
       // Initialize game boards when game starts
-      if (status === 'playing' && solution) {
+      if (status === 'playing' && solutionArray.length > 0) {
         if (boards.length === 0) {
           // Word lists should already be loaded in initOneVOne, but ensure they're loaded
           if (allowedSet.size === 0) {
@@ -450,31 +354,47 @@ const Game = ({
             setIsLoading(false);
           }
           
-          // Set maxTurns to a very high number for speedrun mode (unlimited)
-        const isSpeedrun = gameState.speedrun || false;
-        const turns = isSpeedrun ? 999 : getMaxTurns(1);
-        setMaxTurns(turns);
-        setIsUnlimited(isSpeedrun);
+          // Set maxTurns based on number of boards (same curve as daily mode).
+          const turns = isSpeedrun ? 999 : getMaxTurns(boardCount);
+          setMaxTurns(turns);
+          setIsUnlimited(isSpeedrun);
         }
         
-        // Update board with player's guesses
+        // Update boards with player's guesses (one board per solution)
         const myGuesses = isPlayerHost ? hostGuesses : guestGuesses;
-        const newGuesses = myGuesses.map(word => {
-          const colors = scoreGuess(word, solution);
-          return { word, colors };
+
+        const newBoards = solutionArray.map((sol) => {
+          // Once a particular board is solved, subsequent guesses should NOT appear
+          // on that board. We therefore truncate the guess list at the first time
+          // this solution is guessed.
+          const firstSolveIndex = myGuesses.indexOf(sol);
+          const limit = firstSolveIndex === -1 ? myGuesses.length : firstSolveIndex + 1;
+
+          const guessesWithColors = myGuesses.slice(0, limit).map((word) => {
+            const colors = scoreGuess(word, sol);
+            return { word, colors };
+          });
+
+          const isSolved = firstSolveIndex !== -1;
+          const isDead =
+            !isSpeedrun && !isSolved && guessesWithColors.length >= maxTurns;
+
+          return {
+            solution: sol,
+            guesses: guessesWithColors,
+            isSolved,
+            isDead,
+          };
         });
-        
-        const isSolved = newGuesses.some(g => g.word === solution);
-        const isSpeedrun = gameState.speedrun || false;
-        const isDead = !isSpeedrun && !isSolved && newGuesses.length >= maxTurns;
-        
-        if (boards.length === 0 || boards[0].guesses.length !== newGuesses.length) {
-          setBoards([{
-            solution,
-            guesses: newGuesses,
-            isSolved: isSolved,
-            isDead: isDead
-          }]);
+
+        // Only update local boards when guess counts change to avoid loops
+        if (
+          boards.length !== newBoards.length ||
+          newBoards.some(
+            (b, idx) => b.guesses.length !== (boards[idx]?.guesses.length || 0)
+          )
+        ) {
+          setBoards(newBoards);
         }
       }
       
@@ -485,18 +405,38 @@ const Game = ({
         shouldShowPopupAfterFlipRef.current = true;
         return;
       }
+
+      // When a new round starts (status === 'playing' with solutions), reset
+      // end-of-game sentinels so winner logic and popups work again.
+      if (status === 'playing' && solutionArray.length > 0) {
+        endingGameRef.current = false;
+        popupClosedRef.current = false;
+        shouldShowPopupAfterFlipRef.current = false;
+        // Do not force-close showPopup here; it is controlled elsewhere.
+      }
       
       // Auto-switch turn if current player has finished (solved or exhausted guesses)
-      if (status === 'playing' && solution && authUser) {
+      // BUT only while the opponent is *not* finished. Once both players are done,
+      // we stop switching turns to avoid ping-ponging currentTurn after game end.
+      // This logic is only used in non-speedrun mode; speedrun has no turns.
+      if (!gameState.speedrun && status === 'playing' && solutionArray.length > 0 && authUser) {
         const currentTurn = gameState.currentTurn;
         const myGuesses = isPlayerHost ? hostGuesses : guestGuesses;
-        const mySolved = myGuesses.includes(solution);
-        const isSpeedrun = gameState.speedrun || false;
-        const myFinished = mySolved || (!isSpeedrun && myGuesses.length >= maxTurns);
+        const opponentGuesses = isPlayerHost ? guestGuesses : hostGuesses;
+
+        // Finished = all boards solved OR, in non-speedrun, ran out of guesses
+        const mySolvedAll = solutionArray.every((sol) => myGuesses.includes(sol));
+        const opponentSolvedAll = solutionArray.every((sol) => opponentGuesses.includes(sol));
+
+        const myFinished = mySolvedAll || (!isSpeedrun && myGuesses.length >= maxTurns);
+        const opponentFinished = opponentSolvedAll || (!isSpeedrun && opponentGuesses.length >= maxTurns);
+
         const isMyTurn = currentTurn === (isPlayerHost ? 'host' : 'guest');
         
-        // If it's my turn but I've finished, automatically switch turn
-        if (isMyTurn && myFinished) {
+        // If it's my turn, I've finished, and opponent is *not* finished yet,
+        // automatically pass the turn. Once opponentFinished is true, we no longer
+        // auto-switch, preventing infinite turn flipping.
+        if (isMyTurn && myFinished && !opponentFinished) {
           try {
             await oneVOneGame.switchTurn(gameCode || '');
           } catch (error) {
@@ -507,35 +447,43 @@ const Game = ({
       
       // Check if both players are done (either solved or exhausted guesses)
       // Only end game if both are done AND game is still playing
-      if (status === 'playing' && solution && !endingGameRef.current) {
+      if (status === 'playing' && solutionArray.length > 0 && !endingGameRef.current) {
         const myGuesses = isPlayerHost ? hostGuesses : guestGuesses;
         const opponentGuesses = isPlayerHost ? guestGuesses : hostGuesses;
-        const mySolved = myGuesses.includes(solution);
-        const opponentSolved = opponentGuesses.includes(solution);
+
+        const mySolvedAll = solutionArray.every((sol) => myGuesses.includes(sol));
+        const opponentSolvedAll = solutionArray.every((sol) => opponentGuesses.includes(sol));
+
+        // A player is "finished" if they solved all boards OR (in non-speedrun mode) exhausted all guesses
+        const myFinished = mySolvedAll || (!isSpeedrun && myGuesses.length >= maxTurns);
+        const opponentFinished = opponentSolvedAll || (!isSpeedrun && opponentGuesses.length >= maxTurns);
         
-        const isSpeedrun = gameState.speedrun || false;
-        // A player is "finished" if they solved OR (in non-speedrun mode) exhausted all guesses
-        const myFinished = mySolved || (!isSpeedrun && myGuesses.length >= maxTurns);
-        const opponentFinished = opponentSolved || (!isSpeedrun && opponentGuesses.length >= maxTurns);
-        
-        // Only end game when BOTH players have finished
-        // This ensures that if one player solves, the other player can still take their turn
+        // Only end game when BOTH players have finished across all boards
+        // This ensures that if one player solves some boards, the other can still take their turns.
         if (myFinished && opponentFinished) {
           // Prevent multiple calls to setWinner
           endingGameRef.current = true;
           
           // Determine winner
           let winner = null;
+
+          // For winner logic, treat the "primary" solution as the first in the array, to
+          // keep existing behavior mostly intact. Game only ends once all boards are done,
+          // but winner is decided based on who did better on the first board / time.
+          const primarySolution = solutionArray[0];
+          const mySolvedPrimary = myGuesses.includes(primarySolution);
+          const opponentSolvedPrimary = opponentGuesses.includes(primarySolution);
+
           if (isSpeedrun) {
             // Speedrun mode: use time to determine winner
             const myTimeMs = isPlayerHost ? (gameState.hostTimeMs || null) : (gameState.guestTimeMs || null);
             const opponentTimeMs = isPlayerHost ? (gameState.guestTimeMs || null) : (gameState.hostTimeMs || null);
             
-            if (mySolved && !opponentSolved) {
+            if (mySolvedPrimary && !opponentSolvedPrimary) {
               winner = isPlayerHost ? 'host' : 'guest';
-            } else if (opponentSolved && !mySolved) {
+            } else if (opponentSolvedPrimary && !mySolvedPrimary) {
               winner = isPlayerHost ? 'guest' : 'host';
-            } else if (mySolved && opponentSolved && myTimeMs !== null && opponentTimeMs !== null) {
+            } else if (mySolvedPrimary && opponentSolvedPrimary && myTimeMs !== null && opponentTimeMs !== null) {
               // Both solved - check who solved faster
               if (myTimeMs < opponentTimeMs) {
                 winner = isPlayerHost ? 'host' : 'guest';
@@ -545,15 +493,15 @@ const Game = ({
               // If same time, winner stays null (tie)
             }
           } else {
-            // Normal mode: use guesses to determine winner
-            if (mySolved && !opponentSolved) {
+            // Normal mode: use guesses on the primary board to determine winner
+            if (mySolvedPrimary && !opponentSolvedPrimary) {
               winner = isPlayerHost ? 'host' : 'guest';
-            } else if (opponentSolved && !mySolved) {
+            } else if (opponentSolvedPrimary && !mySolvedPrimary) {
               winner = isPlayerHost ? 'guest' : 'host';
-            } else if (mySolved && opponentSolved) {
-              // Both solved - check who solved first (fewer guesses)
-              const mySolveIndex = myGuesses.indexOf(solution);
-              const opponentSolveIndex = opponentGuesses.indexOf(solution);
+            } else if (mySolvedPrimary && opponentSolvedPrimary) {
+              // Both solved primary board - check who solved first (fewer guesses)
+              const mySolveIndex = myGuesses.indexOf(primarySolution);
+              const opponentSolveIndex = opponentGuesses.indexOf(primarySolution);
               if (mySolveIndex < opponentSolveIndex) {
                 winner = isPlayerHost ? 'host' : 'guest';
               } else if (opponentSolveIndex < mySolveIndex) {
@@ -574,6 +522,60 @@ const Game = ({
     handleOneVOneGame();
   }, [isOneVOne, oneVOneGame.gameState, authUser, maxTurns, gameCode, oneVOneGame, boards, isFlipping]);
 
+  // Host-only effect: automatically start a new 1v1 round when both players
+  // have requested a rematch, skipping the ready screen.
+  useEffect(() => {
+    if (!isOneVOne) return;
+    const gameState = oneVOneGame.gameState;
+    if (!gameState || !authUser) return;
+
+    const { hostId, hostRematch, guestRematch, status } = gameState;
+    const isPlayerHost = hostId === authUser.uid;
+
+    // Only host orchestrates starting the next round.
+    if (!isPlayerHost) return;
+
+    // Only trigger from a finished game where both players have clicked rematch.
+    if (status !== 'finished' || !hostRematch || !guestRematch) return;
+
+    (async () => {
+      try {
+        // Use a fresh round; don't reuse previous endingGameRef guard here.
+
+        // Select random word(s) based on game code and timestamp (not daily word).
+        // Preserve the same number of boards as the previous 1v1 game by
+        // reusing the length of the existing solutions array when present.
+        const { ANSWER_WORDS } = await loadWordLists();
+        const previousSolutions = Array.isArray(gameState.solutions)
+          ? gameState.solutions
+          : gameState.solution
+          ? [gameState.solution]
+          : [];
+        const boardsForThisGame = Math.max(previousSolutions.length || 1, 1);
+
+        // Use game code + timestamp as seed to get different words each game
+        const seed = parseInt(gameCode, 10) + Date.now();
+        const rng = new SeededRandom(seed);;
+        const solutions = Array.from({ length: boardsForThisGame }).map(() => {
+          const index = Math.floor(rng.next() * ANSWER_WORDS.length);
+          return ANSWER_WORDS[index];
+        });
+
+        await oneVOneGame.startGame(gameCode, solutions);
+
+        // Local UI reset for new round
+        setBoards([]);
+        setCurrentGuess("");
+        setShowPopup(false);
+        shouldShowPopupAfterFlipRef.current = false;
+        popupClosedRef.current = false;
+        setIsLoading(false);
+      } catch (err) {
+        console.error('Failed to auto-start 1v1 rematch:', err);
+      }
+    })();
+  }, [isOneVOne, oneVOneGame.gameState, authUser, gameCode, oneVOneGame]);
+
   // Handle showing popup after flip animation completes for 1v1
   useEffect(() => {
     if (isOneVOne && shouldShowPopupAfterFlipRef.current && !isFlipping && !popupClosedRef.current) {
@@ -585,7 +587,7 @@ const Game = ({
         }
       }, 50);
     }
-  }, [isFlipping, isOneVOne]);
+  }, [isFlipping, isOneVOne, oneVOneGame.gameState && oneVOneGame.gameState.status]);
 
   const stageElapsedMs = (() => {
     if (savedSolvedStateRef.current?.stageElapsedMs !== undefined) {
@@ -652,13 +654,29 @@ const Game = ({
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (showPopup || showOutOfGuesses) return;
+
+      // If the user is typing into a text field/textarea/contentEditable element
+      // (e.g., in a modal), don't let the global game keyboard handler run.
+      const target = e.target;
+      if (
+        target &&
+        target instanceof HTMLElement &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
       
-      // In 1v1 mode, disable keyboard input if not player's turn
+      // In 1v1 mode, disable keyboard input if not player's turn (non-speedrun only).
       if (isOneVOne && oneVOneGame.gameState) {
         const gameState = oneVOneGame.gameState;
-        const isPlayerHost = authUser && gameState.hostId === authUser.uid;
-        const isMyTurn = gameState.currentTurn === (isPlayerHost ? 'host' : 'guest');
-        if (!isMyTurn || gameState.status !== 'playing') return;
+        if (gameState.status !== 'playing') return;
+        if (!gameState.speedrun) {
+          const isPlayerHost = authUser && gameState.hostId === authUser.uid;
+          const isMyTurn = gameState.currentTurn === (isPlayerHost ? 'host' : 'guest');
+          if (!isMyTurn) return;
+        }
       }
       
       const key = e.key.toUpperCase();
@@ -713,28 +731,40 @@ const Game = ({
     if (isOneVOne && oneVOneGame.gameState) {
       const gameState = oneVOneGame.gameState;
       const isPlayerHost = authUser && gameState.hostId === authUser.uid;
+      const isSpeedrun = gameState.speedrun || false;
       const isMyTurn = gameState.currentTurn === (isPlayerHost ? 'host' : 'guest');
       
-      if (!isMyTurn) {
+      if (!isSpeedrun && !isMyTurn) {
         setTimedMessage("Not your turn!", 3000);
         return;
       }
       
-      if (!gameState.solution) return;
+      // For multi-board 1v1, consider all solutions, not just the primary one
+      const solutionArray =
+        Array.isArray(gameState.solutions) && gameState.solutions.length > 0
+          ? gameState.solutions
+          : gameState.solution
+          ? [gameState.solution]
+          : [];
+      if (solutionArray.length === 0) return;
       
-      // Check if player has already finished
+      // Check if player has already finished (all boards solved or out of guesses),
+      // matching the logic used in handleOneVOneGame.
       const myGuesses = isPlayerHost ? (gameState.hostGuesses || []) : (gameState.guestGuesses || []);
-      const mySolved = myGuesses.includes(gameState.solution);
-      const isSpeedrun = gameState.speedrun || false;
-      const myFinished = mySolved || (!isSpeedrun && myGuesses.length >= maxTurns);
+      const mySolvedAll = solutionArray.every((sol) => myGuesses.includes(sol));
+      const myFinished = mySolvedAll || (!isSpeedrun && myGuesses.length >= maxTurns);
       
       if (myFinished) {
-        // Player has finished - switch turn without adding a guess
-        try {
-          await oneVOneGame.switchTurn(gameCode);
-          setTimedMessage("You have already finished! Switching turn...", 2000);
-        } catch (error) {
-          setTimedMessage(error.message || "Failed to switch turn", 3000);
+        // In non-speedrun mode, once you're finished we auto-pass the turn.
+        if (!isSpeedrun) {
+          try {
+            await oneVOneGame.switchTurn(gameCode);
+            setTimedMessage("You have already finished! Switching turn...", 2000);
+          } catch (error) {
+            setTimedMessage(error.message || "Failed to switch turn", 3000);
+          }
+        } else {
+          setTimedMessage("You have already finished!", 2000);
         }
         return;
       }
@@ -753,15 +783,16 @@ const Game = ({
       clearMessageTimer();
       
       try {
-        await oneVOneGame.submitGuess(gameCode, guessToSubmit, colors);
-        
-        // Trigger flip animation
+        // Trigger flip animation immediately so we can reliably wait for it
+        // before showing the end-of-game popup.
         setRevealId((x) => x + 1);
         setIsFlipping(true);
         
         setTimeout(() => {
           setIsFlipping(false);
         }, FLIP_COMPLETE_MS);
+
+        await oneVOneGame.submitGuess(gameCode, guessToSubmit, colors);
         
         // Note: Game ending logic is handled in the useEffect that monitors gameState
         // This ensures we check after Firebase updates both players' states
@@ -923,12 +954,15 @@ const Game = ({
   const handleVirtualKey = (key) => {
     if (showPopup || showOutOfGuesses) return;
     
-    // In 1v1 mode, disable keyboard input if not player's turn
+    // In 1v1 mode, disable keyboard input if not player's turn (non-speedrun only).
     if (isOneVOne && oneVOneGame.gameState) {
       const gameState = oneVOneGame.gameState;
-      const isPlayerHost = authUser && gameState.hostId === authUser.uid;
-      const isMyTurn = gameState.currentTurn === (isPlayerHost ? 'host' : 'guest');
-      if (!isMyTurn || gameState.status !== 'playing') return;
+      if (gameState.status !== 'playing') return;
+      if (!gameState.speedrun) {
+        const isPlayerHost = authUser && gameState.hostId === authUser.uid;
+        const isMyTurn = gameState.currentTurn === (isPlayerHost ? 'host' : 'guest');
+        if (!isMyTurn) return;
+      }
     }
     
     if (key === "ENTER") submitGuess();
@@ -1092,19 +1126,21 @@ const Game = ({
       return;
     }
     try {
-      // Select a random word based on game code and timestamp (not daily word)
       const { ANSWER_WORDS } = await loadWordLists();
-      // Use game code + timestamp as seed to get a different word each game
-      const seed = parseInt(gameCode) + Date.now();
+      // For 1v1, always pick fresh random words so each hosted game uses new words.
+      const boardsForThisGame = Math.max(1, numBoards || 1);
+      const seed = parseInt(gameCode, 10) + Date.now();
       const rng = new SeededRandom(seed);
-      const index = Math.floor(rng.next() * ANSWER_WORDS.length);
-      const solution = ANSWER_WORDS[index];
+      const solutions = Array.from({ length: boardsForThisGame }).map(() => {
+        const index = Math.floor(rng.next() * ANSWER_WORDS.length);
+        return ANSWER_WORDS[index];
+      });
       
-      await oneVOneGame.startGame(gameCode, solution);
+      await oneVOneGame.startGame(gameCode, solutions);
     } catch (error) {
       setTimedMessage(error.message || "Failed to start game", 5000);
     }
-  }, [gameCode, oneVOneGame]);
+  }, [gameCode, oneVOneGame, numBoards, isVerifiedUser, setTimedMessage]);
 
   const handleAddFriendRequest = useCallback(async (opponentName, opponentId) => {
     if (!authUser) {
@@ -1115,115 +1151,330 @@ const Game = ({
     }
     try {
       await sendFriendRequest(opponentName, opponentId);
-      setFriendRequestSent(true);
+      if (isOneVOne && gameCode && oneVOneGame) {
+        // Mark as pending in 1v1 game state so both players see live status.
+        try {
+          await oneVOneGame.setFriendRequestStatus(gameCode, 'pending');
+        } catch (e) {
+          console.error('Failed to mark 1v1 friend request pending:', e);
+        }
+      }
     } catch (err) {
       console.error('Failed to send friend request:', err);
     }
-  }, [authUser, sendFriendRequest]);
+  }, [authUser, sendFriendRequest, isOneVOne, gameCode, oneVOneGame]);
 
-  // Show waiting room for 1v1 mode (check before loading screen)
-  if (isOneVOne && oneVOneGame.gameState && oneVOneGame.gameState.status === 'waiting') {
-    const gameState = oneVOneGame.gameState;
-    const isPlayerHost = authUser && gameState.hostId === authUser.uid;
-    
+  // For 1v1 mode, delegate rendering to OneVOneGameView
+  if (isOneVOne) {
+    // In 1v1, the true multi-board count comes from the active boards, not the URL
+    const multiBoardCount = Math.max(boards.length || 0, 1);
+    const gridCols1v1 = Math.ceil(Math.sqrt(multiBoardCount));
+    const gridRows1v1 = Math.ceil(multiBoardCount / gridCols1v1);
+
     return (
-      <div style={{ minHeight: "100vh", backgroundColor: "#121213", color: "#ffffff" }}>
-        <GameHeader
+      <>
+        <OneVOneGameView
           mode={mode}
-          numBoards={1}
-          speedrunEnabled={false}
-          solutionsText=""
-          maxTurns={6}
-          stageElapsedMs={0}
-          displayTotalMs={0}
-          formatElapsed={formatElapsed}
-          onBack={handleBack}
-          onOpenFeedback={() => setShowFeedbackModal(true)}
-        />
-        <OneVOneWaitingRoom
-          gameCode={gameCode || ""}
-          gameState={gameState}
-          isHost={isPlayerHost}
+          gameCode={gameCode}
+          authUser={authUser}
+          oneVOneGame={oneVOneGame}
+          isLoading={isLoading}
+          initialNumBoards={numBoards}
+          maxTurns={maxTurns}
+          currentGuess={currentGuess}
+          invalidCurrentGuess={invalidCurrentGuess}
+          revealId={revealId}
+          boardRefs={boardRefs}
+          boards={boards}
+          selectedBoardIndex={selectedBoardIndex}
+          setSelectedBoardIndex={setSelectedBoardIndex}
+          friendRequestSent={friendRequestSent}
+          onAddFriendRequest={handleAddFriendRequest}
+          onShareCode={handleShareCode}
           onReady={handleOneVOneReady}
           onStartGame={handleOneVOneStart}
-          friendRequestSent={friendRequestSent}
-          onShareCode={handleShareCode}
-          onAddFriend={(opponentName) => {
-            const opponentId = isPlayerHost ? gameState.guestId : gameState.hostId;
-            handleAddFriendRequest(opponentName, opponentId);
+          onBack={handleBack}
+          onOpenFeedback={() => setShowFeedbackModal(true)}
+          onRematch={async () => {
+            if (!gameCode) return;
+            try {
+              await oneVOneGame.requestRematch(gameCode);
+              // Close popup locally; opponent will see a rematch notice via gameState.
+              setShowPopup(false);
+              popupClosedRef.current = true;
+            } catch (error) {
+              setTimedMessage(error.message || "Failed to request rematch", 5000);
+            }
           }}
+          setShowFeedbackModal={setShowFeedbackModal}
+          setTimedMessage={setTimedMessage}
+          oneVOneNowMs={oneVOneNowMs}
         />
-      </div>
-    );
-  }
 
-  // For 1v1 mode, if we're still loading game state or joining, show appropriate message
-  if (isOneVOne) {
-    // Show error if there's one
-    if (oneVOneGame.error) {
-      return (
-        <div
-          style={{
-            minHeight: "100vh",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "#121213",
-            color: "#ffffff",
-            flexDirection: "column",
-            gap: "16px",
-            padding: "20px"
-          }}
-        >
-          <div style={{ color: "#f06272", textAlign: "center" }}>
-            Error: {oneVOneGame.error}
-          </div>
-          <button
-            onClick={() => navigate("/")}
+        {showPopup && (
+          <GamePopup
+            allSolved={allSolved}
+            boards={boards}
+            score={score}
+            speedrunEnabled={speedrunEnabled}
+            stageElapsedMs={stageElapsedMs}
+            popupTotalMs={popupTotalMs}
+            formatElapsed={formatElapsed}
+            solvedCount={solvedCount}
+            mode={mode}
+            marathonHasNext={marathonHasNext}
+            onShare={handleShare}
+            onClose={() => {
+              setShowPopup(false);
+              popupClosedRef.current = true;
+            }}
+            onNextStage={goNextStage}
+            freezeStageTimer={freezeStageTimer}
+            isMarathonSpeedrun={isMarathonSpeedrun}
+            commitStageIfNeeded={commitStageIfNeeded}
+            isOneVOne={true}
+            oneVOneGameState={oneVOneGame.gameState}
+            myScore={oneVOneGame.gameState ? (() => {
+              const isSpeedrun = oneVOneGame.gameState.speedrun || false;
+              if (isSpeedrun) {
+                // Return time in milliseconds for speedrun mode
+                return (authUser?.uid === oneVOneGame.gameState.hostId)
+                  ? (oneVOneGame.gameState.hostTimeMs || null)
+                  : (oneVOneGame.gameState.guestTimeMs || null);
+              } else {
+                const myGuesses = (authUser?.uid === oneVOneGame.gameState.hostId)
+                  ? (oneVOneGame.gameState.hostGuesses || [])
+                  : (oneVOneGame.gameState.guestGuesses || []);
+                const mySolved = myGuesses.includes(oneVOneGame.gameState.solution);
+                const mockBoard = {
+                  guesses: myGuesses.map(word => ({ word, colors: [] })),
+                  isSolved: mySolved
+                };
+                return calculateNonSpeedrunScore([mockBoard], myGuesses.length, maxTurns, 1);
+              }
+            })() : null}
+            opponentScore={oneVOneGame.gameState ? (() => {
+              const isSpeedrun = oneVOneGame.gameState.speedrun || false;
+              if (isSpeedrun) {
+                // Return time in milliseconds for speedrun mode
+                return (authUser?.uid === oneVOneGame.gameState.hostId)
+                  ? (oneVOneGame.gameState.guestTimeMs || null)
+                  : (oneVOneGame.gameState.hostTimeMs || null);
+              } else {
+                const opponentGuesses = (authUser?.uid === oneVOneGame.gameState.hostId)
+                  ? (oneVOneGame.gameState.guestGuesses || [])
+                  : (oneVOneGame.gameState.hostGuesses || []);
+                const opponentSolved = opponentGuesses.includes(oneVOneGame.gameState.solution);
+                const mockBoard = {
+                  guesses: opponentGuesses.map(word => ({ word, colors: [] })),
+                  isSolved: opponentSolved
+                };
+                return calculateNonSpeedrunScore([mockBoard], opponentGuesses.length, maxTurns, 1);
+              }
+            })() : null}
+            winner={oneVOneGame.gameState ? oneVOneGame.gameState.winner : null}
+            isPlayerHost={oneVOneGame.gameState && authUser ? (oneVOneGame.gameState.hostId === authUser.uid) : false}
+            onRematch={async () => {
+              if (!gameCode) return;
+              try {
+                await oneVOneGame.requestRematch(gameCode);
+                setShowPopup(false);
+                popupClosedRef.current = true;
+              } catch (error) {
+                setTimedMessage(error.message || "Failed to request rematch", 5000);
+              }
+            }}
+          />
+        )}
+
+        <FeedbackModal
+          isOpen={showFeedbackModal}
+          onRequestClose={() => setShowFeedbackModal(false)}
+        />
+
+        {/* Floating board selector button & popup for multi-board 1v1 (same UX as daily) */}
+        <BoardSelector
+          numBoards={multiBoardCount}
+          showBoardSelector={showBoardSelector}
+          setShowBoardSelector={setShowBoardSelector}
+          boards={boards}
+          selectedBoardIndex={selectedBoardIndex}
+          setSelectedBoardIndex={setSelectedBoardIndex}
+          boardRefs={boardRefs}
+          isUnlimited={false}
+          speedrunEnabled={speedrunEnabled}
+          statusText={statusText}
+        />
+
+        {/* Fixed keyboard footer (multi-board aware) - only while game is playing */}
+        {oneVOneGame.gameState && oneVOneGame.gameState.status === 'playing' && (
+          <footer
             style={{
-              padding: "12px 24px",
-              borderRadius: 8,
-              border: "none",
-              background: "#6aaa64",
-              color: "#ffffff",
-              fontSize: 16,
-              fontWeight: "bold",
-              cursor: "pointer"
+              position: "fixed",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 1000,
+              borderTop: "1px solid #3a3a3c",
+              padding: "8px 4px calc(16px + env(safe-area-inset-bottom, 0px))",
+              background: "#121213",
             }}
           >
-            Go Home
-          </button>
-        </div>
-      );
-    }
-    
-    // Wait for gameState to load (either from hook's listener or after joining)
-    if (isLoading || oneVOneGame.loading || (gameCode && !oneVOneGame.gameState)) {
-      return (
-        <div
-          style={{
-            minHeight: "100vh",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "#121213",
-            color: "#ffffff",
-            flexDirection: "column",
-            gap: "16px"
-          }}
-        >
-          {!authUser ? (
-            <>Loading authentication...</>
-          ) : gameCode && !oneVOneGame.gameState ? (
-            <>Connecting to game...</>
-          ) : isLoading ? (
-            <>Loading word lists...</>
-          ) : (
-            <>Loading game...</>
-          )}
-        </div>
-      );
-    }
+            <div
+              style={{
+                maxWidth: "100%",
+                width: "100%",
+                padding: "0 4px",
+                margin: "0 auto",
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+              }}
+            >
+              {KEYBOARD_ROWS.map((row, rIndex) => (
+                <div
+                  key={rIndex}
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    gap: 3,
+                    padding: "0 2px",
+                  }}
+                >
+                  {row.map((key) => {
+                    const isAction = key === "ENTER" || key === "BACK";
+                    const isLetter = /^[A-Z]$/.test(key);
+
+                    const isMultiNoFocus = multiBoardCount > 1 && selectedBoardIndex == null;
+                    let baseBg = "#818384";
+
+                    if (!isMultiNoFocus && isLetter) {
+                      const map =
+                        selectedBoardIndex == null
+                          ? perBoardLetterMaps[0]
+                          : focusedLetterMap;
+                      const status = map && map[key] ? map[key] : "none";
+                      baseBg = status === "none" ? "#818384" : colorForStatus(status);
+                    }
+
+                    const display = key === "BACK" ? "⌫" : key;
+
+                    const showGridOverlay = isLetter && isMultiNoFocus;
+                    const multiStatuses = isLetter
+                      ? perBoardLetterMaps.map((m) => m[key] ?? "none")
+                      : [];
+
+                    // Calculate responsive sizes for mobile
+                    const isMobile = window.innerWidth <= 768;
+                    const actionButtonMaxWidth = isMobile ? "none" : 92;
+                    const letterButtonMaxWidth = isMobile ? "none" : 44;
+                    const buttonHeight = isMobile ? 42 : 52;
+                    const buttonPadding = isMobile
+                      ? isAction
+                        ? "4px 4px"
+                        : "4px 2px"
+                      : "6px 4px";
+                    const fontSize = isAction
+                      ? isMobile
+                        ? `${Math.round(buttonHeight * 0.4)}px`
+                        : `${Math.round(buttonHeight * 0.5)}px`
+                      : `${Math.round(buttonHeight * 0.7)}px`;
+
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => handleVirtualKey(key)}
+                        style={{
+                          position: "relative",
+                          flex: isAction ? 1.6 : 1,
+                          maxWidth: isAction
+                            ? actionButtonMaxWidth
+                            : letterButtonMaxWidth,
+                          minWidth: 0,
+                          height: buttonHeight,
+                          padding: buttonPadding,
+                          borderRadius: 6,
+                          border: "none",
+                          backgroundColor: baseBg,
+                          color: "#ffffff",
+                          fontWeight: "bold",
+                          fontSize: fontSize,
+                          cursor: "pointer",
+                          textTransform: "uppercase",
+                          overflow: "hidden",
+                          whiteSpace: "nowrap",
+                          textOverflow: "ellipsis",
+                          boxSizing: "border-box",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <div
+                          style={{
+                            position: "relative",
+                            zIndex: 2,
+                            lineHeight: `${buttonHeight}px`,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: "100%",
+                            height: "100%",
+                            padding: isAction ? "0 4px" : "0",
+                          }}
+                        >
+                          {display}
+                        </div>
+
+                        {showGridOverlay && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              left: 6,
+                              right: 6,
+                              bottom: 6,
+                              height: 22,
+                              display: "grid",
+                              gridTemplateColumns: `repeat(${gridCols1v1}, 1fr)`,
+                              gap: 2,
+                              opacity: 0.95,
+                            }}
+                          >
+                            {multiStatuses.map((st, idx) => (
+                              <div
+                                key={idx}
+                                style={{
+                                  borderRadius: 2,
+                                  backgroundColor: colorForMiniCell(st),
+                                  border: "1px solid rgba(0,0,0,0.25)",
+                                }}
+                              />
+                            ))}
+                            {Array.from({
+                              length: gridCols1v1 * gridRows1v1 - multiBoardCount,
+                            }).map((_, i) => (
+                              <div
+                                key={`pad-${i}`}
+                                style={{
+                                  borderRadius: 2,
+                                  backgroundColor: "rgba(0,0,0,0.12)",
+                                }}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </footer>
+        )}
+      </>
+    );
   }
 
   if (isLoading) {
@@ -1343,254 +1594,33 @@ const Game = ({
 
         <GameToast message={message} />
 
-        {/* 1v1 Mode: Show player board and opponent board */}
-        {isOneVOne && oneVOneGame.gameState && (oneVOneGame.gameState.status === 'playing' || oneVOneGame.gameState.status === 'finished') ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px", maxWidth: "1200px", margin: "0 auto", width: "100%" }}>
-            {/* Scores and turn indicator */}
-            <div style={{ textAlign: "center", fontSize: 14, color: "#d7dadc", marginBottom: "8px" }}>
-              {oneVOneGame.gameState.status === 'finished' ? (
-                <div style={{ display: "flex", justifyContent: "center", gap: "24px", alignItems: "center" }}>
-                  <div>
-                    <div style={{ fontSize: 12, color: "#818384" }}>
-                      {oneVOneGame.gameState.speedrun ? "Your Time" : "Your Score"}
-                    </div>
-                    <div style={{ fontSize: 18, fontWeight: "bold", color: "#ffffff" }}>
-                      {(() => {
-                        const isSpeedrun = oneVOneGame.gameState.speedrun || false;
-                        if (isSpeedrun) {
-                          const myTimeMs = (authUser?.uid === oneVOneGame.gameState.hostId) 
-                            ? (oneVOneGame.gameState.hostTimeMs || null) 
-                            : (oneVOneGame.gameState.guestTimeMs || null);
-                          return myTimeMs !== null ? formatElapsed(myTimeMs) : "N/A";
-                        } else {
-                          const myGuesses = (authUser?.uid === oneVOneGame.gameState.hostId) 
-                            ? (oneVOneGame.gameState.hostGuesses || []) 
-                            : (oneVOneGame.gameState.guestGuesses || []);
-                          const mySolved = myGuesses.includes(oneVOneGame.gameState.solution);
-                          const mockBoard = { 
-                            guesses: myGuesses.map(word => ({ word, colors: [] })), 
-                            isSolved: mySolved 
-                          };
-                          return calculateNonSpeedrunScore([mockBoard], myGuesses.length, maxTurns, 1);
-                        }
-                      })()}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 20, color: "#818384" }}>vs</div>
-                  <div>
-                    <div style={{ fontSize: 12, color: "#818384" }}>
-                      {oneVOneGame.gameState.speedrun ? "Opponent's Time" : "Opponent's Score"}
-                    </div>
-                    <div style={{ fontSize: 18, fontWeight: "bold", color: "#ffffff" }}>
-                      {(() => {
-                        const isSpeedrun = oneVOneGame.gameState.speedrun || false;
-                        if (isSpeedrun) {
-                          const opponentTimeMs = (authUser?.uid === oneVOneGame.gameState.hostId) 
-                            ? (oneVOneGame.gameState.guestTimeMs || null) 
-                            : (oneVOneGame.gameState.hostTimeMs || null);
-                          return opponentTimeMs !== null ? formatElapsed(opponentTimeMs) : "N/A";
-                        } else {
-                          const opponentGuesses = (authUser?.uid === oneVOneGame.gameState.hostId) 
-                            ? (oneVOneGame.gameState.guestGuesses || []) 
-                            : (oneVOneGame.gameState.hostGuesses || []);
-                          const opponentSolved = opponentGuesses.includes(oneVOneGame.gameState.solution);
-                          const mockBoard = { 
-                            guesses: opponentGuesses.map(word => ({ word, colors: [] })), 
-                            isSolved: opponentSolved 
-                          };
-                          return calculateNonSpeedrunScore([mockBoard], opponentGuesses.length, maxTurns, 1);
-                        }
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              ) : oneVOneGame.gameState.speedrun ? (
-                <div style={{ display: "flex", justifyContent: "center", gap: "24px", alignItems: "center" }}>
-                  <div>
-                    <div style={{ fontSize: 12, color: "#818384" }}>Your Time</div>
-                    <div style={{ fontSize: 16, fontWeight: "bold", color: "#ffffff" }}>
-                      {(() => {
-                        const isSpeedrun = oneVOneGame.gameState.speedrun || false;
-                        if (!isSpeedrun) return "N/A";
-                        const myTimeMs = (authUser?.uid === oneVOneGame.gameState.hostId) 
-                          ? (oneVOneGame.gameState.hostTimeMs || null) 
-                          : (oneVOneGame.gameState.guestTimeMs || null);
-                        if (myTimeMs !== null) {
-                          return formatElapsed(myTimeMs);
-                        }
-                        // Show elapsed time if not yet solved
-                        const myStartTime = (authUser?.uid === oneVOneGame.gameState.hostId) 
-                          ? (oneVOneGame.gameState.hostStartTime || oneVOneGame.gameState.startedAt) 
-                          : (oneVOneGame.gameState.guestStartTime || oneVOneGame.gameState.startedAt);
-                        if (myStartTime) {
-                          return formatElapsed(oneVOneNowMs - myStartTime);
-                        }
-                        return "0:00";
-                      })()}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 20, color: "#818384" }}>vs</div>
-                  <div>
-                    <div style={{ fontSize: 12, color: "#818384" }}>Opponent's Time</div>
-                    <div style={{ fontSize: 16, fontWeight: "bold", color: "#ffffff" }}>
-                      {(() => {
-                        const isSpeedrun = oneVOneGame.gameState.speedrun || false;
-                        if (!isSpeedrun) return "N/A";
-                        const opponentTimeMs = (authUser?.uid === oneVOneGame.gameState.hostId) 
-                          ? (oneVOneGame.gameState.guestTimeMs || null) 
-                          : (oneVOneGame.gameState.hostTimeMs || null);
-                        if (opponentTimeMs !== null) {
-                          return formatElapsed(opponentTimeMs);
-                        }
-                        // Show elapsed time if not yet solved
-                        const opponentStartTime = (authUser?.uid === oneVOneGame.gameState.hostId) 
-                          ? (oneVOneGame.gameState.guestStartTime || oneVOneGame.gameState.startedAt) 
-                          : (oneVOneGame.gameState.hostStartTime || oneVOneGame.gameState.startedAt);
-                        if (opponentStartTime) {
-                          return formatElapsed(oneVOneNowMs - opponentStartTime);
-                        }
-                        return "0:00";
-                      })()}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 12, color: "#818384", marginTop: "8px", width: "100%", textAlign: "center" }}>
-                    {oneVOneGame.gameState.currentTurn === (authUser?.uid === oneVOneGame.gameState.hostId ? 'host' : 'guest')
-                      ? "Your turn"
-                      : "Opponent's turn"}
-                  </div>
-                </div>
-              ) : (
-                oneVOneGame.gameState.currentTurn === (authUser?.uid === oneVOneGame.gameState.hostId ? 'host' : 'guest')
-                  ? "Your turn"
-                  : "Opponent's turn"
-              )}
-            </div>
-
-            {/* Boards side by side */}
-            <div style={{ display: "flex", gap: "24px", justifyContent: "center", flexWrap: "wrap", width: "100%" }}>
-              {/* Add Friend Button */}
-              {oneVOneGame.gameState && authUser && (
-                <div style={{ width: "100%", textAlign: "center", marginBottom: "12px" }}>
-                  <button
-                    onClick={() => {
-                      if (friendRequestSent) return;
-                      const opponentName = authUser?.uid === oneVOneGame.gameState.hostId 
-                        ? oneVOneGame.gameState.guestName 
-                        : oneVOneGame.gameState.hostName;
-                      const opponentId = authUser?.uid === oneVOneGame.gameState.hostId 
-                        ? oneVOneGame.gameState.guestId 
-                        : oneVOneGame.gameState.hostId;
-                      if (opponentName && opponentId) {
-                        handleAddFriendRequest(opponentName, opponentId);
-                      }
-                    }}
-                    disabled={friendRequestSent}
-                    style={{
-                      padding: "8px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid #3a3a3c",
-                      background: "transparent",
-                      color: "#ffffff",
-                      fontSize: "12px",
-                      fontWeight: "bold",
-                      cursor: friendRequestSent ? "not-allowed" : "pointer",
-                      letterSpacing: "0.5px",
-                      transition: "all 0.2s ease",
-                      opacity: friendRequestSent ? 0.6 : 1
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!friendRequestSent) {
-                        e.target.style.background = "rgba(255, 255, 255, 0.05)";
-                        e.target.style.borderColor = "#565758";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!friendRequestSent) {
-                        e.target.style.background = "transparent";
-                        e.target.style.borderColor = "#3a3a3c";
-                      }
-                    }}
-                  >
-                    {friendRequestSent ? "Friend request sent" : `Add ${oneVOneGame.gameState.hostId === authUser?.uid ? oneVOneGame.gameState.guestName : oneVOneGame.gameState.hostName} as Friend`}
-                  </button>
-                </div>
-              )}
-              
-              {/* Opponent Board */}
-              {oneVOneGame.gameState && (
-                <div style={{ flex: "0 0 auto", width: "auto" }}>
-                  <div style={{ fontSize: 14, color: "#818384", marginBottom: "8px", textAlign: "center" }}>
-                    Opponent's Board
-                  </div>
-                  <OpponentBoardView
-                    opponentColors={authUser?.uid === oneVOneGame.gameState.hostId
-                      ? (oneVOneGame.gameState.guestColors || [])
-                      : (oneVOneGame.gameState.hostColors || [])}
-                    opponentGuesses={authUser?.uid === oneVOneGame.gameState.hostId
-                      ? (oneVOneGame.gameState.guestGuesses || [])
-                      : (oneVOneGame.gameState.hostGuesses || [])}
-                    solution={oneVOneGame.gameState.solution}
-                    maxTurns={maxTurns}
-                    playerSolved={boards.length > 0 && boards[0].isSolved}
-                  />
-                </div>
-              )}
-              
-              {/* Player Board */}
-              {boards.length > 0 && (
-                <div style={{ flex: "0 0 auto", width: "auto" }}>
-                  <div style={{ fontSize: 14, color: "#818384", marginBottom: "8px", textAlign: "center" }}>
-                    Your Board
-                  </div>
-                  <GameBoard
-                    board={boards[0]}
-                    index={0}
-                    numBoards={1}
-                    maxTurns={maxTurns}
-                    isUnlimited={false}
-                    currentGuess={currentGuess}
-                    invalidCurrentGuess={invalidCurrentGuess}
-                    revealId={revealId}
-                    isSelected={false}
-                    onToggleSelect={() => {}}
-                    boardRef={(el) => {
-                      boardRefs.current[0] = el;
-                    }}
-                    speedrunEnabled={false}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div
-                            style={{
-              display: "grid",
-              gridTemplateColumns: `repeat(auto-fit, minmax(${numBoards >= 16 ? 160 : 180}px, 1fr))`,
-              gap: 16
-            }}
-          >
-            {boards.map((board, index) => (
-              <GameBoard
-                key={index}
-                board={board}
-                index={index}
-                numBoards={numBoards}
-                maxTurns={maxTurns}
-                isUnlimited={isUnlimited}
-                currentGuess={currentGuess}
-                invalidCurrentGuess={invalidCurrentGuess}
-                revealId={revealId}
-                isSelected={selectedBoardIndex === index}
-                onToggleSelect={() => setSelectedBoardIndex((prev) => (prev === index ? null : index))}
-                boardRef={(el) => {
-                  boardRefs.current[index] = el;
-                }}
-                speedrunEnabled={speedrunEnabled}
-              />
-            ))}
-                              </div>
-        )}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(auto-fit, minmax(${numBoards >= 16 ? 160 : 180}px, 1fr))`,
+            gap: 16
+          }}
+        >
+          {boards.map((board, index) => (
+            <GameBoard
+              key={index}
+              board={board}
+              index={index}
+              numBoards={numBoards}
+              maxTurns={maxTurns}
+              isUnlimited={isUnlimited}
+              currentGuess={currentGuess}
+              invalidCurrentGuess={invalidCurrentGuess}
+              revealId={revealId}
+              isSelected={selectedBoardIndex === index}
+              onToggleSelect={() => setSelectedBoardIndex((prev) => (prev === index ? null : index))}
+              boardRef={(el) => {
+                boardRefs.current[index] = el;
+              }}
+              speedrunEnabled={speedrunEnabled}
+            />
+          ))}
+        </div>
         </div>
       </main>
 
@@ -1819,50 +1849,6 @@ const Game = ({
             }
           } : undefined}
         />
-      )}
-
-      {/* Rematch button on game page when game is finished */}
-      {isOneVOne && oneVOneGame.gameState && oneVOneGame.gameState.status === 'finished' && (
-        <div style={{ 
-          position: "fixed", 
-          bottom: KEYBOARD_HEIGHT + 20, 
-          left: "50%", 
-          transform: "translateX(-50%)", 
-          zIndex: 1100,
-          pointerEvents: "auto"
-        }}>
-          <button
-            onClick={async () => {
-              if (!gameCode) return;
-              try {
-                await oneVOneGame.resetGame(gameCode);
-                setShowPopup(false);
-                popupClosedRef.current = false;
-                // Clear boards and reset state
-                setBoards([]);
-                setCurrentGuess("");
-                setIsLoading(true);
-              } catch (error) {
-                setTimedMessage(error.message || "Failed to rematch", 5000);
-              }
-            }}
-            style={{
-              padding: "12px 24px",
-              borderRadius: 10,
-              border: "none",
-              background: "#6aaa64",
-              color: "#ffffff",
-              fontSize: 14,
-              fontWeight: "bold",
-              cursor: "pointer",
-              letterSpacing: 1,
-              textTransform: "uppercase",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
-            }}
-          >
-            Rematch
-          </button>
-        </div>
       )}
 
       <FeedbackModal

@@ -10,7 +10,7 @@ export default function OneVOneWaitingRoom({
   friendRequestSent,
   onShareCode
 }) {
-  const { hostName, guestName, hostReady, guestReady, status } = gameState || {};
+  const { hostName, guestName, hostReady, guestReady, status, friendRequestStatus } = gameState || {};
   const currentUserReady = isHost ? hostReady : guestReady;
   const otherPlayerReady = isHost ? guestReady : hostReady;
   const bothReady = hostReady && guestReady;
@@ -237,7 +237,9 @@ export default function OneVOneWaitingRoom({
                   }
                 }}
               >
-                {friendRequestSent ? "Friend request sent" : `Add ${otherPlayerName} as Friend`}
+                {friendRequestSent
+                  ? "Friend request sent"
+                  : `Add ${otherPlayerName} as Friend`}
               </button>
             )}
           </div>

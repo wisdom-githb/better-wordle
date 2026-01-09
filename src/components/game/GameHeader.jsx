@@ -14,7 +14,8 @@ export default function GameHeader({
   displayTotalMs,
   formatElapsed,
   onBack,
-  onOpenFeedback
+  onOpenFeedback,
+  maxTurnsLabel,
 }) {
   const [showAuthModal, setShowAuthModal] = React.useState(false);
   const { user, signOut } = useAuth();
@@ -48,7 +49,10 @@ export default function GameHeader({
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: "bold", letterSpacing: 2 }}>
-            {mode === "marathon" ? `MARATHON (${numBoards} boards)` : "DAILY GAME"}
+            {mode === "marathon" && `MARATHON (${numBoards} boards)`}
+            {mode === "daily" && "DAILY GAME"}
+            {mode === "1v1" && `1V1 DUEL (${numBoards} board${numBoards > 1 ? "s" : ""})`}
+            {mode !== "marathon" && mode !== "daily" && mode !== "1v1" && "BETTER WORDLE"}
             {speedrunEnabled ? " · SPEEDRUN" : ""}
           </div>
 
@@ -69,7 +73,7 @@ export default function GameHeader({
 
         <div style={{ display: "flex", gap: "12px", alignItems: "center", flexShrink: 0 }}>
           <div style={{ fontSize: 11, color: "#818384", whiteSpace: "nowrap" }}>
-            Reset: {resetTime} | Boards: {numBoards} Guesses: {maxTurns}
+            Reset: {resetTime} | Boards: {numBoards} Guesses: {maxTurnsLabel ?? maxTurns}
           </div>
           {user && (
             <div style={{ 

@@ -103,8 +103,10 @@ export default function TileRow({
         }
 
         // Revealed rows:
-        // - If this is NOT the newest revealed row, show static colored tile (no card)
-        if (!isJustRevealedRow) {
+        // - If this is NOT the newest revealed row, or the board is already solved,
+        //   show a static colored tile (no flip animation). This prevents solved boards
+        //   from re-flipping when other boards finish.
+        if (!isJustRevealedRow || board.isSolved) {
           const bg = bgForColor(color);
           return (
             <div
@@ -132,7 +134,7 @@ export default function TileRow({
           );
         }
 
-        // Newest revealed row: always flip, even if board is solved
+        // Newest revealed row: flip only for active (unsolved) boards
         const frontBg = "#121213";
         const frontBorder = "#3a3a3c";
         const backBg = bgForColor(color);

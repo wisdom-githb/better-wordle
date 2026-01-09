@@ -1,6 +1,6 @@
 import React from "react";
 
-export default function OpponentBoardView({ opponentColors, maxTurns, opponentGuesses, solution, playerSolved }) {
+export default function OpponentBoardView({ opponentColors, maxTurns, opponentGuesses, solution, playerSolved, isActive = false, hideLetters = false, boardNumber = 1 }) {
   const numGuesses = opponentColors ? opponentColors.length : 0;
   const rowsToShow = Math.min(numGuesses + 1, Math.max(maxTurns, numGuesses + 1));
   
@@ -13,14 +13,14 @@ export default function OpponentBoardView({ opponentColors, maxTurns, opponentGu
   const isSolved = opponentGuesses && solution && opponentGuesses.includes(solution);
   const isFailed = !isSolved && numGuesses >= maxTurns;
   
-  // Show letters if player has solved their word
-  const showLetters = playerSolved || false;
+  // Show letters if player has solved their word AND we're not explicitly hiding them
+  const showLetters = (playerSolved || false) && !hideLetters;
 
   return (
     <div
       style={{
         borderRadius: 8,
-        border: "1px solid #3a3a3c",
+        border: isActive ? "2px solid #6aaa64" : "1px solid #3a3a3c",
         padding: 8,
         background: "#1a1a1b",
         display: "flex",
@@ -40,7 +40,7 @@ export default function OpponentBoardView({ opponentColors, maxTurns, opponentGu
           color: "#d7dadc"
         }}
       >
-        <span>Board 1</span>
+        <span>{`Board ${boardNumber}`}</span>
         <span>
           {isSolved
             ? "Solved"

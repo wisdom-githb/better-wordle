@@ -19,7 +19,8 @@ export default function Modal({
   titleId,
   onRequestClose,
   children,
-  zIndex = 2000
+  zIndex = 2000,
+  disableAutoFocus = false,
 }) {
   const panelRef = useRef(null);
   const lastFocusedRef = useRef(null);
@@ -33,6 +34,15 @@ export default function Modal({
     document.body.style.overflow = "hidden";
 
     const focusFirst = () => {
+      if (disableAutoFocus) return;
+      // If the user has already focused something inside the modal (e.g.
+      // clicked the "Enter Game Code" input), do not steal focus back to
+      // the first button.
+      const active = document.activeElement;
+      if (active && panelRef.current && panelRef.current.contains(active)) {
+        return;
+      }
+
       const focusables = getFocusable(panelRef.current);
       if (focusables.length > 0) focusables[0].focus();
       else panelRef.current?.focus();
@@ -83,7 +93,7 @@ export default function Modal({
         lastFocusedRef.current.focus();
       }
     };
-  }, [isOpen, onRequestClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

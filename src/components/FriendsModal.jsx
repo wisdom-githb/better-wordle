@@ -3,7 +3,7 @@ import Modal from "./Modal";
 import { useAuth } from "../hooks/useAuth";
 
 export default function FriendsModal({ isOpen, onRequestClose }) {
-  const { friends, friendRequests, acceptFriendRequest, declineFriendRequest, isVerifiedUser } = useAuth();
+  const { friends, friendRequests, acceptFriendRequest, declineFriendRequest, removeFriend, isVerifiedUser } = useAuth();
   if (!isVerifiedUser) {
     return (
       <Modal isOpen={isOpen} onRequestClose={onRequestClose}>
@@ -145,12 +145,28 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                     border: "1px solid #3a3a3c",
                     display: "flex",
                     justifyContent: "space-between",
-                    alignItems: "center"
+                    alignItems: "center",
+                    gap: "8px"
                   }}
                 >
                   <span style={{ color: "#ffffff", fontWeight: "600" }}>
                     {friend.name}
                   </span>
+                  <button
+                    onClick={() => removeFriend(friend.id)}
+                    style={{
+                      padding: "6px 10px",
+                      borderRadius: "6px",
+                      border: "1px solid #3a3a3c",
+                      background: "transparent",
+                      color: "#ffffff",
+                      fontWeight: "bold",
+                      fontSize: "11px",
+                      cursor: "pointer"
+                    }}
+                  >
+                    Remove
+                  </button>
                 </div>
               ))}
             </div>

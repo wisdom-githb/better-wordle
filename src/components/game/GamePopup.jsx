@@ -72,16 +72,29 @@ export default function GamePopup({
       >
         {isOneVOne ? (() => {
           const isSpeedrun = oneVOneGameState?.speedrun || false;
-          let titleColor = "#c9b458";
-          if (winner !== null) {
-            if (isSpeedrun && myScore !== null && opponentScore !== null && myScore === opponentScore) {
-              titleColor = "#c9b458";
-            } else if (!isSpeedrun && myScore === opponentScore) {
-              titleColor = "#c9b458";
+
+          // Derive win/lose/tie purely from scores from this player's perspective.
+          // In speedrun, lower time wins; in normal mode, higher score wins.
+          const haveScores = myScore !== null && myScore !== undefined &&
+            opponentScore !== null && opponentScore !== undefined;
+
+          let resultLabel = "It's a tie!";
+          if (haveScores) {
+            if (isSpeedrun) {
+              if (myScore < opponentScore) resultLabel = "You Won!";
+              else if (myScore > opponentScore) resultLabel = "You Lost";
+              else resultLabel = "It's a tie!";
             } else {
-              titleColor = ((winner === 'host' && isPlayerHost) || (winner === 'guest' && !isPlayerHost)) ? "#6aaa64" : "#d7dadc";
+              if (myScore > opponentScore) resultLabel = "You Won!";
+              else if (myScore < opponentScore) resultLabel = "You Lost";
+              else resultLabel = "It's a tie!";
             }
           }
+
+          let titleColor = "#c9b458";
+          if (resultLabel === "You Won!") titleColor = "#6aaa64";
+          else if (resultLabel === "You Lost") titleColor = "#f06272";
+
           return (
           <>
             <h2
@@ -94,27 +107,31 @@ export default function GamePopup({
                 color: titleColor
               }}
             >
-              {(() => {
-                const isSpeedrun = oneVOneGameState?.speedrun || false;
-                if (winner === null) {
-                  return "It's a tie!";
-                }
-                if (isSpeedrun) {
-                  if (myScore !== null && opponentScore !== null && myScore === opponentScore) {
-                    return "It's a tie!";
-                  }
-                } else {
-                  if (myScore === opponentScore) {
-                    return "It's a tie!";
-                  }
-                }
-                return ((winner === 'host' && isPlayerHost) || (winner === 'guest' && !isPlayerHost))
-                  ? "You Won!" 
-                  : "You Lost";
-              })()}
+              {resultLabel}
             </h2>
 
             <div style={{ marginBottom: 20, fontSize: 18, color: "#d7dadc" }}>
+              {/* Rematch status text for 1v1 */}
+              {isOneVOne && oneVOneGameState?.status === 'finished' && (
+                <div style={{
+                  marginBottom: 12,
+                  fontSize: 14,
+                  color: "#c9b458",
+                }}>
+                  {(() => {
+                    const isPlayerHostLocal = isPlayerHost;
+                    const hostRematch = oneVOneGameState?.hostRematch;
+                    const guestRematch = oneVOneGameState?.guestRematch;
+                    const myRematch = isPlayerHostLocal ? hostRematch : guestRematch;
+                    const opponentRematch = isPlayerHostLocal ? guestRematch : hostRematch;
+                    if (myRematch && !opponentRematch) return "Waiting for opponent to accept rematch...";
+                    if (!myRematch && opponentRematch) return "Opponent wants a rematch";
+                    if (myRematch && opponentRematch) return "Starting rematch...";
+                    return null;
+                  })()}
+                </div>
+              )}
+
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 16, color: "#818384", marginBottom: 4 }}>
                   {oneVOneGameState?.speedrun ? "Your Time" : "Your Score"}
@@ -203,22 +220,50 @@ export default function GamePopup({
           </>
         )}
 
-        {isOneVOne && oneVOneGameState?.solution && (
+        {isOneVOne && (oneVOneGameState?.solution || oneVOneGameState?.solutions) && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ marginBottom: 8, color: "#ffffff", fontWeight: "bold", fontSize: 16 }}>Solution</div>
-            <div
-              style={{
-                backgroundColor: "#6aaa64",
-                color: "#ffffff",
-                padding: "12px 16px",
-                borderRadius: 8,
-                fontSize: 18,
-                fontWeight: "bold",
-                letterSpacing: 2
-              }}
-            >
-              {oneVOneGameState.solution.toUpperCase()}
+            <div style={{ marginBottom: 8, color: "#ffffff", fontWeight: "bold", fontSize: 16 }}>
+              {Array.isArray(oneVOneGameState?.solutions) && oneVOneGameState.solutions.length > 1
+                ? "Solutions"
+                : "Solution"}
             </div>
+
+            {(() => {
+              const solutionList = Array.isArray(oneVOneGameState?.solutions) && oneVOneGameState.solutions.length > 0
+                ? oneVOneGameState.solutions
+                : oneVOneGameState.solution
+                ? [oneVOneGameState.solution]
+                : [];
+
+              return (
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 8,
+                    justifyContent: "center",
+                  }}
+                >
+                  {solutionList.map((word, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        backgroundColor: "#6aaa64",
+                        color: "#ffffff",
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        fontSize: 16,
+                        fontWeight: "bold",
+                        letterSpacing: 2,
+                      }}
+                    >
+                      {solutionList.length > 1 ? `B${idx + 1}: ` : ""}
+                      {word.toUpperCase()}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         )}
 

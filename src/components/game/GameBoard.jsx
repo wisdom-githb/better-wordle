@@ -13,7 +13,9 @@ export default function GameBoard({
   isSelected,
   onToggleSelect,
   boardRef,
-  speedrunEnabled
+  speedrunEnabled,
+  // Optional: highlight this board when it's the active turn (1v1 mode)
+  isCurrentTurn = false,
 }) {
   const guessCount = board.guesses.length;
 
@@ -31,10 +33,16 @@ export default function GameBoard({
       onClick={onToggleSelect}
       style={{
         borderRadius: 8,
-        border: isSelected ? "2px solid #facc15" : "1px solid #3a3a3c",
+        // Selection (yellow) should visually override current-turn (green)
+        border: isSelected
+          ? "2px solid #facc15"
+          : isCurrentTurn
+          ? "2px solid #6aaa64"
+          : "1px solid #3a3a3c",
         padding: 8,
         background: "#1a1a1b",
         cursor: "pointer",
+        // When selected, use a yellow glow and do not stack a separate green effect
         boxShadow: isSelected ? "0 0 0 1px rgba(250,204,21,0.53)" : "none",
         display: "flex",
         flexDirection: "column",

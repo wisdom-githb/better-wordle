@@ -64,7 +64,7 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
     const gamePath = `onevone/${code}`;
     const gameData = {
       hostId: user.uid,
-      hostName: user.email || user.displayName || 'Player 1',
+      hostName: user.displayName || user.email || 'Player 1',
       hostReady: false,
       guestId: null,
       guestName: null,
@@ -82,6 +82,9 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
       guestTimeMs: null, // Time taken by guest (in speedrun mode)
       hostStartTime: null, // When host started solving (in speedrun mode)
       guestStartTime: null, // When guest started solving (in speedrun mode)
+      // Rematch handshake flags
+      hostRematch: false,
+      guestRematch: false,
       createdAt: Date.now(),
       startedAt: null
     };
@@ -139,7 +142,7 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
       // Join as guest (only if game is still waiting and guest slot is empty)
       await update(gameDataRef, {
         guestId: user.uid,
-        guestName: user.email || user.displayName || 'Player 2'
+        guestName: user.displayName || user.email || 'Player 2'
       });
 
       return code;
@@ -187,9 +190,11 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
   }, [user]);
 
   /**
-   * Start the game with a solution word
+   * Start the game with one or more solution words.
+   * Also clears any previous round state (guesses, colors, winner, timers, rematch flags).
+   * - `solutionsOrSolution` may be a single word (string) or an array of words.
    */
-  const startGame = useCallback(async (code, solution) => {
+  const startGame = useCallback(async (code, solutionsOrSolution) => {
     if (!user) throw new Error('User must be signed in');
 
     const gamePath = `onevone/${code}`;
@@ -220,14 +225,32 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
       const firstTurn = Math.random() < 0.5 ? 'host' : 'guest';
       const now = Date.now();
 
+      const solutionsArray = Array.isArray(solutionsOrSolution)
+        ? solutionsOrSolution
+        : [solutionsOrSolution];
+
       await update(gameDataRef, {
         status: 'playing',
-        solution: solution,
-        currentTurn: firstTurn,
+        // Keep single `solution` field for backwards compatibility, but
+        // also store full `solutions` array for multi-board support.
+        solution: solutionsArray[0],
+        solutions: solutionsArray,
+        currentTurn: gameData.speedrun ? null : firstTurn,
         startedAt: now,
+        // Clear previous round state
+        hostGuesses: [],
+        guestGuesses: [],
+        hostColors: [],
+        guestColors: [],
+        winner: null,
+        hostTimeMs: null,
+        guestTimeMs: null,
         // Initialize start times for speedrun mode (timer starts when game starts)
         hostStartTime: gameData.speedrun ? now : null,
-        guestStartTime: gameData.speedrun ? now : null
+        guestStartTime: gameData.speedrun ? now : null,
+        // Clear rematch flags once new round starts
+        hostRematch: false,
+        guestRematch: false,
       });
     } catch (err) {
       setError(err.message);
@@ -255,23 +278,27 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
 
       const gameData = snapshot.val();
       const isHost = gameData.hostId === user.uid;
-      const isMyTurn = gameData.currentTurn === (isHost ? 'host' : 'guest');
 
-      if (!isMyTurn) {
-        throw new Error('Not your turn');
+      const isSpeedrun = gameData.speedrun || false;
+      if (!isSpeedrun) {
+        const isMyTurn = gameData.currentTurn === (isHost ? 'host' : 'guest');
+        if (!isMyTurn) {
+          throw new Error('Not your turn');
+        }
       }
 
-      const guessData = {
-        word: guess,
-        colors: colors
-      };
-
       const now = Date.now();
-      const isSpeedrun = gameData.speedrun || false;
-      const solution = gameData.solution;
-      const isSolved = guess === solution;
 
-      // Track time if solved in speedrun mode
+      // Normalize to an array of solutions so we can correctly determine
+      // when a player has finished *all* boards in multi-board speedrun.
+      const solutionArray =
+        Array.isArray(gameData.solutions) && gameData.solutions.length > 0
+          ? gameData.solutions
+          : gameData.solution
+          ? [gameData.solution]
+          : [];
+
+      // Track time if finished in speedrun mode
       const updateData = {};
       
       if (isHost) {
@@ -280,12 +307,16 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
         
         updateData.hostGuesses = hostGuesses;
         updateData.hostColors = hostColors;
-        updateData.currentTurn = 'guest';
+        if (!isSpeedrun) {
+          updateData.currentTurn = 'guest';
+        }
         
-        // In speedrun mode, record time when solved
-        if (isSpeedrun && isSolved && !gameData.hostTimeMs) {
-          const startTime = gameData.hostStartTime || gameData.startedAt || now;
-          updateData.hostTimeMs = now - startTime;
+        if (isSpeedrun && !gameData.hostTimeMs && solutionArray.length > 0) {
+          const hostSolvedAll = solutionArray.every((sol) => hostGuesses.includes(sol));
+          if (hostSolvedAll) {
+            const startTime = gameData.hostStartTime || gameData.startedAt || now;
+            updateData.hostTimeMs = now - startTime;
+          }
         }
       } else {
         const guestGuesses = [...(gameData.guestGuesses || []), guess];
@@ -293,12 +324,16 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
         
         updateData.guestGuesses = guestGuesses;
         updateData.guestColors = guestColors;
-        updateData.currentTurn = 'host';
+        if (!isSpeedrun) {
+          updateData.currentTurn = 'host';
+        }
         
-        // In speedrun mode, record time when solved
-        if (isSpeedrun && isSolved && !gameData.guestTimeMs) {
-          const startTime = gameData.guestStartTime || gameData.startedAt || now;
-          updateData.guestTimeMs = now - startTime;
+        if (isSpeedrun && !gameData.guestTimeMs && solutionArray.length > 0) {
+          const guestSolvedAll = solutionArray.every((sol) => guestGuesses.includes(sol));
+          if (guestSolvedAll) {
+            const startTime = gameData.guestStartTime || gameData.startedAt || now;
+            updateData.guestTimeMs = now - startTime;
+          }
         }
       }
       
@@ -328,6 +363,10 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
       }
 
       const gameData = snapshot.val();
+      if (gameData.speedrun) {
+        // No turn switching in speedrun mode.
+        return;
+      }
       const isHost = gameData.hostId === user.uid;
       const isMyTurn = gameData.currentTurn === (isHost ? 'host' : 'guest');
 
@@ -371,8 +410,94 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
     }
   }, [user]);
 
+/**
+   * Update friendRequestStatus for this 1v1 game (e.g. 'pending', 'declined').
+   * We also track who initiated the request in `friendRequestFrom` so that only
+   * that player sees their button disabled.
+   */
+  const setFriendRequestStatus = useCallback(async (code, status) => {
+    if (!user) throw new Error('User must be signed in');
+
+    const gamePath = `onevone/${code}`;
+    const gameDataRef = ref(database, gamePath);
+
+    try {
+      const snapshot = await new Promise((resolve, reject) => {
+        onValue(gameDataRef, resolve, reject, { onlyOnce: true });
+      });
+
+      if (!snapshot.exists()) {
+        throw new Error('Game not found');
+      }
+
+      const gameData = snapshot.val();
+      const isHost = gameData.hostId === user.uid;
+
+      if (status === 'pending') {
+        const updateData = {
+          friendRequestStatus: 'pending',
+        };
+        if (isHost) {
+          updateData.hostFriendRequestSent = true;
+        } else {
+          updateData.guestFriendRequestSent = true;
+        }
+        await update(gameDataRef, updateData);
+      } else if (status === 'declined') {
+        await update(gameDataRef, {
+          friendRequestStatus: null,
+          friendRequestFrom: null,
+          hostFriendRequestSent: false,
+          guestFriendRequestSent: false,
+        });
+      } else {
+        // Fallback / explicit clear.
+        await update(gameDataRef, {
+          friendRequestStatus: null,
+          friendRequestFrom: null,
+          hostFriendRequestSent: false,
+          guestFriendRequestSent: false,
+        });
+      }
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }, [user]);
+
   /**
-   * Reset game for rematch
+   * Player requests a rematch. Sets their rematch flag; Game component
+   * is responsible for starting a new round when both flags are true.
+   */
+  const requestRematch = useCallback(async (code) => {
+    if (!user) throw new Error('User must be signed in');
+
+    const gamePath = `onevone/${code}`;
+    const gameDataRef = ref(database, gamePath);
+
+    try {
+      const snapshot = await new Promise((resolve, reject) => {
+        onValue(gameDataRef, resolve, reject, { onlyOnce: true });
+      });
+
+      if (!snapshot.exists()) {
+        throw new Error('Game not found');
+      }
+
+      const gameData = snapshot.val();
+      const isHost = gameData.hostId === user.uid;
+
+      const updateData = isHost ? { hostRematch: true } : { guestRematch: true };
+      await update(gameDataRef, updateData);
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }, [user]);
+
+  /**
+   * Reset game back to waiting state (used if players abandon or restart lobby).
+   * NOTE: Normal rematch flow should prefer rematch flags + startGame instead of this.
    */
   const resetGame = useCallback(async (code) => {
     if (!user) throw new Error('User must be signed in');
@@ -391,7 +516,7 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
 
       const gameData = snapshot.val();
       
-      // Reset game state but keep players, game code, and speedrun flag
+      // Reset game state but keep players, game code, speedrun flag, and clear rematch flags
       await update(gameDataRef, {
         status: 'waiting',
         hostReady: false,
@@ -407,7 +532,9 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
         hostTimeMs: null,
         guestTimeMs: null,
         hostStartTime: null,
-        guestStartTime: null
+        guestStartTime: null,
+        hostRematch: false,
+        guestRematch: false,
         // Keep speedrun flag
       });
     } catch (err) {
@@ -462,7 +589,9 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
     submitGuess,
     switchTurn,
     setWinner,
+    requestRematch,
     resetGame,
-    leaveGame
+    leaveGame,
+    setFriendRequestStatus,
   };
 }

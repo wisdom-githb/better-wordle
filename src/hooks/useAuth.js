@@ -218,23 +218,33 @@ export function useAuth() {
       const isVerifiedUser = auth.currentUser.emailVerified || (auth.currentUser.providerData || []).some(p => p.providerId === 'google.com');
       if (!isVerifiedUser) throw new Error('You must verify your email or sign in with Google to use friends.');
       
+      const nowIso = new Date().toISOString();
+      
       // Add to current user's friends
       const myFriendRef = ref(database, `users/${auth.currentUser.uid}/friends/${fromUserId}`);
       await set(myFriendRef, {
         name: fromUserName,
-        addedAt: new Date().toISOString()
+        addedAt: nowIso
       });
       
-      // Add current user to their friends
+      // Add current user to their friends (so friendship is mutual)
       const theirFriendRef = ref(database, `users/${fromUserId}/friends/${auth.currentUser.uid}`);
       await set(theirFriendRef, {
         name: auth.currentUser.displayName || 'Unknown',
-        addedAt: new Date().toISOString()
+        addedAt: nowIso
       });
       
-      // Remove the friend request
+      // Remove the friend request from the database
       const requestRef = ref(database, `users/${auth.currentUser.uid}/friendRequests/${fromUserId}`);
       await remove(requestRef);
+      
+      // Optimistically update local state so the Friends popup updates immediately
+      setFriendRequests(prev => prev.filter((req) => req.id !== fromUserId));
+      setFriends(prev => {
+        // Avoid duplicate entries if listener already added this friend
+        if (prev.some((f) => f.id === fromUserId)) return prev;
+        return [...prev, { id: fromUserId, name: fromUserName, addedAt: nowIso }];
+      });
       
       return true;
     } catch (err) {
@@ -243,7 +253,7 @@ export function useAuth() {
     }
   }, []);
 
-  const declineFriendRequest = useCallback(async (fromUserId) => {
+  const declineFriendRequest = useCallback(async (fromUserId, gameCode = null, setFriendStatusIn1v1 = null) => {
     try {
       setError(null);
       if (!auth.currentUser) throw new Error('No user signed in');
@@ -252,6 +262,17 @@ export function useAuth() {
       
       const requestRef = ref(database, `users/${auth.currentUser.uid}/friendRequests/${fromUserId}`);
       await remove(requestRef);
+
+      // If this decline came from a 1v1 game context and we were given a helper,
+      // update the 1v1 game's friendRequestStatus so the waiting room button UI
+      // can revert from "Friend request sent" back to "Add ... as Friend".
+      if (gameCode && typeof setFriendStatusIn1v1 === 'function') {
+        try {
+          await setFriendStatusIn1v1(gameCode, 'declined');
+        } catch (err) {
+          console.error('Failed to update 1v1 friendRequestStatus:', err);
+        }
+      }
       
       return true;
     } catch (err) {
@@ -267,8 +288,13 @@ export function useAuth() {
       const isVerifiedUser = auth.currentUser.emailVerified || (auth.currentUser.providerData || []).some(p => p.providerId === 'google.com');
       if (!isVerifiedUser) throw new Error('You must verify your email or sign in with Google to use friends.');
       
-      const friendRef = ref(database, `users/${auth.currentUser.uid}/friends/${friendId}`);
-      await remove(friendRef);
+      // Remove friend from current user's list
+      const myFriendRef = ref(database, `users/${auth.currentUser.uid}/friends/${friendId}`);
+      await remove(myFriendRef);
+      
+      // Also remove current user from the other user's friends list so unfriend is mutual
+      const theirFriendRef = ref(database, `users/${friendId}/friends/${auth.currentUser.uid}`);
+      await remove(theirFriendRef);
       
       // Update local state
       setFriends(prev => prev.filter(f => f.id !== friendId));

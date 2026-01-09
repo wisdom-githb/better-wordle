@@ -53,7 +53,7 @@ export default function Profile() {
     setMessage("");
     try {
       await resendVerificationEmail();
-      setMessage('Verification email sent. Please check your inbox.');
+      setMessage('Verification email sent. Please check your inbox (and spam folder).');
     } catch (err) {
       setMessage(`Error: ${err.message}`);
     } finally {

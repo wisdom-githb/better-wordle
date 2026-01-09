@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 
-export default React.memo(function AuthModal({ isOpen, onRequestClose }) {
+export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpComplete }) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,6 +30,9 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose }) {
     try {
       if (isSignUp) {
         await signUpWithEmail(email, password);
+        if (onSignUpComplete) {
+          onSignUpComplete(email);
+        }
       } else {
         await signInWithEmail(email, password);
       }
@@ -39,7 +42,7 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose }) {
     } catch (err) {
       setError(err.message || `Failed to ${isSignUp ? 'sign up' : 'sign in'}`);
     }
-  }, [isSignUp, email, password, signUpWithEmail, signInWithEmail, onRequestClose]);
+  }, [isSignUp, email, password, signUpWithEmail, signInWithEmail, onRequestClose, onSignUpComplete]);
 
   const handleClose = useCallback(() => {
     setEmail('');

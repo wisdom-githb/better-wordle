@@ -5,6 +5,7 @@ import FeedbackModal from "./components/FeedbackModal";
 import AuthModal from "./components/AuthModal";
 import OneVOneModal from "./components/OneVOneModal";
 import HamburgerMenu from "./components/HamburgerMenu";
+import Modal from "./components/Modal";
 import { useAuth } from "./hooks/useAuth";
 import { saveJSON, loadJSON, marathonMetaKey } from "./lib/persist";
 import { useDailyResetTimer } from "./hooks/useDailyResetTimer";
@@ -45,6 +46,8 @@ export default function Home({
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showOneVOneModal, setShowOneVOneModal] = useState(false);
   const [showOneVOneConfig, setShowOneVOneConfig] = useState(false);
+  const [showVerifyEmailModal, setShowVerifyEmailModal] = useState(false);
+  const [verifyEmailAddress, setVerifyEmailAddress] = useState("");
   const resetTime = useDailyResetTimer();
   
   const marathonMaxLabel = useMemo(() => marathonLevels[marathonLevels.length - 1], [marathonLevels]);
@@ -88,7 +91,7 @@ export default function Home({
               </div>
               {user && (
                 <div className="userInfo">
-                  {user.email || user.displayName || "Unknown"}
+                  {user.displayName || user.email || "Unknown"}
                 </div>
               )}
             </div>
@@ -122,7 +125,79 @@ export default function Home({
         <AuthModal
           isOpen={showAuthModal}
           onRequestClose={handleCloseAuth}
+          onSignUpComplete={(email) => {
+            setVerifyEmailAddress(email);
+            setShowVerifyEmailModal(true);
+          }}
         />
+
+        <Modal
+          isOpen={showVerifyEmailModal}
+          onRequestClose={() => setShowVerifyEmailModal(false)}
+          titleId="verify-email-modal-title"
+        >
+          <div style={{ padding: "24px", textAlign: "left" }}>
+            <h2
+              id="verify-email-modal-title"
+              style={{
+                margin: "0 0 16px 0",
+                fontSize: 20,
+                fontWeight: "bold",
+                color: "#ffffff",
+              }}
+            >
+              Verify your email
+            </h2>
+            <p
+              style={{
+                margin: "0 0 12px 0",
+                fontSize: 14,
+                color: "#d7dadc",
+                lineHeight: 1.5,
+              }}
+            >
+              We&apos;ve sent a verification link to
+              {" "}
+              <span style={{ fontWeight: "bold" }}>
+                {verifyEmailAddress || "your email address"}
+              </span>
+              .
+            </p>
+            <p
+              style={{
+                margin: "0 0 16px 0",
+                fontSize: 14,
+                color: "#d7dadc",
+                lineHeight: 1.5,
+              }}
+            >
+              Please open that email and click the link to verify your account.
+              Once verified, you&apos;ll be able to play 1v1 and use friends.
+              If you don&apos;t see the email in a few minutes, check your Spam or
+              Junk folder.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setShowVerifyEmailModal(false)}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "#6aaa64",
+                  color: "#ffffff",
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </Modal>
 
         <FeedbackModal
           isOpen={showFeedbackModal}

@@ -8,7 +8,7 @@ const BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
 
 export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst = false, onConfigClose, onConfigOpen }) {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isVerifiedUser } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [gameCode, setGameCode] = useState('');
   const [codeError, setCodeError] = useState('');
@@ -81,9 +81,62 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
     );
   }
 
+  if (!isVerifiedUser) {
+    // Show verification prompt for signed-in but unverified users
+    return (
+      <Modal isOpen={isOpen} onRequestClose={onRequestClose}>
+        <div style={{ padding: '24px' }}>
+          <h2 style={{ margin: 0, marginBottom: '16px', fontSize: 20, fontWeight: 'bold', color: '#ffffff' }}>
+            Verify your email
+          </h2>
+          <p style={{ marginBottom: '20px', color: '#d7dadc', fontSize: 14 }}>
+            You must verify your email address or sign in with Google to play 1v1.
+          </p>
+          <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+            <button
+              onClick={onRequestClose}
+              style={{
+                flex: 1,
+                padding: '12px',
+                borderRadius: 8,
+                border: '1px solid #3a3a3c',
+                background: 'transparent',
+                color: '#ffffff',
+                fontSize: 14,
+                fontWeight: 'bold',
+                cursor: 'pointer',
+              }}
+            >
+              Close
+            </button>
+            <button
+              onClick={() => {
+                onRequestClose();
+                navigate('/profile');
+              }}
+              style={{
+                flex: 1,
+                padding: '12px',
+                borderRadius: 8,
+                border: 'none',
+                background: '#6aaa64',
+                color: '#ffffff',
+                fontSize: 14,
+                fontWeight: 'bold',
+                cursor: 'pointer',
+              }}
+            >
+              Go to Profile
+            </button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <>
-      <Modal isOpen={isOpen && !showConfig} onRequestClose={onRequestClose}>
+      <Modal isOpen={isOpen && !showConfig} onRequestClose={onRequestClose} disableAutoFocus>
       <div style={{ padding: '24px' }}>
         <h2 style={{ margin: 0, marginBottom: '24px', fontSize: 20, fontWeight: 'bold', color: '#ffffff' }}>
           1v1 Mode
