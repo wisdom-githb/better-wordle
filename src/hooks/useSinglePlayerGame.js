@@ -54,10 +54,40 @@ export function useSinglePlayerGame({
         );
         const solvedState = loadJSON(solvedKey, null);
 
-        if (solvedState && solvedState.allSolved) {
-          // Mode already solved - load saved state and show popup
-          savedSolvedStateRef.current = solvedState;
-          setBoards(solvedState.boards);
+        // Only use a solved state if it matches the current configuration.
+        // This prevents old/local-storage states with a different board count
+        // from leaking into new games (e.g., seeing 2 boards when selecting 1).
+        const solvedBoardsCount =
+          solvedState && Array.isArray(solvedState.boards)
+            ? solvedState.boards.length
+            : 0;
+        const solvedMatchesConfig =
+          solvedBoardsCount > 0 && solvedBoardsCount === numBoards;
+
+        if (solvedState && solvedState.allSolved && solvedMatchesConfig) {
+          // Mode already solved - load saved state and show popup.
+          // When revisiting the page (daily or marathon, normal or speedrun),
+          // replay the flip animation for the final solved row on each board
+          // instead of showing a static grid.
+          const rawBoards = Array.isArray(solvedState.boards)
+            ? solvedState.boards
+            : [];
+
+          // Use a shared non-zero reveal id and assign it to all solved boards so
+          // their final row replays the flip once when the page is opened.
+          const replayRevealId = 1;
+          const patchedBoards = rawBoards.map((b) => {
+            if (!b) return b;
+            if (b.isSolved) {
+              return { ...b, lastRevealId: replayRevealId };
+            }
+            // Preserve any existing lastRevealId for non-solved boards (defensive).
+            return { ...b, lastRevealId: b.lastRevealId ?? null };
+          });
+
+          const patchedSolvedState = { ...solvedState, boards: patchedBoards };
+          savedSolvedStateRef.current = patchedSolvedState;
+          setBoards(patchedBoards);
           setCurrentGuess("");
           setMessage("");
           clearMessageTimer();
@@ -65,8 +95,8 @@ export function useSinglePlayerGame({
           setIsUnlimited(false);
           setSelectedBoardIndex(null);
 
-          // Reset flip state and revealId to prevent any animations
-          setRevealId(0);
+          // Set revealId to match patched boards so solved rows flip once on load.
+          setRevealId(replayRevealId);
           setIsFlipping(false);
 
           const turns = getMaxTurns(numBoards);
@@ -103,7 +133,14 @@ export function useSinglePlayerGame({
         const gameStateKey = getGameStateKey();
         const savedGameState = loadJSON(gameStateKey, null);
 
-        if (savedGameState && savedGameState.boards && savedGameState.boards.length > 0) {
+        const savedBoardsCount =
+          savedGameState && Array.isArray(savedGameState.boards)
+            ? savedGameState.boards.length
+            : 0;
+        const savedMatchesConfig =
+          savedBoardsCount > 0 && savedBoardsCount === numBoards;
+
+        if (savedGameState && savedMatchesConfig) {
           // Check if the saved state matches current configuration
           const allSolvedInSaved = savedGameState.boards.every((b) => b.isSolved);
           if (!allSolvedInSaved) {

@@ -30,7 +30,7 @@ export default function GameHeader({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: 12
+          gap: 12,
         }}
       >
         <button
@@ -73,7 +73,7 @@ export default function GameHeader({
 
         <div style={{ display: "flex", gap: "12px", alignItems: "center", flexShrink: 0 }}>
           <div style={{ fontSize: 11, color: "#818384", whiteSpace: "nowrap" }}>
-            Reset: {resetTime} | Boards: {numBoards} Guesses: {maxTurnsLabel ?? maxTurns}
+            Reset: {resetTime}
           </div>
           {user && (
             <div style={{ 

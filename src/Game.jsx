@@ -363,7 +363,9 @@ const Game = ({
         // Update boards with player's guesses (one board per solution)
         const myGuesses = isPlayerHost ? hostGuesses : guestGuesses;
 
-        const newBoards = solutionArray.map((sol) => {
+        const newBoards = solutionArray.map((sol, idx) => {
+          const prevBoard = boards[idx];
+
           // Once a particular board is solved, subsequent guesses should NOT appear
           // on that board. We therefore truncate the guess list at the first time
           // this solution is guessed.
@@ -379,11 +381,18 @@ const Game = ({
           const isDead =
             !isSpeedrun && !isSolved && guessesWithColors.length >= maxTurns;
 
+          const prevGuessCount = prevBoard?.guesses?.length ?? 0;
+          const hadNewGuess = guessesWithColors.length > prevGuessCount;
+          // In 1v1, revealId is already incremented by submitGuess before this runs,
+          // so we record the current revealId for boards that just gained a row.
+          const lastRevealId = hadNewGuess ? revealId : prevBoard?.lastRevealId ?? null;
+
           return {
             solution: sol,
             guesses: guessesWithColors,
             isSolved,
             isDead,
+            lastRevealId,
           };
         });
 
@@ -809,6 +818,11 @@ const Game = ({
 
     if (allOver) return;
 
+    // Compute the next revealId up front so boards can record which reveal
+    // created their newest row. This lets TileRow animate the solve row once,
+    // even if the board is now solved, without re-flipping on later reveals.
+    const nextRevealId = revealId + 1;
+
     const newBoards = boards.map((board) => {
       if (board.isSolved) return board;
       if (!isUnlimited && board.isDead) return board;
@@ -819,13 +833,16 @@ const Game = ({
       const isSolvedNow = currentGuess === board.solution;
       const isDeadNow = !isUnlimited && !isSolvedNow && guesses.length >= maxTurns;
 
-      return { ...board, guesses, isSolved: isSolvedNow, isDead: isDeadNow };
+      const hadNewGuess = guesses.length > board.guesses.length;
+      const lastRevealId = hadNewGuess ? nextRevealId : board.lastRevealId ?? null;
+
+      return { ...board, guesses, isSolved: isSolvedNow, isDead: isDeadNow, lastRevealId };
     });
 
     setBoards(newBoards);
 
     // trigger reveal animation for the row that was just added
-    setRevealId((x) => x + 1);
+    setRevealId(nextRevealId);
 
     // Mark that flip animation is in progress
     setIsFlipping(true);
@@ -1569,6 +1586,93 @@ const Game = ({
         }}
       >
         <div style={{ padding: "16px" }}>
+        {/* Status bar: boards, guesses, timer */}
+        <div
+          style={{
+            marginBottom: 12,
+            padding: "10px 12px",
+            borderRadius: 8,
+            border: "1px solid #3a3a3c",
+            background: "#18181a",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+          }}
+        >
+          {/* Left: boards count */}
+          <div
+            style={{
+              fontSize: 12,
+              color: "#d7dadc",
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+            }}
+          >
+            Boards:{" "}
+            <span style={{ fontWeight: "bold" }}>{numBoards}</span>
+          </div>
+
+          {/* Center: big timer for speedrun, guesses used for standard */}
+          <div style={{ flex: 1, textAlign: "center" }}>
+            {speedrunEnabled ? (
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: "bold",
+                  letterSpacing: 1,
+                  color: "#ffffff",
+                }}
+              >
+                {isMarathonSpeedrun ? (
+                  <>
+                    {formatElapsed(stageElapsedMs || 0)}
+                    <span
+                      style={{
+                        display: "block",
+                        marginTop: 2,
+                        fontSize: 11,
+                        fontWeight: "normal",
+                        color: "#a1a1aa",
+                      }}
+                    >
+                      Total {formatElapsed(displayTotalMs || 0)}
+                    </span>
+                  </>
+                ) : (
+                  <>{formatElapsed(stageElapsedMs || 0)}</>
+                )}
+              </div>
+            ) : (
+              <div
+                style={{
+                  fontSize: 18,
+                  fontWeight: "bold",
+                  color: "#ffffff",
+                }}
+              >
+                Guesses: {turnsUsed}/{maxTurns}
+              </div>
+            )}
+          </div>
+
+          {/* Right: guesses descriptor */}
+          <div
+            style={{
+              fontSize: 12,
+              color: "#d7dadc",
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+              textAlign: "right",
+            }}
+          >
+            Guesses:{" "}
+            <span style={{ fontWeight: "bold" }}>
+              {speedrunEnabled ? "Unlimited" : maxTurns}
+            </span>
+          </div>
+        </div>
+
         {/* End game button row - only show if needed */}
           {canManualEnd && (
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>

@@ -103,10 +103,15 @@ export default function TileRow({
         }
 
         // Revealed rows:
-        // - If this is NOT the newest revealed row, or the board is already solved,
-        //   show a static colored tile (no flip animation). This prevents solved boards
-        //   from re-flipping when other boards finish.
-        if (!isJustRevealedRow || board.isSolved) {
+        // We only animate the newest revealed row *for the board update that just happened*.
+        // To avoid already-solved boards re-flipping when OTHER boards finish, we track
+        // the lastRevealId stored on the board and compare it to the global revealId.
+        const shouldFlipThisRow =
+          isJustRevealedRow &&
+          board.lastRevealId != null &&
+          board.lastRevealId === revealId;
+
+        if (!shouldFlipThisRow) {
           const bg = bgForColor(color);
           return (
             <div

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Home.css";
 import FeedbackModal from "./components/FeedbackModal";
@@ -7,7 +7,7 @@ import OneVOneModal from "./components/OneVOneModal";
 import HamburgerMenu from "./components/HamburgerMenu";
 import Modal from "./components/Modal";
 import { useAuth } from "./hooks/useAuth";
-import { saveJSON, loadJSON, marathonMetaKey } from "./lib/persist";
+import { loadJSON, saveJSON, makeDailyKey, makeMarathonKey, marathonMetaKey, makeSolvedKey, removeKey } from "./lib/persist";
 import { useDailyResetTimer } from "./hooks/useDailyResetTimer";
 
 const BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
@@ -49,9 +49,33 @@ export default function Home({
   const [showVerifyEmailModal, setShowVerifyEmailModal] = useState(false);
   const [verifyEmailAddress, setVerifyEmailAddress] = useState("");
   const resetTime = useDailyResetTimer();
+
+  // Track separate stage indices for standard and speedrun marathon for display.
+  const [marathonStandardIndexUI, setMarathonStandardIndexUI] = useState(marathonIndex || 0);
+  const [marathonSpeedrunIndexUI, setMarathonSpeedrunIndexUI] = useState(0);
+
+  // Initialize stage indices from persisted marathon meta on mount.
+  useEffect(() => {
+    const standardMeta = loadJSON(marathonMetaKey(false), null);
+    const speedrunMeta = loadJSON(marathonMetaKey(true), null);
+
+    if (standardMeta && typeof standardMeta.index === "number") {
+      setMarathonStandardIndexUI(standardMeta.index);
+    }
+    if (speedrunMeta && typeof speedrunMeta.index === "number") {
+      setMarathonSpeedrunIndexUI(speedrunMeta.index);
+    }
+  }, []);
   
   const marathonMaxLabel = useMemo(() => marathonLevels[marathonLevels.length - 1], [marathonLevels]);
-  const currentBoards = useMemo(() => marathonLevels[marathonIndex], [marathonLevels, marathonIndex]);
+  const currentStandardBoards = useMemo(
+    () => marathonLevels[marathonStandardIndexUI] || marathonLevels[0],
+    [marathonLevels, marathonStandardIndexUI]
+  );
+  const currentSpeedrunBoards = useMemo(
+    () => marathonLevels[marathonSpeedrunIndexUI] || marathonLevels[0],
+    [marathonLevels, marathonSpeedrunIndexUI]
+  );
   
   const handleCloseFeedback = useCallback(() => setShowFeedbackModal(false), []);
   const handleOpenFeedback = useCallback(() => setShowFeedbackModal(true), []);
@@ -68,6 +92,17 @@ export default function Home({
     navigate(`/game?mode=daily&boards=${dailyBoards}&speedrun=true`);
   }, [dailyBoards, navigate]);
   
+  const handleResetDailyGuesses = useCallback(() => {
+    // Clear saved in-progress and solved state for today's daily games
+    // for the currently selected board count, for both standard and speedrun.
+    [false, true].forEach((speedrunEnabled) => {
+      const gameKey = makeDailyKey(dailyBoards, speedrunEnabled);
+      const solvedKey = makeSolvedKey("daily", dailyBoards, speedrunEnabled);
+      removeKey(gameKey);
+      removeKey(solvedKey);
+    });
+  }, [dailyBoards]);
+  
   const handleMarathonStandard = useCallback(() => {
     navigate(`/game?mode=marathon&speedrun=false`);
   }, [navigate]);
@@ -75,6 +110,26 @@ export default function Home({
   const handleMarathonSpeedrun = useCallback(() => {
     navigate(`/game?mode=marathon&speedrun=true`);
   }, [navigate]);
+  
+  const handleResetMarathonGuesses = useCallback(() => {
+    // Clear saved in-progress, meta, and solved state for today's marathon games
+    // across all stages, for both standard and speedrun.
+    [false, true].forEach((speedrunEnabled) => {
+      const gameKey = makeMarathonKey(speedrunEnabled);
+      const metaKey = marathonMetaKey(speedrunEnabled);
+      removeKey(gameKey);
+      removeKey(metaKey);
+
+      marathonLevels.forEach((boards, index) => {
+        const solvedKey = makeSolvedKey("marathon", boards, speedrunEnabled, index);
+        removeKey(solvedKey);
+      });
+    });
+
+    // Also reset the displayed stage indices back to the first stage.
+    setMarathonStandardIndexUI(0);
+    setMarathonSpeedrunIndexUI(0);
+  }, [marathonLevels]);
   
   const dailyTitleRight = useMemo(() => `${dailyBoards} board${dailyBoards > 1 ? "s" : ""}`, [dailyBoards]);
 
@@ -259,6 +314,15 @@ export default function Home({
               variant="green"
               titleRight={dailyTitleRight}
             />
+
+            <button
+              type="button"
+              className="homeBtn homeBtnOutline"
+              onClick={handleResetDailyGuesses}
+              style={{ marginTop: "12px" }}
+            >
+              Reset today&apos;s daily guesses
+            </button>
           </div>
         </section>
 
@@ -274,9 +338,15 @@ export default function Home({
 
             <div className="marathonMeta">
               <div className="metaLine">
-                Current stage:{" "}
+                Standard stage:{" "}
                 <span className="metaStrong">
-                  {currentBoards}/{marathonMaxLabel} boards
+                  {currentStandardBoards}/{marathonMaxLabel} boards
+                </span>
+              </div>
+              <div className="metaLine">
+                Speedrun stage:{" "}
+                <span className="metaStrong">
+                  {currentSpeedrunBoards}/{marathonMaxLabel} boards
                 </span>
               </div>
               <div className="metaHint">
@@ -292,7 +362,7 @@ export default function Home({
               buttonText="Play marathon"
               onClick={handleMarathonStandard}
               variant="gold"
-              titleRight={`${currentBoards} boards`}
+              titleRight={`${currentStandardBoards} boards`}
             />
 
             <ModeRow
@@ -303,6 +373,15 @@ export default function Home({
               variant="gold"
               titleRight={`${marathonLevels[0]}-${marathonMaxLabel}`}
             />
+
+            <button
+              type="button"
+              className="homeBtn homeBtnOutline"
+              onClick={handleResetMarathonGuesses}
+              style={{ marginTop: "12px" }}
+            >
+              Reset today&apos;s marathon guesses
+            </button>
           </div>
         </section>
 

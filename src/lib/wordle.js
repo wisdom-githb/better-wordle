@@ -76,7 +76,9 @@ export function createBoardState(solution) {
     solution,
     guesses: [], // each: { word, colors }
     isSolved: false,
-    isDead: false
+    isDead: false,
+    // Track which global revealId last animated this board's newest row.
+    lastRevealId: null,
   };
 }
 

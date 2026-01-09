@@ -332,6 +332,76 @@ export default function OneVOneGameView({
               width: "100%",
             }}
           >
+            {/* Status bar: boards, guesses, timer */}
+            <div
+              style={{
+                marginBottom: 4,
+                padding: "10px 12px",
+                borderRadius: 8,
+                border: "1px solid #3a3a3c",
+                background: "#18181a",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              {/* Left: boards count */}
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "#d7dadc",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                Boards:{" "}
+                <span style={{ fontWeight: "bold" }}>{numBoardsForHeader}</span>
+              </div>
+
+              {/* Center: big timer for speedrun, your guesses for standard */}
+              <div style={{ flex: 1, textAlign: "center" }}>
+                {isSpeedrun ? (
+                  <div
+                    style={{
+                      fontSize: 22,
+                      fontWeight: "bold",
+                      letterSpacing: 1,
+                      color: "#ffffff",
+                    }}
+                  >
+                    {renderSpeedrunTime(true)}
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      fontSize: 18,
+                      fontWeight: "bold",
+                      color: "#ffffff",
+                    }}
+                  >
+                    Your guesses: {myGuesses.length}/{maxTurns}
+                  </div>
+                )}
+              </div>
+
+              {/* Right: guesses descriptor */}
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "#d7dadc",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                  textAlign: "right",
+                }}
+              >
+                Guesses:{" "}
+                <span style={{ fontWeight: "bold" }}>
+                  {isSpeedrun ? "Unlimited" : maxTurns}
+                </span>
+              </div>
+            </div>
+
             {/* Scores and turn indicator */}
             <div
               style={{
