@@ -4,19 +4,12 @@ import Home from "./Home";
 import Game from "./Game";
 import Profile from "./Profile";
 import Leaderboard from "./components/Leaderboard";
-import {
-  loadJSON,
-  saveJSON,
-  marathonMetaKey
-} from "./lib/persist";
 
 const MARATHON_LEVELS = [1, 2, 3, 4];
-const BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
 
 function App() {
   const location = useLocation();
   const [dailyBoards, setDailyBoards] = useState(1);
-  const [marathonIndex, setMarathonIndex] = useState(0);
 
   // Normalize root path URL to always have trailing slash to match Vite base URL
   // This ensures both /better-wordle and /better-wordle/ work correctly
@@ -35,18 +28,6 @@ function App() {
     }
   }, [location.pathname]);
 
-  // Load persisted state (only marathon index, not dailyBoards)
-  useEffect(() => {
-    const standardMeta = loadJSON(marathonMetaKey(false), null);
-    const speedrunMeta = loadJSON(marathonMetaKey(true), null);
-
-    if (standardMeta && typeof standardMeta.index === "number") {
-      setMarathonIndex(standardMeta.index);
-    } else if (speedrunMeta && typeof speedrunMeta.index === "number") {
-      setMarathonIndex(speedrunMeta.index);
-    }
-  }, []);
-
   // Reset dailyBoards to 1 whenever navigating to home page
   useEffect(() => {
     if (location.pathname === '/' || location.pathname.endsWith('/')) {
@@ -64,7 +45,6 @@ function App() {
           <Home
             dailyBoards={dailyBoards}
             setDailyBoards={setDailyBoards}
-            marathonIndex={marathonIndex}
             marathonLevels={marathonLevelsMemo}
           />
         } 

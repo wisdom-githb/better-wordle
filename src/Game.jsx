@@ -56,16 +56,25 @@ const Game = ({
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
-  // Get game params from URL
-  const mode = searchParams.get("mode") || "daily";
-  const speedrunEnabled = searchParams.get("speedrun") === "true";
-  const boardsParam = searchParams.get("boards");
+  // Get game params from URL with guards for missing/invalid values
+  const rawMode = searchParams.get("mode");
+  let mode = rawMode === "daily" || rawMode === "marathon" || rawMode === "1v1" ? rawMode : "daily";
+
+  let speedrunEnabled = false;
+  let boardsParam = null;
+
+  // Only honor speedrun/boards when a supported mode is explicitly requested.
+  if (rawMode === "daily" || rawMode === "marathon" || rawMode === "1v1") {
+    speedrunEnabled = searchParams.get("speedrun") === "true";
+    boardsParam = searchParams.get("boards");
+  }
+
   const isOneVOne = mode === "1v1";
   const isHost = searchParams.get("host") === "true";
   const gameCode = searchParams.get("code") || null;
   
-// 1v1 game hook
-  const { user: authUser, sendFriendRequest, isVerifiedUser, friends } = useAuth();
+  // 1v1 game hook
+  const { user: authUser, sendFriendRequest, isVerifiedUser, friends, cancelSentChallenge } = useAuth();
   const oneVOneGame = useOneVOneGame(
     isOneVOne ? (gameCode || null) : null,
     isHost,
@@ -78,10 +87,19 @@ const Game = ({
   const marathonCumulativeMs = marathonMeta.cumulativeMs || 0;
   const marathonStageTimes = marathonMeta.stageTimes || [];
   
-  // Determine numBoards
+  // Determine numBoards (clamp daily/1v1 board counts to a safe range)
+  let parsedBoards = 1;
+  if (mode !== "marathon" && boardsParam) {
+    const n = parseInt(boardsParam, 10);
+    if (Number.isFinite(n)) {
+      const clamped = Math.max(1, Math.min(32, n));
+      parsedBoards = clamped;
+    }
+  }
+
   const numBoards = mode === "marathon" 
     ? marathonLevels[marathonIndex] 
-    : (boardsParam ? parseInt(boardsParam, 10) : 1);
+    : parsedBoards;
   const [boards, setBoards] = useState([]);
   const [currentGuess, setCurrentGuess] = useState("");
 
@@ -191,7 +209,7 @@ const Game = ({
       isUnlimited,
       maxTurns,
       stageStartTime: stageStartRef.current,
-      stageElapsedMs: speedrunEnabled && stageStartRef.current 
+      stageElapsedMs: speedrunEnabled && stageStartRef.current != null
         ? (stageEndRef.current ? (stageEndRef.current - stageStartRef.current) : (Date.now() - stageStartRef.current))
         : 0,
       committedRef: committedRef.current,
@@ -626,7 +644,7 @@ const Game = ({
     if (savedSolvedStateRef.current?.stageElapsedMs !== undefined) {
       return savedSolvedStateRef.current.stageElapsedMs;
     }
-    if (!speedrunEnabled || !stageStartRef.current) return 0;
+    if (!speedrunEnabled || stageStartRef.current == null) return 0;
     const end = stageEndRef.current ?? nowMs;
     return end - stageStartRef.current;
   })();
@@ -684,8 +702,48 @@ const Game = ({
     return perBoardLetterMaps[selectedBoardIndex];
   }, [selectedBoardIndex, perBoardLetterMaps]);
 
+  const solvedCount = useMemo(() => boards.filter((b) => b.isSolved).length, [boards]);
+
+  const finished = useMemo(() => {
+    if (boards.length === 0) return false;
+    return isUnlimited
+      ? boards.every((b) => b.isSolved)
+      : boards.every((b) => b.isSolved || b.isDead);
+  }, [boards, isUnlimited]);
+
+  const allSolved = useMemo(() => boards.length > 0 && boards.every((b) => b.isSolved), [boards]);
+
+  // In 1v1, track whether the LOCAL player has solved all of their boards,
+  // even if the opponent is still playing. We use this both to disable input
+  // and to hide the on-screen keyboard for that player.
+  const hasPlayerSolvedAllOneVOneBoards = useMemo(() => {
+    if (!isOneVOne || !oneVOneGame.gameState || !authUser) return false;
+    const gs = oneVOneGame.gameState;
+
+    const solutionArray =
+      Array.isArray(gs.solutions) && gs.solutions.length > 0
+        ? gs.solutions
+        : gs.solution
+        ? [gs.solution]
+        : [];
+
+    if (solutionArray.length === 0) return false;
+
+    const myGuesses = gs.hostId === authUser.uid ? gs.hostGuesses || [] : gs.guestGuesses || [];
+
+    return solutionArray.every((sol) => myGuesses.includes(sol));
+  }, [isOneVOne, oneVOneGame.gameState, authUser]);
+
   // Centralized helper for whether keyboard input should be blocked
   const isInputBlocked = useCallback(() => {
+    // Once all boards are solved in any mode, block input so physical
+    // keyboard presses do nothing and rely on the solved UI instead.
+    if (allSolved) return true;
+
+    // In 1v1, also block input once *this* player has solved all of their boards,
+    // even if the opponent is still finishing.
+    if (hasPlayerSolvedAllOneVOneBoards) return true;
+
     if (showPopup || showOutOfGuesses) return true;
 
     // If the user is typing into a text field/textarea/contentEditable element
@@ -715,7 +773,7 @@ const Game = ({
     }
 
     return false;
-  }, [showPopup, showOutOfGuesses, isOneVOne, oneVOneGame.gameState, authUser]);
+  }, [allSolved, hasPlayerSolvedAllOneVOneBoards, showPopup, showOutOfGuesses, isOneVOne, oneVOneGame.gameState, authUser]);
 
 
   const addLetter = (letter) => {
@@ -1002,17 +1060,6 @@ const Game = ({
     else addLetter(key);
   };
 
-  const solvedCount = useMemo(() => boards.filter((b) => b.isSolved).length, [boards]);
-
-  const finished = useMemo(() => {
-    if (boards.length === 0) return false;
-    return isUnlimited
-      ? boards.every((b) => b.isSolved)
-      : boards.every((b) => b.isSolved || b.isDead);
-  }, [boards, isUnlimited]);
-
-  const allSolved = useMemo(() => boards.length > 0 && boards.every((b) => b.isSolved), [boards]);
-
   const solutionsText = useMemo(
     () => boards.map((b) => b.solution).filter(Boolean).map((w) => w.toUpperCase()).join(" · "),
     [boards]
@@ -1164,6 +1211,19 @@ const Game = ({
       setTimedMessage(error.message || "Failed to start game", 5000);
     }
   }, [gameCode, oneVOneGame, numBoards, isVerifiedUser, setTimedMessage]);
+
+  const handleCancelHostedChallenge = useCallback(async () => {
+    if (!gameCode) {
+      navigate("/");
+      return;
+    }
+    try {
+      await cancelSentChallenge(gameCode);
+    } catch (error) {
+      setTimedMessage(error.message || "Failed to cancel challenge", 5000);
+    }
+    navigate("/");
+  }, [gameCode, cancelSentChallenge, navigate, setTimedMessage]);
 
   const handleAddFriendRequest = useCallback(async (opponentName, opponentId) => {
     if (!authUser) {
@@ -1366,6 +1426,7 @@ const Game = ({
           onStartGame={handleOneVOneStart}
           onBack={handleBack}
           onOpenFeedback={() => setShowFeedbackModal(true)}
+          onCancelChallenge={handleCancelHostedChallenge}
           onRematch={async () => {
             if (!gameCode) return;
             try {
@@ -1485,20 +1546,23 @@ const Game = ({
           statusText={statusText}
         />
 
-        {/* Fixed keyboard footer (multi-board aware) - only while game is playing */}
-        {oneVOneGame.gameState && oneVOneGame.gameState.status === 'playing' && (
-          <footer className="keyboardFooter">
-            <Keyboard
-              numBoards={multiBoardCount}
-              selectedBoardIndex={selectedBoardIndex}
-              perBoardLetterMaps={perBoardLetterMaps}
-              focusedLetterMap={focusedLetterMap}
-              gridCols={gridCols1v1}
-              gridRows={gridRows1v1}
-              onVirtualKey={handleVirtualKey}
-            />
-          </footer>
-        )}
+      {/* Fixed keyboard footer (multi-board aware) - only while game is playing
+          and this player has not yet solved all of their boards. */}
+        {oneVOneGame.gameState &&
+          oneVOneGame.gameState.status === 'playing' &&
+          !hasPlayerSolvedAllOneVOneBoards && (
+            <footer className="keyboardFooter">
+              <Keyboard
+                numBoards={multiBoardCount}
+                selectedBoardIndex={selectedBoardIndex}
+                perBoardLetterMaps={perBoardLetterMaps}
+                focusedLetterMap={focusedLetterMap}
+                gridCols={gridCols1v1}
+                gridRows={gridRows1v1}
+                onVirtualKey={handleVirtualKey}
+              />
+            </footer>
+          )}
       </>
     );
   }
@@ -1580,7 +1644,11 @@ const Game = ({
           flex: 1,
           overflowY: "auto",
           overflowX: "hidden",
-          paddingBottom: KEYBOARD_HEIGHT + (showNextStageBar ? 62 : 16)
+          // Reserve extra space at the bottom only while the on-screen keyboard
+          // is visible, so once all boards are solved the content can sit
+          // closer to the bottom of the viewport.
+          paddingBottom:
+            (allSolved ? 16 : KEYBOARD_HEIGHT) + (showNextStageBar ? 62 : 16),
         }}
       >
         <GameHeader
@@ -1730,18 +1798,21 @@ const Game = ({
         <NextStageBar marathonNextBoards={marathonNextBoards} onNextStage={goNextStage} />
       )}
 
-      {/* Fixed keyboard footer */}
-      <footer className="keyboardFooter">
-        <Keyboard
-          numBoards={numBoards}
-          selectedBoardIndex={selectedBoardIndex}
-          perBoardLetterMaps={perBoardLetterMaps}
-          focusedLetterMap={focusedLetterMap}
-          gridCols={gridCols}
-          gridRows={gridRows}
-          onVirtualKey={handleVirtualKey}
-        />
-      </footer>
+      {/* Fixed keyboard footer - hide once all boards are solved so the
+          keyboard disappears instead of just blocking input. */}
+      {!allSolved && (
+        <footer className="keyboardFooter">
+          <Keyboard
+            numBoards={numBoards}
+            selectedBoardIndex={selectedBoardIndex}
+            perBoardLetterMaps={perBoardLetterMaps}
+            focusedLetterMap={focusedLetterMap}
+            gridCols={gridCols}
+            gridRows={gridRows}
+            onVirtualKey={handleVirtualKey}
+          />
+        </footer>
+      )}
 
       <BoardSelector
         numBoards={numBoards}

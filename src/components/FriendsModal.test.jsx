@@ -1,0 +1,162 @@
+import React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+
+vi.mock('../hooks/useAuth', () => ({
+  useAuth: vi.fn(),
+}));
+
+vi.mock('../hooks/useOneVOneGame', () => ({
+  useOneVOneGame: vi.fn(),
+}));
+
+vi.mock('../hooks/useTimedMessage', () => ({
+  useTimedMessage: vi.fn(() => ({
+    message: '',
+    setTimedMessage: vi.fn(),
+  })),
+}));
+
+vi.mock('./Modal', () => ({
+  __esModule: true,
+  default: ({ isOpen, children }) => (isOpen ? <div data-testid="modal-root">{children}</div> : null),
+}));
+
+vi.mock('./game/GameToast', () => ({
+  __esModule: true,
+  default: ({ message }) => (message ? <div data-testid="toast">{message}</div> : null),
+}));
+
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => vi.fn(),
+}));
+
+import { useAuth } from '../hooks/useAuth';
+import { useOneVOneGame } from '../hooks/useOneVOneGame';
+import FriendsModal from './FriendsModal';
+import { within } from '@testing-library/react';
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe('FriendsModal', () => {
+  it('shows verify-account message and close button when user is not verified', () => {
+    useAuth.mockReturnValue({
+      isVerifiedUser: false,
+    });
+
+    const onRequestClose = vi.fn();
+
+    render(<FriendsModal isOpen onRequestClose={onRequestClose} />);
+
+    expect(screen.getByText(/verify your account/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/friends are only available for verified accounts/i),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /close/i }));
+    expect(onRequestClose).toHaveBeenCalled();
+  });
+
+  it('renders friend requests and wires Accept/Decline actions', () => {
+    const acceptFriendRequest = vi.fn();
+    const declineFriendRequest = vi.fn();
+
+    useAuth.mockReturnValue({
+      isVerifiedUser: true,
+      user: { uid: 'u1' },
+      friends: [],
+      friendRequests: [
+        { id: 'req1', fromName: 'Alice' },
+      ],
+      incomingChallenges: [],
+      acceptFriendRequest,
+      declineFriendRequest,
+      removeFriend: vi.fn(),
+      sendChallenge: vi.fn(),
+    });
+
+    render(<FriendsModal isOpen onRequestClose={vi.fn()} />);
+
+    expect(screen.getByText(/friend requests \(1\)/i)).toBeInTheDocument();
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /accept/i }));
+    expect(acceptFriendRequest).toHaveBeenCalledWith('req1', 'Alice');
+
+    fireEvent.click(screen.getByRole('button', { name: /decline/i }));
+    expect(declineFriendRequest).toHaveBeenCalledWith('req1');
+  });
+
+  it('renders friends list with Challenge and Remove actions', () => {
+    const removeFriend = vi.fn();
+
+    useAuth.mockReturnValue({
+      isVerifiedUser: true,
+      user: { uid: 'u1' },
+      friends: [{ id: 'f1', name: 'Bob' }],
+      friendRequests: [],
+      incomingChallenges: [],
+      acceptFriendRequest: vi.fn(),
+      declineFriendRequest: vi.fn(),
+      removeFriend,
+      sendChallenge: vi.fn().mockResolvedValue(true),
+    });
+
+    useOneVOneGame.mockReturnValue({
+      createGame: vi.fn().mockResolvedValue('123456'),
+    });
+
+    render(<FriendsModal isOpen onRequestClose={vi.fn()} />);
+
+    expect(screen.getByText(/friends \(1\)/i)).toBeInTheDocument();
+    expect(screen.getByText('Bob')).toBeInTheDocument();
+
+    // Open challenge config modal
+    fireEvent.click(screen.getByRole('button', { name: /challenge/i }));
+    expect(screen.getByText(/1v1 game configuration/i)).toBeInTheDocument();
+
+    // Remove friend
+    fireEvent.click(screen.getByRole('button', { name: /remove/i }));
+    expect(removeFriend).toHaveBeenCalledWith('f1');
+  });
+
+  it('creates a challenge and navigates to 1v1 when sendChallenge succeeds', async () => {
+    const sendChallenge = vi.fn().mockResolvedValue(true);
+    const createGame = vi.fn().mockResolvedValue('654321');
+
+    useAuth.mockReturnValue({
+      isVerifiedUser: true,
+      user: { uid: 'u1', displayName: 'Host' },
+      friends: [{ id: 'f1', name: 'Bob' }],
+      friendRequests: [],
+      incomingChallenges: [],
+      acceptFriendRequest: vi.fn(),
+      declineFriendRequest: vi.fn(),
+      removeFriend: vi.fn(),
+      sendChallenge,
+    });
+
+    useOneVOneGame.mockReturnValue({
+      createGame,
+    });
+
+    const { findAllByTestId } = render(<FriendsModal isOpen onRequestClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^challenge$/i }));
+
+    // Scope to the modal contents so we click the config "Challenge" button,
+    // not the per-friend row button. The config modal is rendered as a nested
+    // modal, so we take the last modal-root in the DOM.
+    const modalRoots = await findAllByTestId('modal-root');
+    const modalRoot = modalRoots[modalRoots.length - 1];
+    const challengeButton = within(modalRoot).getByRole('button', { name: /^challenge$/i });
+    fireEvent.click(challengeButton);
+
+    await waitFor(() => {
+      expect(createGame).toHaveBeenCalledWith({ speedrun: false });
+      expect(sendChallenge).toHaveBeenCalledWith('f1', 'Bob', '654321', 1, false);
+    });
+  });
+});

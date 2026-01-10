@@ -34,7 +34,6 @@ export default function Home({
   dailyBoards,
   setDailyBoards,
 
-  marathonIndex,
   marathonLevels
 }) {
   const navigate = useNavigate();
@@ -45,7 +44,7 @@ export default function Home({
   const [verifyEmailAddress, setVerifyEmailAddress] = useState("");
 
   // Track separate stage indices for standard and speedrun marathon for display.
-  const [marathonStandardIndexUI, setMarathonStandardIndexUI] = useState(marathonIndex || 0);
+  const [marathonStandardIndexUI, setMarathonStandardIndexUI] = useState(0);
   const [marathonSpeedrunIndexUI, setMarathonSpeedrunIndexUI] = useState(0);
 
   // Initialize stage indices from persisted marathon meta on mount.
@@ -53,12 +52,13 @@ export default function Home({
     const standardMeta = loadJSON(marathonMetaKey(false), null);
     const speedrunMeta = loadJSON(marathonMetaKey(true), null);
 
-    if (standardMeta && typeof standardMeta.index === "number") {
-      setMarathonStandardIndexUI(standardMeta.index);
-    }
-    if (speedrunMeta && typeof speedrunMeta.index === "number") {
-      setMarathonSpeedrunIndexUI(speedrunMeta.index);
-    }
+    const standardIndex =
+      standardMeta && typeof standardMeta.index === "number" ? standardMeta.index : 0;
+    const speedrunIndex =
+      speedrunMeta && typeof speedrunMeta.index === "number" ? speedrunMeta.index : 0;
+
+    setMarathonStandardIndexUI(standardIndex);
+    setMarathonSpeedrunIndexUI(speedrunIndex);
   }, []);
   
   const marathonMaxLabel = useMemo(() => marathonLevels[marathonLevels.length - 1], [marathonLevels]);

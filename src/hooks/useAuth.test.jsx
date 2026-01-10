@@ -583,3 +583,278 @@ describe('useAuth - profile helpers', () => {
     expect(result.current.error).toBe('Google account is already linked.');
   });
 });
+
+describe('useAuth - friends & challenges helpers', () => {
+  it('sendFriendRequest writes request for verified users and rejects unverified', async () => {
+    // This test intentionally exercises an error path for unverified users,
+    // so silence the expected console.error noise.
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { getAuth } = firebaseAuth;
+    const auth = getAuth();
+    auth.currentUser = {
+      uid: 'me',
+      displayName: 'Me',
+      emailVerified: false,
+      providerData: [],
+    };
+
+    const { result } = renderHook(() => useAuth());
+    const listener = getAuthListener();
+    act(() => {
+      listener(auth.currentUser);
+    });
+
+    // Unverified user should see an error
+    let unverifiedError;
+    await act(async () => {
+      try {
+        await result.current.sendFriendRequest('Friend', 'friend-1');
+      } catch (e) {
+        unverifiedError = e;
+      }
+    });
+    expect(unverifiedError).toBeInstanceOf(Error);
+
+    // Now mark user verified and try again
+    auth.currentUser.emailVerified = true;
+    let ok;
+    await act(async () => {
+      ok = await result.current.sendFriendRequest('Friend', 'friend-1');
+    });
+    expect(ok).toBe(true);
+
+    const { __resetDb, get, ref } = firebaseDb;
+    const db = firebaseDb.getDatabase();
+    const reqRef = ref(db, 'users/friend-1/friendRequests/me');
+    const snap = await get(reqRef);
+    expect(snap.exists()).toBe(true);
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('acceptFriendRequest creates mutual friends and removes request', async () => {
+    const { getAuth } = firebaseAuth;
+    const auth = getAuth();
+    auth.currentUser = {
+      uid: 'me',
+      displayName: 'Me',
+      emailVerified: true,
+      providerData: [],
+    };
+
+    const { set } = firebaseDb;
+    const db = firebaseDb.getDatabase();
+    // Seed a request
+    await set(firebaseDb.ref(db, 'users/me/friendRequests/other'), {
+      fromName: 'Other',
+    });
+
+    const { result } = renderHook(() => useAuth());
+    const listener = getAuthListener();
+    act(() => {
+      listener(auth.currentUser);
+    });
+
+    let ok;
+    await act(async () => {
+      ok = await result.current.acceptFriendRequest('other', 'Other');
+    });
+    expect(ok).toBe(true);
+
+    const { get, ref } = firebaseDb;
+    const myFriendSnap = await get(ref(db, 'users/me/friends/other'));
+    const theirFriendSnap = await get(ref(db, 'users/other/friends/me'));
+    const reqSnap = await get(ref(db, 'users/me/friendRequests/other'));
+    expect(myFriendSnap.exists()).toBe(true);
+    expect(theirFriendSnap.exists()).toBe(true);
+    expect(reqSnap.exists()).toBe(false);
+  });
+
+  it('removeFriend removes friendship from both users', async () => {
+    const { getAuth } = firebaseAuth;
+    const auth = getAuth();
+    auth.currentUser = {
+      uid: 'me',
+      displayName: 'Me',
+      emailVerified: true,
+      providerData: [],
+    };
+
+    const { set, get, ref } = firebaseDb;
+    const db = firebaseDb.getDatabase();
+    await set(ref(db, 'users/me/friends/other'), { name: 'Other' });
+    await set(ref(db, 'users/other/friends/me'), { name: 'Me' });
+
+    const { result } = renderHook(() => useAuth());
+    const listener = getAuthListener();
+    act(() => {
+      listener(auth.currentUser);
+    });
+
+    await act(async () => {
+      await result.current.removeFriend('other');
+    });
+
+    const myFriendSnap = await get(ref(db, 'users/me/friends/other'));
+    const theirFriendSnap = await get(ref(db, 'users/other/friends/me'));
+    expect(myFriendSnap.exists()).toBe(false);
+    expect(theirFriendSnap.exists()).toBe(false);
+  });
+
+  it('sendChallenge prevents duplicates and writes multi-path updates', async () => {
+    const { getAuth } = firebaseAuth;
+    const auth = getAuth();
+    auth.currentUser = {
+      uid: 'me',
+      displayName: 'Me',
+      email: 'me@example.com',
+      emailVerified: true,
+      providerData: [],
+    };
+
+    const db = firebaseDb.getDatabase();
+    const { set, get, ref, update } = firebaseDb;
+
+    const { result } = renderHook(() => useAuth());
+    const listener = getAuthListener();
+    act(() => {
+      listener(auth.currentUser);
+    });
+
+    // Seed an existing incoming challenge from friend -> should cause sendChallenge to return false
+    await set(ref(db, 'users/me/challenges/EXISTING'), {
+      fromUserId: 'friend-1',
+      status: 'pending',
+    });
+
+    let ok;
+    await act(async () => {
+      ok = await result.current.sendChallenge('friend-1', 'Friend', 'NEWCODE', 3, true);
+    });
+    expect(ok).toBe(false);
+
+    // Now clear challenges and verify that a new challenge writes multi-path updates
+    await firebaseDb.remove(ref(db, 'users/me/challenges/EXISTING'));
+
+    let capturedUpdate = null;
+    update.mockImplementationOnce(async (rootRef, value) => {
+      capturedUpdate = { rootRef, value };
+    });
+
+    await act(async () => {
+      ok = await result.current.sendChallenge('friend-1', 'Friend', 'GAME123', 4, false);
+    });
+    expect(ok).toBe(true);
+    expect(capturedUpdate).not.toBeNull();
+    const keys = Object.keys(capturedUpdate.value);
+    expect(keys).toContain('users/friend-1/challenges/GAME123');
+    expect(keys).toContain('users/me/sentChallenges/GAME123');
+  });
+
+  it('acceptChallenge returns data and removes the stored challenge', async () => {
+    const { getAuth } = firebaseAuth;
+    const auth = getAuth();
+    auth.currentUser = {
+      uid: 'me',
+      displayName: 'Me',
+      emailVerified: true,
+      providerData: [],
+    };
+
+    const { set, get, ref } = firebaseDb;
+    const db = firebaseDb.getDatabase();
+    const challengeRef = ref(db, 'users/me/challenges/CH123');
+    const payload = { boards: 5, speedrun: true, gameCode: 'GAME123' };
+    await set(challengeRef, payload);
+
+    const { result } = renderHook(() => useAuth());
+    const listener = getAuthListener();
+    act(() => {
+      listener(auth.currentUser);
+    });
+
+    let returned;
+    await act(async () => {
+      returned = await result.current.acceptChallenge('CH123');
+    });
+    expect(returned).toEqual(payload);
+
+    const snap = await get(challengeRef);
+    expect(snap.exists()).toBe(false);
+  });
+
+  it('dismissChallenge removes incoming challenge and marks 1v1 game cancelled when gameCode provided', async () => {
+    const { getAuth } = firebaseAuth;
+    const auth = getAuth();
+    auth.currentUser = {
+      uid: 'me',
+      displayName: 'Me User',
+      emailVerified: true,
+      providerData: [],
+    };
+
+    const { set, get, ref } = firebaseDb;
+    const db = firebaseDb.getDatabase();
+
+    const chRef = ref(db, 'users/me/challenges/CH456');
+    await set(chRef, { fromUserId: 'friend-1', gameCode: 'GM456' });
+    const gameRef = ref(db, 'onevone/GM456');
+    await set(gameRef, { status: 'waiting' });
+
+    const { result } = renderHook(() => useAuth());
+    const listener = getAuthListener();
+    act(() => {
+      listener(auth.currentUser);
+    });
+
+    await act(async () => {
+      await result.current.dismissChallenge('CH456', 'GM456');
+    });
+
+    const chSnap = await get(chRef);
+    const gameSnap = await get(gameRef);
+    expect(chSnap.exists()).toBe(false);
+    expect(gameSnap.val().status).toBe('cancelled');
+    expect(gameSnap.val().cancelledByName).toBe('Me User');
+  });
+
+  it('cancelSentChallenge cleans up sent and incoming challenges and updates 1v1 game', async () => {
+    const { getAuth } = firebaseAuth;
+    const auth = getAuth();
+    auth.currentUser = {
+      uid: 'me',
+      displayName: 'Me User',
+      emailVerified: true,
+      providerData: [],
+    };
+
+    const { set, get, ref } = firebaseDb;
+    const db = firebaseDb.getDatabase();
+
+    const sentRef = ref(db, 'users/me/sentChallenges/GM1');
+    await set(sentRef, { toUserId: 'friend-1', gameCode: 'GM1' });
+    const incomingRef = ref(db, 'users/friend-1/challenges/GM1');
+    await set(incomingRef, { fromUserId: 'me', gameCode: 'GM1' });
+    const gameRef = ref(db, 'onevone/GM1');
+    await set(gameRef, { status: 'waiting' });
+
+    const { result } = renderHook(() => useAuth());
+    const listener = getAuthListener();
+    act(() => {
+      listener(auth.currentUser);
+    });
+
+    await act(async () => {
+      await result.current.cancelSentChallenge('GM1');
+    });
+
+    const sentSnap = await get(sentRef);
+    const incomingSnap = await get(incomingRef);
+    const gameSnap = await get(gameRef);
+    expect(sentSnap.exists()).toBe(false);
+    expect(incomingSnap.exists()).toBe(false);
+    expect(gameSnap.val().status).toBe('cancelled');
+    expect(gameSnap.val().cancelledByName).toBe('Me User');
+  });
+});

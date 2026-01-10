@@ -96,4 +96,68 @@ describe('SiteHeader', () => {
 
     expect(navigateMock).toHaveBeenCalledWith('/profile');
   });
+
+  it('opens Challenges modal from hamburger and shows Sent and Received sections', async () => {
+    const acceptChallenge = vi.fn();
+    const dismissChallenge = vi.fn();
+    const cancelSentChallenge = vi.fn();
+
+    useAuth.mockReturnValue({
+      user: { displayName: 'Alice', email: 'alice@example.com' },
+      signOut: vi.fn(),
+      friendRequests: [],
+      incomingChallenges: [
+        {
+          id: 'inc1',
+          fromUserName: 'Bob',
+          boards: 2,
+          speedrun: false,
+          gameCode: '123456',
+        },
+      ],
+      sentChallenges: [
+        {
+          id: 'sent1',
+          toUserId: 'friend-1',
+          toUserName: 'Carol',
+          boards: 1,
+          speedrun: true,
+          gameCode: '654321',
+        },
+      ],
+      isVerifiedUser: true,
+      acceptChallenge,
+      dismissChallenge,
+      cancelSentChallenge,
+    });
+    useDailyResetTimer.mockReturnValue('00:10:00');
+
+    const user = userEvent.setup();
+
+    render(<SiteHeader onOpenFeedback={vi.fn()} onSignUpComplete={vi.fn()} />);
+
+    // Open hamburger menu
+    const menuButton = screen.getByTitle('Menu');
+    await user.click(menuButton);
+
+    // Open Challenges modal
+    const challengesButton = screen.getByRole('button', { name: /challenges/i });
+    await user.click(challengesButton);
+
+    // Headings
+    expect(screen.getByText(/sent/i)).toBeInTheDocument();
+    expect(screen.getByText(/received/i)).toBeInTheDocument();
+
+    // Sent card: Carol
+    expect(screen.getByText(/Carol/i)).toBeInTheDocument();
+    // Received card: Bob
+    expect(screen.getByText(/Bob/i)).toBeInTheDocument();
+
+    // Cancel button in Sent section should call cancelSentChallenge with game code
+    const cancelButton = screen.getByRole('button', { name: /cancel/i });
+    await user.click(cancelButton);
+
+    expect(cancelSentChallenge).toHaveBeenCalledTimes(1);
+    expect(cancelSentChallenge).toHaveBeenCalledWith('654321');
+  });
 });

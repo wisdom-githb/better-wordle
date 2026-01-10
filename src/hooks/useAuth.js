@@ -20,11 +20,14 @@ export function useAuth() {
   const [friends, setFriends] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
   const [incomingChallenges, setIncomingChallenges] = useState([]);
+  // Outgoing 1v1 challenges created by the current user ("Sent" tab in UI).
+  const [sentChallenges, setSentChallenges] = useState([]);
 
   useEffect(() => {
     let unsubscribeFriends = null;
     let unsubscribeRequests = null;
     let unsubscribeChallenges = null;
+    let unsubscribeSentChallenges = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, (authUser) => {
       // Clean up any existing database listeners when auth user changes
@@ -50,6 +53,7 @@ export function useAuth() {
           setFriends([]);
           setFriendRequests([]);
           setIncomingChallenges([]);
+          setSentChallenges([]);
           setLoading(false);
           setError(null);
           return;
@@ -102,6 +106,24 @@ export function useAuth() {
             setIncomingChallenges([]);
           }
         });
+
+        // Load outgoing (sent) 1v1 challenges created by this user.
+        const sentRef = ref(database, `users/${authUser.uid}/sentChallenges`);
+        unsubscribeSentChallenges = onValue(sentRef, (snapshot) => {
+          if (snapshot.exists()) {
+            const raw = snapshot.val();
+            const list = Object.entries(raw).map(([id, data]) => ({ id, ...data }));
+            // Sort newest first by createdAt for consistent UI.
+            list.sort((a, b) => {
+              const at = a.createdAt || a.sentAt || 0;
+              const bt = b.createdAt || b.sentAt || 0;
+              return bt - at;
+            });
+            setSentChallenges(list);
+          } else {
+            setSentChallenges([]);
+          }
+        });
         
         setLoading(false);
         setError(null);
@@ -109,6 +131,7 @@ export function useAuth() {
         setFriends([]);
         setFriendRequests([]);
         setIncomingChallenges([]);
+        setSentChallenges([]);
         setLoading(false);
         setError(null);
       }
@@ -118,6 +141,7 @@ export function useAuth() {
       if (unsubscribeFriends) unsubscribeFriends();
       if (unsubscribeRequests) unsubscribeRequests();
       if (unsubscribeChallenges) unsubscribeChallenges();
+      if (unsubscribeSentChallenges) unsubscribeSentChallenges();
       unsubscribeAuth();
     };
   }, []);
@@ -360,6 +384,7 @@ export function useAuth() {
       if (!isVerifiedUser) throw new Error('You must verify your email or sign in with Google to use friends.');
 
       const currentUserId = auth.currentUser.uid;
+      const fromUserName = auth.currentUser.displayName || auth.currentUser.email || 'Unknown';
 
       // Before creating a new challenge, enforce that there is no existing
       // pending challenge between these two users in either direction.
@@ -384,16 +409,24 @@ export function useAuth() {
       }
 
       const now = Date.now();
-      const challengeRef = ref(database, `users/${friendId}/challenges/${gameCode}`);
-      await set(challengeRef, {
+      const challengeData = {
         fromUserId: currentUserId,
-        fromUserName: auth.currentUser.displayName || auth.currentUser.email || 'Unknown',
+        fromUserName,
+        toUserId: friendId,
+        toUserName: friendName,
         gameCode,
         boards,
         speedrun: !!speedrun,
         status: 'pending', // pending, accepted, cancelled
         createdAt: now,
-      });
+      };
+
+      // Write the challenge in a single multi-path update so that both the
+      // receiver's incoming list and the sender's sent list stay in sync.
+      const updates = {};
+      updates[`users/${friendId}/challenges/${gameCode}`] = challengeData;
+      updates[`users/${currentUserId}/sentChallenges/${gameCode}`] = challengeData;
+      await update(ref(database), updates);
 
       return true;
     } catch (err) {
@@ -464,6 +497,59 @@ export function useAuth() {
     }
   }, []);
 
+  // Host-side helper for cancelling a sent challenge. This removes the
+  // challenge from the sender's "Sent" list, from the friend's incoming
+  // challenges list, and attempts to mark the underlying 1v1 game as
+  // cancelled so that both players see a clear message.
+  const cancelSentChallenge = useCallback(async (gameCode) => {
+    try {
+      setError(null);
+      if (!auth.currentUser) throw new Error('No user signed in');
+      const currentUserId = auth.currentUser.uid;
+
+      const sentRef = ref(database, `users/${currentUserId}/sentChallenges/${gameCode}`);
+      const snapshot = await get(sentRef);
+      let friendId = null;
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        friendId = data.toUserId || data.friendId || null;
+      }
+
+      // Remove from the sender's sentChallenges list regardless of whether we
+      // managed to read the payload, so that the UI no longer shows it.
+      await remove(sentRef);
+
+      // Remove from the friend's incoming challenges list if we know who they are.
+      if (friendId) {
+        const incomingRef = ref(database, `users/${friendId}/challenges/${gameCode}`);
+        await remove(incomingRef);
+      }
+
+      // Best-effort: mark the backing 1v1 game as cancelled so any listeners
+      // (e.g. the guest if they somehow joined directly) see a cancelled state.
+      try {
+        const gameRef = ref(database, `onevone/${gameCode}`);
+        const gameSnap = await get(gameRef);
+        if (gameSnap.exists()) {
+          const cancelledByName =
+            auth.currentUser.displayName || auth.currentUser.email || 'You';
+          await update(gameRef, {
+            status: 'cancelled',
+            cancelledByName,
+          });
+        }
+      } catch (innerErr) {
+        console.error('Failed to mark 1v1 game as cancelled after host cancelled sent challenge:', innerErr);
+      }
+
+      return true;
+    } catch (err) {
+      console.error('cancelSentChallenge error:', err);
+      setError(err.message);
+      throw err;
+    }
+  }, []);
+
   const isVerifiedUser = !!user && (user.emailVerified || (user.providerData || []).some(p => p.providerId === 'google.com'));
 
   const resendVerificationEmail = useCallback(async () => {
@@ -503,6 +589,7 @@ export function useAuth() {
     friends,
     friendRequests,
     incomingChallenges,
+    sentChallenges,
     isVerifiedUser,
     signInWithGoogle,
     signUpWithEmail,
@@ -516,7 +603,8 @@ export function useAuth() {
     sendChallenge,
     acceptChallenge,
     dismissChallenge,
+    cancelSentChallenge,
     resendVerificationEmail,
-    linkGoogleAccount
+    linkGoogleAccount,
   };
 }

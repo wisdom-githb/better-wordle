@@ -40,6 +40,7 @@ export default function OneVOneGameView({
   initialNumBoards,
   onChangeMode,
   friends,
+  onCancelChallenge,
 }) {
   const gameState = oneVOneGame.gameState;
 
@@ -110,6 +111,7 @@ export default function OneVOneGameView({
           onStartGame={onStartGame}
           friendRequestSent={friendRequestSent}
           onShareCode={onShareCode}
+          onCancelChallenge={isPlayerHost ? onCancelChallenge : undefined}
           onAddFriend={
             !isFriendWithOpponent
               ? (opponentName) => {

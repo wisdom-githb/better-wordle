@@ -8,7 +8,8 @@ export default function OneVOneWaitingRoom({
   onStartGame,
   onAddFriend,
   friendRequestSent,
-  onShareCode
+  onShareCode,
+  onCancelChallenge,
 }) {
   const { hostName, guestName, hostReady, guestReady, status, friendRequestStatus } = gameState || {};
   const currentUserReady = isHost ? hostReady : guestReady;
@@ -48,7 +49,7 @@ export default function OneVOneWaitingRoom({
               background: '#3a3a3c',
               borderRadius: 8,
               padding: '20px',
-              marginBottom: '24px'
+              marginBottom: '16px'
             }}>
               <div style={{ color: '#818384', fontSize: 12, marginBottom: '8px' }}>
                 Game Code:
@@ -92,6 +93,26 @@ export default function OneVOneWaitingRoom({
                 </button>
               )}
             </div>
+
+            {isHost && onCancelChallenge && (
+              <button
+                onClick={() => onCancelChallenge()}
+                style={{
+                  width: '100%',
+                  marginTop: '12px',
+                  padding: '10px',
+                  borderRadius: 8,
+                  border: '1px solid #3a3a3c',
+                  background: 'transparent',
+                  color: '#ffffff',
+                  fontSize: 13,
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel Challenge
+              </button>
+            )}
           </div>
         )}
 

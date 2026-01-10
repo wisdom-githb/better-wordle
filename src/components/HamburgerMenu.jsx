@@ -6,7 +6,16 @@ import Modal from "./Modal";
 
 export default function HamburgerMenu({ onOpenFeedback }) {
   const navigate = useNavigate();
-  const { user, friendRequests, incomingChallenges, isVerifiedUser, acceptChallenge, dismissChallenge } = useAuth();
+  const {
+    user,
+    friendRequests,
+    incomingChallenges,
+    sentChallenges,
+    isVerifiedUser,
+    acceptChallenge,
+    dismissChallenge,
+    cancelSentChallenge,
+  } = useAuth();
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
   const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [showChallengesModal, setShowChallengesModal] = useState(false);
@@ -251,7 +260,13 @@ export default function HamburgerMenu({ onOpenFeedback }) {
         isOpen={showChallengesModal}
         onRequestClose={() => setShowChallengesModal(false)}
       >
-        <div style={{ padding: "24px", minWidth: "360px", maxWidth: "480px" }}>
+        <div
+          style={{
+            padding: "24px",
+            width: "100%",
+            boxSizing: "border-box",
+          }}
+        >
           <h2
             style={{
               margin: "0 0 16px 0",
@@ -263,7 +278,7 @@ export default function HamburgerMenu({ onOpenFeedback }) {
             Challenges
           </h2>
 
-          {(!incomingChallenges || incomingChallenges.length === 0) ? (
+          {(!sentChallenges || sentChallenges.length === 0) && (!incomingChallenges || incomingChallenges.length === 0) ? (
             <div
               style={{
                 padding: "24px 8px 16px",
@@ -271,97 +286,207 @@ export default function HamburgerMenu({ onOpenFeedback }) {
                 fontSize: 14,
               }}
             >
-              You have no incoming challenges.
+              You have no challenges right now.
             </div>
           ) : (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "10px",
-                maxHeight: "320px",
-                overflowY: "auto",
-                marginBottom: "16px",
-              }}
-            >
-              {incomingChallenges.map((ch) => (
+            <>
+              {/* Sent challenges */}
+              <h3
+                style={{
+                  margin: "8px 0 8px",
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  color: "#d7dadc",
+                  textAlign: "left",
+                }}
+              >
+                Sent
+              </h3>
+              {(!sentChallenges || sentChallenges.length === 0) ? (
                 <div
-                  key={ch.id}
                   style={{
-                    padding: "10px 12px",
-                    borderRadius: 8,
-                    border: "1px solid #3a3a3c",
-                    background: "#2b2b2e",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: "10px",
+                    padding: "8px 0 12px",
+                    color: "#818384",
+                    fontSize: 12,
                   }}
                 >
-                  <div style={{ textAlign: "left", flex: 1 }}>
-                    <div style={{ color: "#ffffff", fontWeight: 600, marginBottom: 2 }}>
-                      {ch.fromUserName || "Unknown"}
-                    </div>
-                    <div style={{ color: "#d7dadc", fontSize: 12 }}>
-                      {ch.boards || 1} board{(ch.boards || 1) > 1 ? "s" : ""} · {ch.speedrun ? "Speedrun" : "Standard"}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: "6px" }}>
-                    <button
-                      onClick={async () => {
-                        try {
-                          const data = await acceptChallenge(ch.id);
-                          setShowChallengesModal(false);
-                          // Navigate into the waiting room as the guest.
-                          const boards = data.boards || 1;
-                          const speedrun = !!data.speedrun;
-                          navigate(
-                            `/game?mode=1v1&code=${data.gameCode}&speedrun=${speedrun}&boards=${boards}`,
-                          );
-                        } catch (err) {
-                          // eslint-disable-next-line no-alert
-                          alert(err?.message || 'Failed to accept challenge');
-                        }
-                      }}
-                      style={{
-                        padding: "6px 10px",
-                        borderRadius: 6,
-                        border: "none",
-                        background: "#6aaa64",
-                        color: "#ffffff",
-                        fontSize: 11,
-                        fontWeight: "bold",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Accept
-                    </button>
-                    <button
-                      onClick={async () => {
-                        try {
-                          await dismissChallenge(ch.id, ch.gameCode);
-                        } catch (err) {
-                          // eslint-disable-next-line no-alert
-                          alert(err?.message || 'Failed to dismiss challenge');
-                        }
-                      }}
-                      style={{
-                        padding: "6px 10px",
-                        borderRadius: 6,
-                        border: "1px solid #3a3a3c",
-                        background: "transparent",
-                        color: "#ffffff",
-                        fontSize: 11,
-                        fontWeight: "bold",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Dismiss
-                    </button>
-                  </div>
+                  You haven't sent any challenges yet.
                 </div>
-              ))}
-            </div>
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "10px",
+                    maxHeight: "160px",
+                    overflowY: "auto",
+                    marginBottom: "12px",
+                  }}
+                >
+                  {sentChallenges.map((ch) => (
+                    <div
+                      key={ch.id}
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: 8,
+                        border: "1px solid #3a3a3c",
+                        background: "#2b2b2e",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: "10px",
+                      }}
+                    >
+                      <div style={{ textAlign: "left", flex: 1 }}>
+                        <div style={{ color: "#ffffff", fontWeight: 600, marginBottom: 2 }}>
+                          {ch.toUserName || ch.friendName || "Unknown friend"}
+                        </div>
+                        <div style={{ color: "#d7dadc", fontSize: 12 }}>
+                          {ch.boards || 1} board{(ch.boards || 1) > 1 ? "s" : ""} · {ch.speedrun ? "Speedrun" : "Standard"}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await cancelSentChallenge(ch.gameCode || ch.id);
+                            } catch (err) {
+                              // eslint-disable-next-line no-alert
+                              alert(err?.message || 'Failed to cancel challenge');
+                            }
+                          }}
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: 6,
+                            border: "1px solid #3a3a3c",
+                            background: "transparent",
+                            color: "#ffffff",
+                            fontSize: 11,
+                            fontWeight: "bold",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Received challenges */}
+              <h3
+                style={{
+                  margin: "8px 0 8px",
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  color: "#d7dadc",
+                  textAlign: "left",
+                }}
+              >
+                Received
+              </h3>
+              {(!incomingChallenges || incomingChallenges.length === 0) ? (
+                <div
+                  style={{
+                    padding: "8px 0 12px",
+                    color: "#818384",
+                    fontSize: 12,
+                  }}
+                >
+                  You have no incoming challenges.
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "10px",
+                    maxHeight: "160px",
+                    overflowY: "auto",
+                    marginBottom: "16px",
+                  }}
+                >
+                  {incomingChallenges.map((ch) => (
+                    <div
+                      key={ch.id}
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: 8,
+                        border: "1px solid #3a3a3c",
+                        background: "#2b2b2e",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: "10px",
+                      }}
+                    >
+                      <div style={{ textAlign: "left", flex: 1 }}>
+                        <div style={{ color: "#ffffff", fontWeight: 600, marginBottom: 2 }}>
+                          {ch.fromUserName || "Unknown"}
+                        </div>
+                        <div style={{ color: "#d7dadc", fontSize: 12 }}>
+                          {ch.boards || 1} board{(ch.boards || 1) > 1 ? "s" : ""} · {ch.speedrun ? "Speedrun" : "Standard"}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const data = await acceptChallenge(ch.id);
+                              setShowChallengesModal(false);
+                              // Navigate into the waiting room as the guest.
+                              const boards = data.boards || 1;
+                              const speedrun = !!data.speedrun;
+                              navigate(
+                                `/game?mode=1v1&code=${data.gameCode}&speedrun=${speedrun}&boards=${boards}`,
+                              );
+                            } catch (err) {
+                              // eslint-disable-next-line no-alert
+                              alert(err?.message || 'Failed to accept challenge');
+                            }
+                          }}
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: 6,
+                            border: "none",
+                            background: "#6aaa64",
+                            color: "#ffffff",
+                            fontSize: 11,
+                            fontWeight: "bold",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Accept
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await dismissChallenge(ch.id, ch.gameCode);
+                            } catch (err) {
+                              // eslint-disable-next-line no-alert
+                              alert(err?.message || 'Failed to dismiss challenge');
+                            }
+                          }}
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: 6,
+                            border: "1px solid #3a3a3c",
+                            background: "transparent",
+                            color: "#ffffff",
+                            fontSize: 11,
+                            fontWeight: "bold",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
 
           <button

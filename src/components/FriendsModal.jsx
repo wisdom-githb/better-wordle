@@ -33,7 +33,13 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
   if (!isVerifiedUser) {
     return (
       <Modal isOpen={isOpen} onRequestClose={onRequestClose}>
-        <div style={{ textAlign: "center", minWidth: "320px", maxWidth: "420px" }}>
+        <div
+          style={{
+            textAlign: "center",
+            width: "100%",
+            boxSizing: "border-box",
+          }}
+        >
           <h2 style={{ margin: "0 0 16px 0", fontSize: "22px", fontWeight: "bold" }}>
             Verify your account
           </h2>
@@ -66,7 +72,13 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
     <Modal isOpen={isOpen} onRequestClose={onRequestClose}>
       {/* Global toast for friends/challenges actions */}
       <GameToast message={message} />
-      <div style={{ textAlign: "center", minWidth: "400px", maxWidth: "500px" }}>
+      <div
+        style={{
+          textAlign: "center",
+          width: "100%",
+          boxSizing: "border-box",
+        }}
+      >
         <h2 style={{ margin: "0 0 24px 0", fontSize: "24px", fontWeight: "bold" }}>
           Friends & Requests
         </h2>
