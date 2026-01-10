@@ -38,12 +38,61 @@ export default function OneVOneGameView({
   setTimedMessage,
   oneVOneNowMs,
   initialNumBoards,
+  onChangeMode,
+  friends,
 }) {
   const gameState = oneVOneGame.gameState;
+
+  // If the invited friend has declined the challenge (via Challenges modal),
+  // show a simple message to the host and offer a way back home.
+  if (gameState && gameState.status === "cancelled") {
+    const declinedBy = gameState.cancelledByName || "Your friend";
+    return (
+      <div style={{ minHeight: "100vh", backgroundColor: "#121213", color: "#ffffff" }}>
+        <SiteHeader onOpenFeedback={onOpenFeedback} />
+        <div
+          style={{
+            minHeight: "60vh",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "24px",
+            textAlign: "center",
+          }}
+        >
+          <h2 style={{ fontSize: 22, fontWeight: "bold", marginBottom: 16 }}>1v1 Challenge</h2>
+          <p style={{ fontSize: 16, color: "#d7dadc", marginBottom: 16 }}>
+            {declinedBy} has declined the challenge.
+          </p>
+          <button
+            onClick={onBack}
+            style={{
+              padding: "10px 18px",
+              borderRadius: 8,
+              border: "none",
+              background: "#6aaa64",
+              color: "#ffffff",
+              fontSize: 14,
+              fontWeight: "bold",
+              cursor: "pointer",
+            }}
+          >
+            Click here to go to the home page
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Waiting room view
   if (gameState && gameState.status === "waiting") {
     const isPlayerHost = authUser && gameState.hostId === authUser.uid;
+    const opponentId = isPlayerHost ? gameState.guestId : gameState.hostId;
+    const isFriendWithOpponent =
+      !!opponentId && Array.isArray(friends)
+        ? friends.some((f) => f.id === opponentId)
+        : false;
 
     return (
       <div style={{ minHeight: "100vh", backgroundColor: "#121213", color: "#ffffff" }}>
@@ -61,10 +110,14 @@ export default function OneVOneGameView({
           onStartGame={onStartGame}
           friendRequestSent={friendRequestSent}
           onShareCode={onShareCode}
-          onAddFriend={(opponentName) => {
-            const opponentId = isPlayerHost ? gameState.guestId : gameState.hostId;
-            onAddFriendRequest(opponentName, opponentId);
-          }}
+          onAddFriend={
+            !isFriendWithOpponent
+              ? (opponentName) => {
+                  if (!opponentId) return;
+                  onAddFriendRequest(opponentName, opponentId);
+                }
+              : undefined
+          }
         />
       </div>
     );
@@ -142,6 +195,16 @@ export default function OneVOneGameView({
 
   const isSpeedrun = gameState.speedrun || false;
   const isPlayerHost = authUser && gameState.hostId === authUser.uid;
+  const opponentId =
+    authUser && gameState
+      ? authUser.uid === gameState.hostId
+        ? gameState.guestId
+        : gameState.hostId
+      : null;
+  const isFriendWithOpponent =
+    !!opponentId && Array.isArray(friends)
+      ? friends.some((f) => f.id === opponentId)
+      : false;
 
   // Show all solution words in header (similar to multi-board daily)
   const solutionList = Array.isArray(gameState.solutions) && gameState.solutions.length > 0
@@ -457,39 +520,41 @@ export default function OneVOneGameView({
                   </div>
                 </div>
               ) : isSpeedrun ? (
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    gap: "24px",
-                    alignItems: "center",
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: 12, color: "#818384" }}>Your Time</div>
-                    <div
-                      style={{
-                        fontSize: 16,
-                        fontWeight: "bold",
-                        color: "#ffffff",
-                      }}
-                    >
-                      {renderSpeedrunTime(true)}
+                <>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "center",
+                      gap: "24px",
+                      alignItems: "center",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 12, color: "#818384" }}>Your Time</div>
+                      <div
+                        style={{
+                          fontSize: 16,
+                          fontWeight: "bold",
+                          color: "#ffffff",
+                        }}
+                      >
+                        {renderSpeedrunTime(true)}
+                      </div>
                     </div>
-                  </div>
-                  <div style={{ fontSize: 20, color: "#818384" }}>vs</div>
-                  <div>
-                    <div style={{ fontSize: 12, color: "#818384" }}>
-                      Opponent's Time
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 16,
-                        fontWeight: "bold",
-                        color: "#ffffff",
-                      }}
-                    >
-                      {renderSpeedrunTime(false)}
+                    <div style={{ fontSize: 20, color: "#818384" }}>vs</div>
+                    <div>
+                      <div style={{ fontSize: 12, color: "#818384" }}>
+                        Opponent's Time
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 16,
+                          fontWeight: "bold",
+                          color: "#ffffff",
+                        }}
+                      >
+                        {renderSpeedrunTime(false)}
+                      </div>
                     </div>
                   </div>
                   <div
@@ -497,13 +562,12 @@ export default function OneVOneGameView({
                       fontSize: 12,
                       color: "#818384",
                       marginTop: "8px",
-                      width: "100%",
                       textAlign: "center",
                     }}
                   >
                     {currentTurnLabel}
                   </div>
-                </div>
+                </>
               ) : (
                 currentTurnLabel
               )}
@@ -527,7 +591,7 @@ export default function OneVOneGameView({
             )}
 
             {/* Add Friend Button */}
-            {gameState && authUser && (
+            {gameState && authUser && !isFriendWithOpponent && (
               <div
                 style={{
                   width: "100%",
@@ -617,7 +681,40 @@ export default function OneVOneGameView({
                       width: "100%",
                     }}
                   >
-                    {/* Opponent Board for this word */}
+                    {/* Player Board for this word (left) */}
+                    <div style={{ flex: "0 0 auto", width: "auto" }}>
+                      <div
+                        style={{
+                          fontSize: 14,
+                          color: "#818384",
+                          marginBottom: "8px",
+                          textAlign: "center",
+                        }}
+                      >
+                        Your Board {boards.length > 1 ? `#${index + 1}` : ""}
+                      </div>
+                      <GameBoard
+                        board={board}
+                        index={index}
+                        numBoards={boards.length}
+                        maxTurns={maxTurns}
+                        isUnlimited={isSpeedrun}
+                        currentGuess={currentGuess}
+                        invalidCurrentGuess={invalidCurrentGuess}
+                        revealId={revealId}
+                        isSelected={selectedBoardIndex === index}
+                        onToggleSelect={() =>
+                          setSelectedBoardIndex((prev) => (prev === index ? null : index))
+                        }
+                        boardRef={(el) => {
+                          boardRefs.current[index] = el;
+                        }}
+                        speedrunEnabled={isSpeedrun}
+                        isCurrentTurn={isMyTurn}
+                      />
+                    </div>
+
+                    {/* Opponent Board for this word (right) */}
                     <div style={{ flex: "0 0 auto", width: "auto" }}>
                       <div
                         style={{
@@ -638,39 +735,7 @@ export default function OneVOneGameView({
                         playerSolved={board.isSolved}
                         hideLetters={hideOpponentLetters}
                         boardNumber={index + 1}
-                      />
-                    </div>
-
-                    {/* Player Board for this word */}
-                    <div style={{ flex: "0 0 auto", width: "auto" }}>
-                      <div
-                        style={{
-                          fontSize: 14,
-                          color: "#818384",
-                          marginBottom: "8px",
-                          textAlign: "center",
-                        }}
-                      >
-                        Your Board {boards.length > 1 ? `#${index + 1}` : ""}
-                      </div>
-                      <GameBoard
-                        board={board}
-                        index={index}
-                        numBoards={boards.length}
-                        maxTurns={maxTurns}
-                        isUnlimited={false}
-                        currentGuess={currentGuess}
-                        invalidCurrentGuess={invalidCurrentGuess}
-                        revealId={revealId}
-                        isSelected={selectedBoardIndex === index}
-                        onToggleSelect={() =>
-                          setSelectedBoardIndex((prev) => (prev === index ? null : index))
-                        }
-                        boardRef={(el) => {
-                          boardRefs.current[index] = el;
-                        }}
-                        speedrunEnabled={false}
-                        isCurrentTurn={isMyTurn}
+                        isSpeedrun={isSpeedrun}
                       />
                     </div>
                   </div>
@@ -680,7 +745,7 @@ export default function OneVOneGameView({
           </div>
         </main>
 
-        {/* Rematch button when game is finished */}
+        {/* Rematch & change-mode buttons when game is finished */}
         {gameState.status === "finished" && (
           <div
             style={{
@@ -692,24 +757,54 @@ export default function OneVOneGameView({
               pointerEvents: "auto",
             }}
           >
-            <button
-              onClick={onRematch}
+            <div
               style={{
-                padding: "12px 24px",
-                borderRadius: 10,
-                border: "none",
-                background: "#6aaa64",
-                color: "#ffffff",
-                fontSize: 14,
-                fontWeight: "bold",
-                cursor: "pointer",
-                letterSpacing: 1,
-                textTransform: "uppercase",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+                display: "flex",
+                gap: "12px",
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              Rematch
-            </button>
+              <button
+                onClick={onRematch}
+                style={{
+                  padding: "12px 24px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#6aaa64",
+                  color: "#ffffff",
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                  letterSpacing: 1,
+                  textTransform: "uppercase",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+                }}
+              >
+                Rematch
+              </button>
+
+              {isPlayerHost && onChangeMode && (
+                <button
+                  onClick={onChangeMode}
+                  style={{
+                    padding: "12px 18px",
+                    borderRadius: 10,
+                    border: "1px solid #3a3a3c",
+                    background: "#18181a",
+                    color: "#ffffff",
+                    fontSize: 14,
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                    letterSpacing: 1,
+                    textTransform: "uppercase",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+                  }}
+                >
+                  Change mode
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

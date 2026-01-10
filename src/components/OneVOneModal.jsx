@@ -220,17 +220,35 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
       </div>
       </Modal>
 
-      <Modal isOpen={isOpen && showConfig} onRequestClose={() => {
-        setShowConfig(false);
-        onConfigClose?.();
-      }}>
+      <Modal
+        isOpen={isOpen && showConfig}
+        onRequestClose={() => {
+          setShowConfig(false);
+          onConfigClose?.();
+        }}
+      >
         <div style={{ padding: '24px' }}>
-          <h2 style={{ margin: 0, marginBottom: '24px', fontSize: 20, fontWeight: 'bold', color: '#ffffff' }}>
+          <h2
+            style={{
+              margin: 0,
+              marginBottom: '24px',
+              fontSize: 20,
+              fontWeight: 'bold',
+              color: '#ffffff',
+            }}
+          >
             1v1 Game Configuration
           </h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
-              <label style={{ display: 'block', marginBottom: '8px', color: '#d7dadc', fontSize: 14 }}>
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  color: '#d7dadc',
+                  fontSize: 14,
+                }}
+              >
                 Number of Boards
               </label>
               <select
@@ -244,7 +262,7 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
                   background: '#1a1a1b',
                   color: '#ffffff',
                   fontSize: 14,
-                  cursor: 'pointer'
+                  cursor: 'pointer',
                 }}
               >
                 {BOARD_OPTIONS.map((n) => (
@@ -258,16 +276,15 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <input
                 type="checkbox"
-                id="speedrunCheckbox"
+                id="onevone-config-speedrun-host"
                 checked={isSpeedrun}
                 onChange={(e) => setIsSpeedrun(e.target.checked)}
-                style={{
-                  cursor: 'pointer',
-                  width: '18px',
-                  height: '18px'
-                }}
+                style={{ cursor: 'pointer', width: '18px', height: '18px' }}
               />
-              <label htmlFor="speedrunCheckbox" style={{ color: '#d7dadc', fontSize: 14, cursor: 'pointer', margin: 0 }}>
+              <label
+                htmlFor="onevone-config-speedrun-host"
+                style={{ color: '#d7dadc', fontSize: 14, cursor: 'pointer', margin: 0 }}
+              >
                 Speedrun Mode (Unlimited guesses, timed)
               </label>
             </div>
@@ -287,7 +304,7 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
                   color: '#ffffff',
                   fontSize: 14,
                   fontWeight: 'bold',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
                 }}
               >
                 Cancel
@@ -303,7 +320,7 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
                   color: '#ffffff',
                   fontSize: 14,
                   fontWeight: 'bold',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
                 }}
               >
                 Continue

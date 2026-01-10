@@ -38,6 +38,7 @@ import OneVOneWaitingRoom from "./components/game/OneVOneWaitingRoom";
 import OpponentBoardView from "./components/game/OpponentBoardView";
 import Keyboard from "./components/Keyboard";
 import OneVOneGameView from "./components/game/OneVOneGameView";
+import Modal from "./components/Modal";
 import { useOneVOneGame } from "./hooks/useOneVOneGame";
 import { useAuth } from "./hooks/useAuth";
 import { submitSpeedrunScore } from "./hooks/useLeaderboard";
@@ -46,6 +47,8 @@ import { useShare } from "./hooks/useShare";
 import { useSinglePlayerGame } from "./hooks/useSinglePlayerGame";
 import { useKeyboard } from "./hooks/useKeyboard";
 import "./Game.css";
+
+const ONE_V_ONE_BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
 
 const Game = ({
   marathonLevels = [1, 2, 3, 4]
@@ -62,7 +65,7 @@ const Game = ({
   const gameCode = searchParams.get("code") || null;
   
 // 1v1 game hook
-  const { user: authUser, sendFriendRequest, isVerifiedUser } = useAuth();
+  const { user: authUser, sendFriendRequest, isVerifiedUser, friends } = useAuth();
   const oneVOneGame = useOneVOneGame(
     isOneVOne ? (gameCode || null) : null,
     isHost,
@@ -94,6 +97,13 @@ const Game = ({
   const endingGameRef = useRef(false);
   const popupClosedRef = useRef(false);
   const shouldShowPopupAfterFlipRef = useRef(false);
+
+  // 1v1-only: next-round configuration chosen by the host from the end-of-game UI.
+  // When null, the next round reuses the previous mode/board count.
+  const [oneVOneNextConfig, setOneVOneNextConfig] = useState(null);
+  const [isOneVOneConfigModalOpen, setIsOneVOneConfigModalOpen] = useState(false);
+  const [oneVOneConfigBoardsDraft, setOneVOneConfigBoardsDraft] = useState(1);
+  const [oneVOneConfigSpeedrunDraft, setOneVOneConfigSpeedrunDraft] = useState(false);
 
   // Track if we're showing a previously solved game
   const savedSolvedStateRef = useRef(null);
@@ -534,7 +544,9 @@ const Game = ({
   }, [isOneVOne, oneVOneGame.gameState, authUser, maxTurns, gameCode, oneVOneGame, boards, isFlipping]);
 
   // Host-only effect: automatically start a new 1v1 round when both players
-  // have requested a rematch, skipping the ready screen.
+  // have requested a rematch, skipping the ready screen. If the host has chosen
+  // a new configuration (boards/speedrun) from the end-of-game UI, that config
+  // is applied to the next round.
   useEffect(() => {
     if (!isOneVOne) return;
     const gameState = oneVOneGame.gameState;
@@ -551,28 +563,38 @@ const Game = ({
 
     (async () => {
       try {
-        // Use a fresh round; don't reuse previous endingGameRef guard here.
-
         // Select random word(s) based on game code and timestamp (not daily word).
-        // Preserve the same number of boards as the previous 1v1 game by
-        // reusing the length of the existing solutions array when present.
         const { ANSWER_WORDS } = await loadWordLists();
         const previousSolutions = Array.isArray(gameState.solutions)
           ? gameState.solutions
           : gameState.solution
           ? [gameState.solution]
           : [];
-        const boardsForThisGame = Math.max(previousSolutions.length || 1, 1);
+
+        // Default: reuse previous board count and speedrun flag.
+        let boardsForThisGame = Math.max(previousSolutions.length || 1, 1);
+        let speedrunForNextRound = !!gameState.speedrun;
+
+        // If host configured a custom next-round mode, apply it.
+        if (oneVOneNextConfig) {
+          if (Number.isFinite(oneVOneNextConfig.numBoards)) {
+            const clampedBoards = Math.max(1, Math.min(ONE_V_ONE_BOARD_OPTIONS.length, oneVOneNextConfig.numBoards));
+            boardsForThisGame = clampedBoards;
+          }
+          if (typeof oneVOneNextConfig.speedrun === 'boolean') {
+            speedrunForNextRound = oneVOneNextConfig.speedrun;
+          }
+        }
 
         // Use game code + timestamp as seed to get different words each game
         const seed = parseInt(gameCode, 10) + Date.now();
-        const rng = new SeededRandom(seed);;
+        const rng = new SeededRandom(seed);
         const solutions = Array.from({ length: boardsForThisGame }).map(() => {
           const index = Math.floor(rng.next() * ANSWER_WORDS.length);
           return ANSWER_WORDS[index];
         });
 
-        await oneVOneGame.startGame(gameCode, solutions);
+        await oneVOneGame.startGame(gameCode, solutions, { speedrun: speedrunForNextRound });
 
         // Local UI reset for new round
         setBoards([]);
@@ -585,7 +607,7 @@ const Game = ({
         console.error('Failed to auto-start 1v1 rematch:', err);
       }
     })();
-  }, [isOneVOne, oneVOneGame.gameState, authUser, gameCode, oneVOneGame]);
+  }, [isOneVOne, oneVOneGame.gameState, authUser, gameCode, oneVOneGame, oneVOneNextConfig]);
 
   // Handle showing popup after flip animation completes for 1v1
   useEffect(() => {
@@ -1046,18 +1068,6 @@ const Game = ({
     setBoards((prev) => prev.map((b) => (b.isSolved ? b : { ...b, isDead: false })));
   };
 
-  const canManualEnd = isUnlimited && !allSolved && !showPopup && !showOutOfGuesses;
-
-  const manualEndGame = () => {
-    if (!canManualEnd) return;
-    const finalStageMs = freezeStageTimer();
-    if (isMarathonSpeedrun) commitStageIfNeeded(finalStageMs);
-    // Wait for any flip animations to complete before showing popup
-    setTimeout(() => {
-      setShowPopup(true);
-    }, FLIP_COMPLETE_MS);
-  };
-
   const speedrunRows = useMemo(() => {
     if (!speedrunEnabled) return [];
 
@@ -1177,6 +1187,46 @@ const Game = ({
     }
   }, [authUser, sendFriendRequest, isOneVOne, gameCode, oneVOneGame]);
 
+  const openOneVOneConfigFromEnd = useCallback(() => {
+    if (!isOneVOne) return;
+    if (!oneVOneGame.gameState || !authUser) return;
+    const gs = oneVOneGame.gameState;
+
+    // Prefer any previously-saved next config; otherwise, mirror the current round.
+    const multiBoardCount = Math.max(
+      (Array.isArray(gs.solutions) && gs.solutions.length) || boards.length || 0,
+      1
+    );
+    const defaultBoards = (oneVOneNextConfig && oneVOneNextConfig.numBoards) ||
+      (Array.isArray(gs.solutions) && gs.solutions.length > 0
+        ? gs.solutions.length
+        : gs.solution
+        ? 1
+        : multiBoardCount || numBoards || 1);
+    const defaultSpeedrun =
+      (oneVOneNextConfig && typeof oneVOneNextConfig.speedrun === 'boolean')
+        ? oneVOneNextConfig.speedrun
+        : !!gs.speedrun;
+
+    setOneVOneConfigBoardsDraft(defaultBoards);
+    setOneVOneConfigSpeedrunDraft(defaultSpeedrun);
+    setIsOneVOneConfigModalOpen(true);
+  }, [isOneVOne, oneVOneGame.gameState, authUser, oneVOneNextConfig, boards, numBoards]);
+
+  const applyOneVOneConfig = useCallback(() => {
+    const clampedBoards = Math.max(1, Math.min(ONE_V_ONE_BOARD_OPTIONS.length, oneVOneConfigBoardsDraft));
+    setOneVOneNextConfig({
+      numBoards: clampedBoards,
+      speedrun: !!oneVOneConfigSpeedrunDraft,
+    });
+    setIsOneVOneConfigModalOpen(false);
+    const modeLabel = oneVOneConfigSpeedrunDraft ? 'speedrun' : 'standard';
+    setTimedMessage(
+      `Next rematch will use ${clampedBoards} board${clampedBoards > 1 ? 's' : ''} (${modeLabel} mode).`,
+      5000
+    );
+  }, [oneVOneConfigBoardsDraft, oneVOneConfigSpeedrunDraft, setTimedMessage]);
+
   // For 1v1 mode, delegate rendering to OneVOneGameView
   if (isOneVOne) {
     // In 1v1, the true multi-board count comes from the active boards, not the URL
@@ -1188,6 +1238,111 @@ const Game = ({
       <>
         {/* Global toast for 1v1 mode (e.g., invalid words, turn errors) */}
         <GameToast message={message} />
+
+        {/* Host-only 1v1 config modal for choosing next-round mode/boards */}
+        <Modal
+          isOpen={isOneVOneConfigModalOpen}
+          onRequestClose={() => setIsOneVOneConfigModalOpen(false)}
+        >
+          <div style={{ padding: '24px' }}>
+            <h2
+              style={{
+                margin: 0,
+                marginBottom: '24px',
+                fontSize: 20,
+                fontWeight: 'bold',
+                color: '#ffffff',
+              }}
+            >
+              1v1 Game Configuration
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '8px',
+                    color: '#d7dadc',
+                    fontSize: 14,
+                  }}
+                >
+                  Number of Boards
+                </label>
+                <select
+                  value={oneVOneConfigBoardsDraft}
+                  onChange={(e) => setOneVOneConfigBoardsDraft(parseInt(e.target.value, 10))}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    borderRadius: 6,
+                    border: '1px solid #3a3a3c',
+                    background: '#1a1a1b',
+                    color: '#ffffff',
+                    fontSize: 14,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {ONE_V_ONE_BOARD_OPTIONS.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <input
+                  type="checkbox"
+                  id="onevone-speedrun-config-checkbox"
+                  checked={oneVOneConfigSpeedrunDraft}
+                  onChange={(e) => setOneVOneConfigSpeedrunDraft(e.target.checked)}
+                  style={{ cursor: 'pointer', width: '18px', height: '18px' }}
+                />
+                <label
+                  htmlFor="onevone-speedrun-config-checkbox"
+                  style={{ color: '#d7dadc', fontSize: 14, cursor: 'pointer', margin: 0 }}
+                >
+                  Speedrun Mode (Unlimited guesses, timed)
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+                <button
+                  onClick={() => setIsOneVOneConfigModalOpen(false)}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    borderRadius: 8,
+                    border: '1px solid #3a3a3c',
+                    background: 'transparent',
+                    color: '#ffffff',
+                    fontSize: 14,
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={applyOneVOneConfig}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: '#6aaa64',
+                    color: '#ffffff',
+                    fontSize: 14,
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Save for Rematch
+                </button>
+              </div>
+            </div>
+          </div>
+        </Modal>
 
         <OneVOneGameView
           mode={mode}
@@ -1225,6 +1380,8 @@ const Game = ({
           setShowFeedbackModal={setShowFeedbackModal}
           setTimedMessage={setTimedMessage}
           oneVOneNowMs={oneVOneNowMs}
+          onChangeMode={openOneVOneConfigFromEnd}
+          friends={friends}
         />
 
         {showPopup && (
@@ -1299,6 +1456,12 @@ const Game = ({
               } catch (error) {
                 setTimedMessage(error.message || "Failed to request rematch", 5000);
               }
+            }}
+            onChangeMode={() => {
+              // Close the end-game popup so the 1v1 config modal is visible.
+              setShowPopup(false);
+              popupClosedRef.current = true;
+              openOneVOneConfigFromEnd();
             }}
           />
         )}
@@ -1530,29 +1693,6 @@ const Game = ({
             </span>
           </div>
         </div>
-
-        {/* End game button row - only show if needed */}
-          {canManualEnd && (
-          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
-            <button
-              onClick={manualEndGame}
-              style={{
-                marginLeft: "auto",
-                padding: "8px 10px",
-                borderRadius: 10,
-                border: "1px solid #3a3a3c",
-                background: "transparent",
-                color: "#ffffff",
-                fontWeight: "bold",
-                cursor: "pointer",
-                letterSpacing: 1,
-                textTransform: "uppercase"
-              }}
-            >
-              End game
-            </button>
-          </div>
-        )}
 
         <GameToast message={message} />
 

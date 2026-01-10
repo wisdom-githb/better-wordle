@@ -281,25 +281,7 @@ export default function Home({
             <div>
               <h2 className="panelTitle">Marathon</h2>
               <div className="panelDesc">
-                Stages: {marathonLevels.join("-")}.
-              </div>
-            </div>
-
-            <div className="marathonMeta">
-              <div className="metaLine">
-                Standard stage:{" "}
-                <span className="metaStrong">
-                  {currentStandardBoards}/{marathonMaxLabel} boards
-                </span>
-              </div>
-              <div className="metaLine">
-                Speedrun stage:{" "}
-                <span className="metaStrong">
-                  {currentSpeedrunBoards}/{marathonMaxLabel} boards
-                </span>
-              </div>
-              <div className="metaHint">
-                Marathon can only be resumed. Words reset daily at midnight.
+                Solve 1 word, then 2, then 3, ends at 4. Complete all stages to win.
               </div>
             </div>
           </div>
@@ -307,20 +289,20 @@ export default function Home({
           <div className="panelBody">
             <ModeRow
               title="Marathon (standard)"
-              desc="Resume your current marathon stage."
+              desc="Play standard marathon. Limited turns. No timer."
               buttonText="Play marathon"
               onClick={handleMarathonStandard}
               variant="gold"
-              titleRight={`${currentStandardBoards} boards`}
+              titleRight={`Stage ${marathonStandardIndexUI + 1}/${marathonLevels.length}`}
             />
 
             <ModeRow
               title="Marathon (speedrun)"
-              desc="Resume your speedrun marathon (timed cumulative)."
+              desc="Play speedrun marathon. Unlimited guesses, timed cumulative"
               buttonText="Speedrun marathon"
               onClick={handleMarathonSpeedrun}
               variant="gold"
-              titleRight={`${marathonLevels[0]}-${marathonMaxLabel}`}
+              titleRight={`Stage ${marathonSpeedrunIndexUI + 1}/${marathonLevels.length}`}
             />
 
             <button
@@ -348,7 +330,7 @@ export default function Home({
           <div className="panelBody">
             <ModeRow
               title="1v1 Mode"
-              desc="Play against another player. Same word, different guesses. See only colors, not letters."
+              desc="Play against another player."
               buttonText="Play 1v1"
               onClick={() => setShowOneVOneModal(true)}
               variant="gold"

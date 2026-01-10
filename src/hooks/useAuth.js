@@ -11,7 +11,7 @@ import {
   fetchSignInMethodsForEmail
 } from 'firebase/auth';
 import { auth, googleProvider, database } from '../config/firebase';
-import { ref, get, set, remove, onValue } from 'firebase/database';
+import { ref, get, set, remove, onValue, update } from 'firebase/database';
 
 export function useAuth() {
   const [user, setUser] = useState(null);
@@ -19,10 +19,12 @@ export function useAuth() {
   const [error, setError] = useState(null);
   const [friends, setFriends] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
+  const [incomingChallenges, setIncomingChallenges] = useState([]);
 
   useEffect(() => {
     let unsubscribeFriends = null;
     let unsubscribeRequests = null;
+    let unsubscribeChallenges = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, (authUser) => {
       // Clean up any existing database listeners when auth user changes
@@ -34,6 +36,10 @@ export function useAuth() {
         unsubscribeRequests();
         unsubscribeRequests = null;
       }
+      if (unsubscribeChallenges) {
+        unsubscribeChallenges();
+        unsubscribeChallenges = null;
+      }
 
       setUser(authUser);
 
@@ -43,6 +49,7 @@ export function useAuth() {
         if (!isVerifiedUser) {
           setFriends([]);
           setFriendRequests([]);
+          setIncomingChallenges([]);
           setLoading(false);
           setError(null);
           return;
@@ -77,12 +84,31 @@ export function useAuth() {
             setFriendRequests([]);
           }
         });
+
+        // Load incoming 1v1 challenges for this user
+        const challengesRef = ref(database, `users/${authUser.uid}/challenges`);
+        unsubscribeChallenges = onValue(challengesRef, (snapshot) => {
+          if (snapshot.exists()) {
+            const raw = snapshot.val();
+            const list = Object.entries(raw).map(([id, data]) => ({ id, ...data }));
+            // Sort newest first for nicer UI
+            list.sort((a, b) => {
+              const at = a.createdAt || a.sentAt || 0;
+              const bt = b.createdAt || b.sentAt || 0;
+              return bt - at;
+            });
+            setIncomingChallenges(list);
+          } else {
+            setIncomingChallenges([]);
+          }
+        });
         
         setLoading(false);
         setError(null);
       } else {
         setFriends([]);
         setFriendRequests([]);
+        setIncomingChallenges([]);
         setLoading(false);
         setError(null);
       }
@@ -91,6 +117,7 @@ export function useAuth() {
     return () => {
       if (unsubscribeFriends) unsubscribeFriends();
       if (unsubscribeRequests) unsubscribeRequests();
+      if (unsubscribeChallenges) unsubscribeChallenges();
       unsubscribeAuth();
     };
   }, []);
@@ -305,6 +332,126 @@ export function useAuth() {
     }
   }, []);
 
+  // Create or update a 1v1 challenge entry for a specific friend.
+  // If a user has sent their friend a challenge, then neither the user nor
+  // their friend should be able to send any more challenges to each other
+  // until the existing challenge has been accepted or declined.
+  //
+  // This helper returns `true` when a new challenge is created, and `false`
+  // when a challenge between the two users is already pending. In the
+  // latter case no alert/error is thrown so callers can show a toast instead.
+  const sendChallenge = useCallback(async (friendId, friendName, gameCode, boards, speedrun) => {
+    try {
+      setError(null);
+      if (!auth.currentUser) throw new Error('No user signed in');
+      const isVerifiedUser = auth.currentUser.emailVerified || (auth.currentUser.providerData || []).some(p => p.providerId === 'google.com');
+      if (!isVerifiedUser) throw new Error('You must verify your email or sign in with Google to use friends.');
+
+      const currentUserId = auth.currentUser.uid;
+
+      // Before creating a new challenge, enforce that there is no existing
+      // pending challenge between these two users in either direction.
+      //
+      // We can safely read our OWN challenges node; this catches the case
+      // where the friend has already challenged us and we are trying to
+      // send a new challenge back to them.
+      const myChallengesRef = ref(database, `users/${currentUserId}/challenges`);
+      const myChallengesSnap = await get(myChallengesRef);
+      if (myChallengesSnap.exists()) {
+        const challenges = myChallengesSnap.val();
+        const hasIncomingPending = Object.values(challenges).some((c) =>
+          c &&
+          c.fromUserId === friendId &&
+          (c.status === 'pending' || c.status === undefined || c.status === null)
+        );
+        if (hasIncomingPending) {
+          // A pending challenge already exists between these two users.
+          // Do not create another one; let caller surface a toast instead.
+          return false;
+        }
+      }
+
+      const now = Date.now();
+      const challengeRef = ref(database, `users/${friendId}/challenges/${gameCode}`);
+      await set(challengeRef, {
+        fromUserId: currentUserId,
+        fromUserName: auth.currentUser.displayName || auth.currentUser.email || 'Unknown',
+        gameCode,
+        boards,
+        speedrun: !!speedrun,
+        status: 'pending', // pending, accepted, cancelled
+        createdAt: now,
+      });
+
+      return true;
+    } catch (err) {
+      console.error('sendChallenge error:', err);
+      setError(err.message);
+      throw err;
+    }
+  }, []);
+
+  // Accept a challenge and immediately clean it up from the receiver's list.
+  // The caller is responsible for navigating into the /game route using the
+  // returned challenge data.
+  const acceptChallenge = useCallback(async (challengeId) => {
+    try {
+      setError(null);
+      if (!auth.currentUser) throw new Error('No user signed in');
+      const challengeRef = ref(database, `users/${auth.currentUser.uid}/challenges/${challengeId}`);
+      const snapshot = await get(challengeRef);
+      if (!snapshot.exists()) {
+        throw new Error('Challenge not found');
+      }
+      const data = snapshot.val();
+
+      // Auto-clean: remove the challenge node once it has been accepted so it
+      // no longer appears in the Challenges list.
+      await remove(challengeRef);
+
+      return data;
+    } catch (err) {
+      console.error('acceptChallenge error:', err);
+      setError(err.message);
+      throw err;
+    }
+  }, []);
+
+  const dismissChallenge = useCallback(async (challengeId, gameCode = null) => {
+    try {
+      setError(null);
+      if (!auth.currentUser) throw new Error('No user signed in');
+      const challengeRef = ref(database, `users/${auth.currentUser.uid}/challenges/${challengeId}`);
+      await remove(challengeRef);
+
+      // If this dismissal corresponds to a specific 1v1 game, try to mark that
+      // game as cancelled so the host waiting in the lobby sees a clear
+      // message that their challenge was declined.
+      if (gameCode) {
+        try {
+          const gameRef = ref(database, `onevone/${gameCode}`);
+          const gameSnap = await get(gameRef);
+          if (gameSnap.exists()) {
+            const cancelledByName =
+              auth.currentUser.displayName || auth.currentUser.email || 'Your friend';
+            await update(gameRef, {
+              status: 'cancelled',
+              cancelledByName,
+            });
+          }
+        } catch (innerErr) {
+          console.error('Failed to mark 1v1 game as cancelled after dismissing challenge:', innerErr);
+        }
+      }
+
+      return true;
+    } catch (err) {
+      console.error('dismissChallenge error:', err);
+      setError(err.message);
+      throw err;
+    }
+  }, []);
+
   const isVerifiedUser = !!user && (user.emailVerified || (user.providerData || []).some(p => p.providerId === 'google.com'));
 
   const resendVerificationEmail = useCallback(async () => {
@@ -343,6 +490,7 @@ export function useAuth() {
     error,
     friends,
     friendRequests,
+    incomingChallenges,
     isVerifiedUser,
     signInWithGoogle,
     signUpWithEmail,
@@ -353,6 +501,9 @@ export function useAuth() {
     acceptFriendRequest,
     declineFriendRequest,
     removeFriend,
+    sendChallenge,
+    acceptChallenge,
+    dismissChallenge,
     resendVerificationEmail,
     linkGoogleAccount
   };

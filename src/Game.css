@@ -70,19 +70,6 @@
   color: #d7dadc;
 }
 
-.endGameBtn {
-  margin-left: auto;
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid #3a3a3c;
-  background: transparent;
-  color: #ffffff;
-  font-weight: bold;
-  cursor: pointer;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-}
-
 .message {
   margin-bottom: 8px;
   color: #f06272;

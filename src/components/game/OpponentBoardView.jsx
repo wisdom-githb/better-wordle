@@ -1,6 +1,6 @@
 import React from "react";
 
-export default function OpponentBoardView({ opponentColors, maxTurns, opponentGuesses, solution, playerSolved, isActive = false, hideLetters = false, boardNumber = 1 }) {
+export default function OpponentBoardView({ opponentColors, maxTurns, opponentGuesses, solution, playerSolved, isActive = false, hideLetters = false, boardNumber = 1, isSpeedrun = false }) {
   const numGuesses = opponentColors ? opponentColors.length : 0;
   const rowsToShow = Math.min(numGuesses + 1, Math.max(maxTurns, numGuesses + 1));
   
@@ -41,13 +41,15 @@ export default function OpponentBoardView({ opponentColors, maxTurns, opponentGu
         }}
       >
         <span>{`Board ${boardNumber}`}</span>
-        <span>
-          {isSolved
-            ? "Solved"
-            : isFailed
-            ? "Failed"
-            : `${numGuesses}/${maxTurns}`}
-        </span>
+        {!isSpeedrun && (
+          <span>
+            {isSolved
+              ? "Solved"
+              : isFailed
+              ? "Failed"
+              : `${numGuesses}/${maxTurns}`}
+          </span>
+        )}
       </div>
       {Array.from({ length: rowsToShow }).map((_, rowIdx) => {
         const colors = opponentColors && opponentColors[rowIdx] ? opponentColors[rowIdx] : [];

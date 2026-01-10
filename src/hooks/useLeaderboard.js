@@ -53,6 +53,11 @@ export function useLeaderboard(mode, numBoards = null, limit = 100) {
     setError(null);
 
     const leaderboardRef = ref(database, `leaderboard/${mode}`);
+
+    // Compute today's local day range so the leaderboard resets at local midnight
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfNextDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
     
     // Query: order by score descending, then by timeMs ascending (for same score, faster is better)
     // Firebase doesn't support multiple orderBy, so we'll fetch all and sort in JS
@@ -74,6 +79,12 @@ export function useLeaderboard(mode, numBoards = null, limit = 100) {
             id: key,
             ...value
           }));
+
+          // Keep only entries from the current local day so the leaderboard refreshes daily
+          entriesArray = entriesArray.filter(entry => {
+            if (typeof entry.timestamp !== 'number') return false;
+            return entry.timestamp >= startOfDay && entry.timestamp < startOfNextDay;
+          });
 
           // Filter by numBoards if specified
           if (numBoards !== null) {

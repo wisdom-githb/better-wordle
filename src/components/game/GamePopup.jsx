@@ -24,7 +24,8 @@ export default function GamePopup({
   opponentScore,
   winner,
   isPlayerHost,
-  onRematch
+  onRematch,
+  onChangeMode,
 }) {
   const navigate = useNavigate();
   
@@ -311,6 +312,28 @@ export default function GamePopup({
               }}
             >
               Rematch
+            </button>
+          )}
+
+          {isOneVOne && isPlayerHost && onChangeMode && (
+            <button
+              onClick={onChangeMode}
+              style={{
+                flex: 1,
+                minWidth: 160,
+                padding: "12px 0",
+                borderRadius: 10,
+                border: "1px solid #3a3a3c",
+                background: "transparent",
+                color: "#ffffff",
+                fontSize: 14,
+                fontWeight: "bold",
+                cursor: "pointer",
+                letterSpacing: 1,
+                textTransform: "uppercase",
+              }}
+            >
+              Change mode
             </button>
           )}
 

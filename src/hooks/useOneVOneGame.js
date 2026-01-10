@@ -56,9 +56,16 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
 
   /**
    * Create a new game (host)
+   *
+   * `options.speedrun` (optional) can override the hook's default `speedrun` flag
+   * so callers (e.g., friend challenges) can configure per-game mode.
    */
-  const createGame = useCallback(async () => {
+  const createGame = useCallback(async (options = {}) => {
     if (!user) throw new Error('User must be signed in to host a game');
+
+    const effectiveSpeedrun = Object.prototype.hasOwnProperty.call(options, 'speedrun')
+      ? !!options.speedrun
+      : !!speedrun;
 
     const code = generateGameCode();
     const gamePath = `onevone/${code}`;
@@ -77,7 +84,7 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
       hostColors: [], // Colors for each guess (for opponent to see)
       guestColors: [],
       winner: null, // 'host', 'guest', or null
-      speedrun: speedrun, // Whether speedrun mode is enabled
+      speedrun: effectiveSpeedrun, // Whether speedrun mode is enabled
       hostTimeMs: null, // Time taken by host (in speedrun mode)
       guestTimeMs: null, // Time taken by guest (in speedrun mode)
       hostStartTime: null, // When host started solving (in speedrun mode)
@@ -96,7 +103,7 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
       setError(err.message);
       throw err;
     }
-  }, [user]);
+  }, [user, speedrun]);
 
   /**
    * Join an existing game
@@ -193,8 +200,9 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
    * Start the game with one or more solution words.
    * Also clears any previous round state (guesses, colors, winner, timers, rematch flags).
    * - `solutionsOrSolution` may be a single word (string) or an array of words.
+   * - `options.speedrun` (optional) can override the `speedrun` flag stored on the game.
    */
-  const startGame = useCallback(async (code, solutionsOrSolution) => {
+  const startGame = useCallback(async (code, solutionsOrSolution, options = {}) => {
     if (!user) throw new Error('User must be signed in');
 
     const gamePath = `onevone/${code}`;
@@ -220,8 +228,13 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
       if (!gameData.hostReady || !gameData.guestReady) {
         throw new Error('Both players must be ready to start');
       }
+
+      // Decide whether this round is speedrun or standard. Allow an explicit
+      // override via `options.speedrun` so hosts can change modes between rounds.
+      const hasOverrideSpeedrun = Object.prototype.hasOwnProperty.call(options, 'speedrun');
+      const isSpeedrunRound = hasOverrideSpeedrun ? !!options.speedrun : !!gameData.speedrun;
       
-      // Randomly decide who goes first
+      // Randomly decide who goes first (standard only; no turns in speedrun).
       const firstTurn = Math.random() < 0.5 ? 'host' : 'guest';
       const now = Date.now();
 
@@ -235,7 +248,8 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
         // also store full `solutions` array for multi-board support.
         solution: solutionsArray[0],
         solutions: solutionsArray,
-        currentTurn: gameData.speedrun ? null : firstTurn,
+        speedrun: isSpeedrunRound,
+        currentTurn: isSpeedrunRound ? null : firstTurn,
         startedAt: now,
         // Clear previous round state
         hostGuesses: [],
@@ -246,8 +260,8 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
         hostTimeMs: null,
         guestTimeMs: null,
         // Initialize start times for speedrun mode (timer starts when game starts)
-        hostStartTime: gameData.speedrun ? now : null,
-        guestStartTime: gameData.speedrun ? now : null,
+        hostStartTime: isSpeedrunRound ? now : null,
+        guestStartTime: isSpeedrunRound ? now : null,
         // Clear rematch flags once new round starts
         hostRematch: false,
         guestRematch: false,

@@ -24,8 +24,13 @@ export default function Leaderboard() {
 
   const { entries, loading, error } = useLeaderboard(mode, numBoards, 100);
 
-  const boardOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
-  const availableBoards = [...new Set(entries.map(e => e.numBoards))].sort((a, b) => a - b);
+  // All possible board counts for filtering (1-32)
+  const boardOptions = [
+    1, 2, 3, 4, 5, 6, 7, 8,
+    9, 10, 11, 12, 13, 14, 15, 16,
+    17, 18, 19, 20, 21, 22, 23, 24,
+    25, 26, 27, 28, 29, 30, 31, 32
+  ];
 
   return (
     <div className="leaderboardRoot">
@@ -50,22 +55,24 @@ export default function Leaderboard() {
             </select>
           </div>
 
-          <div className="filterGroup">
-            <label className="filterLabel">Boards:</label>
-            <select
-              className="filterSelect"
-              value={numBoards === null ? 'all' : numBoards}
-              onChange={(e) => {
-                const value = e.target.value;
-                setNumBoards(value === 'all' ? null : parseInt(value, 10));
-              }}
-            >
-              <option value="all">All</option>
-              {availableBoards.map(n => (
-                <option key={n} value={n}>{n} board{n > 1 ? 's' : ''}</option>
-              ))}
-            </select>
-          </div>
+          {mode === 'daily' && (
+            <div className="filterGroup">
+              <label className="filterLabel">Boards:</label>
+              <select
+                className="filterSelect"
+                value={numBoards === null ? 'all' : numBoards}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setNumBoards(value === 'all' ? null : parseInt(value, 10));
+                }}
+              >
+                <option value="all">All</option>
+                {boardOptions.map(n => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {error && (

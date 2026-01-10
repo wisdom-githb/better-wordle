@@ -188,6 +188,38 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete }) {
             )}
           </div>
         </div>
+
+        {/* Line 3: signed-in username + profile link (only when user is signed in) */}
+        {user && (
+          <div
+            style={{
+              marginTop: 6,
+              fontSize: 12,
+              color: "#d7dadc",
+              lineHeight: 1.4,
+            }}
+          >
+            Signed in as {user.displayName || user.email || "Unknown user"}.{" "}
+            (
+            <button
+              type="button"
+              onClick={() => navigate("/profile")}
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                margin: 0,
+                color: "#93c5fd",
+                textDecoration: "underline",
+                cursor: "pointer",
+                fontSize: 12,
+              }}
+            >
+              Change username
+            </button>
+            )
+          </div>
+        )}
       </header>
 
       <AuthModal
