@@ -4,17 +4,22 @@ export function useStageTimer(speedrunEnabled, tickMs = 250) {
   const startRef = useRef(null);
   const endRef = useRef(null);
   const [nowMs, setNowMs] = useState(Date.now());
+  const [isFrozen, setIsFrozen] = useState(false);
 
   const start = useCallback(() => {
     const t = Date.now();
     startRef.current = t;
     endRef.current = null;
+    setIsFrozen(false);
     setNowMs(t);
   }, []);
 
   const freeze = useCallback(() => {
     if (!startRef.current) return 0;
-    if (endRef.current == null) endRef.current = Date.now();
+    if (endRef.current == null) {
+      endRef.current = Date.now();
+    }
+    setIsFrozen(true);
     setNowMs(endRef.current);
     return (endRef.current ?? Date.now()) - startRef.current;
   }, []);
@@ -46,5 +51,5 @@ export function useStageTimer(speedrunEnabled, tickMs = 250) {
     };
   }, [speedrunEnabled, tickMs]);
 
-  return { start, freeze, elapsedMs, isFrozen: endRef.current != null };
+  return { start, freeze, elapsedMs, isFrozen };
 }

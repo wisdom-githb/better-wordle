@@ -129,26 +129,38 @@ export function useAuth() {
       const result = await signInWithPopup(auth, googleProvider);
       return result.user;
     } catch (err) {
-      // Handle case where an email/password account already exists for this email
+      // Handle case where an email/password account already exists for this email.
+      // In this scenario we always surface a friendly, actionable message instead of
+      // the low-level Firebase error, even if we can't successfully inspect the
+      // sign-in methods.
       if (err.code === 'auth/account-exists-with-different-credential') {
+        const email = err.customData?.email || err.email || null;
+        const friendlyMessage =
+          'An account with this email already exists. Please sign in with email and password, then link Google from your Profile.';
+
         try {
-          const email = err.customData?.email;
+          // Best-effort check: if there is no password sign-in method, we simply
+          // fall back to the default error handling below. This mirrors Firebase's
+          // guidance while still keeping the UX clear for the common case.
           if (email) {
             const methods = await fetchSignInMethodsForEmail(auth, email);
-            if (methods.includes('password')) {
-              const friendlyError = new Error(
-                'An account with this email already exists. Please sign in with email and password, then link Google from your Profile.'
-              );
-              friendlyError.code = err.code;
-              friendlyError.email = email;
-              setError(friendlyError.message);
-              throw friendlyError;
+            if (!methods.includes('password')) {
+              // Non-password flow (e.g. another IdP) – keep the original error.
+              setError(err.message);
+              throw err;
             }
           }
         } catch (inner) {
-          // If anything goes wrong while inspecting methods, fall through to default handling
+          // If anything goes wrong while inspecting methods, we still prefer the
+          // friendly message rather than the raw Firebase error.
           console.error('Error handling account-exists-with-different-credential:', inner);
         }
+
+        const friendlyError = new Error(friendlyMessage);
+        friendlyError.code = err.code;
+        if (email) friendlyError.email = email;
+        setError(friendlyError.message);
+        throw friendlyError;
       }
 
       setError(err.message);
