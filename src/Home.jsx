@@ -178,8 +178,7 @@ export default function Home({
             >
               Please open that email and click the link to verify your account.
               Once verified, you&apos;ll be able to play 1v1 and use friends.
-              If you don&apos;t see the email in a few minutes, check your Spam or
-              Junk folder.
+              Check your Spam or Junk folder for the verification link.
             </p>
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <button

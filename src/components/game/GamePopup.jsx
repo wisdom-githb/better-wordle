@@ -179,7 +179,9 @@ export default function GamePopup({
 
             <div style={{ marginBottom: 14, fontSize: 16, color: "#d7dadc" }}>
               {allSolved
-                ? `You solved all ${boards.length} word${boards.length > 1 ? "s" : ""}.`
+                ? boards.length === 1
+                  ? "You solved the word."
+                  : `You solved all ${boards.length} words.`
                 : `You solved ${solvedCount} of ${boards.length} word${boards.length > 1 ? "s" : ""}.`}
             </div>
 

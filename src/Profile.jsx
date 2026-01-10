@@ -96,22 +96,13 @@ export default function Profile() {
                 <div className="profileSection">
                   <h2>User Information</h2>
                   <div className="profileField">
-                    <label>Email</label>
+                    <label>
+                      Email
+                      <span style={{ marginLeft: 8, fontSize: 12, color: '#818384' }}>
+                        ({isVerifiedUser ? 'verified' : 'unverified'})
+                      </span>
+                    </label>
                     <div className="profileValue">{user?.email || "N/A"}</div>
-                  </div>
-
-                  <div className="profileField">
-                    <label>Status</label>
-                    <div className="profileValue">
-                      {isVerifiedUser ? 'Verified' : 'Not verified'}
-                      {!isVerifiedUser && user && user.providerData?.some(p => p.providerId === 'password') && (
-                        <>
-                          <span style={{ marginLeft: 8, fontSize: 12, color: '#ffa726' }}>
-                            (Some features are disabled until you verify.)
-                          </span>
-                        </>
-                      )}
-                    </div>
                   </div>
 
                   <div className="profileField">

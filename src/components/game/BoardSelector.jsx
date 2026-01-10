@@ -1,5 +1,4 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
 
 export default function BoardSelector({
   numBoards,
@@ -13,8 +12,6 @@ export default function BoardSelector({
   speedrunEnabled,
   statusText
 }) {
-  const navigate = useNavigate();
-
   if (numBoards <= 1) return null;
 
   return (
@@ -116,29 +113,6 @@ export default function BoardSelector({
                 );
               })}
             </div>
-            
-            {/* Go back to home button */}
-            <button
-              onClick={() => {
-                setShowBoardSelector(false);
-                navigate("/");
-              }}
-              style={{
-                padding: "8px 16px",
-                borderRadius: 6,
-                border: "1px solid #3a3a3c",
-                background: "transparent",
-                color: "#ffffff",
-                fontSize: 13,
-                fontWeight: "bold",
-                cursor: "pointer",
-                transition: "all 0.2s",
-                marginTop: 4,
-                textAlign: "center"
-              }}
-            >
-              ← Back to Home
-            </button>
           </div>
         </div>
       )}

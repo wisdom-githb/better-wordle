@@ -1186,6 +1186,9 @@ const Game = ({
 
     return (
       <>
+        {/* Global toast for 1v1 mode (e.g., invalid words, turn errors) */}
+        <GameToast message={message} />
+
         <OneVOneGameView
           mode={mode}
           gameCode={gameCode}
