@@ -2,13 +2,10 @@ import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Home.css";
 import FeedbackModal from "./components/FeedbackModal";
-import AuthModal from "./components/AuthModal";
 import OneVOneModal from "./components/OneVOneModal";
-import HamburgerMenu from "./components/HamburgerMenu";
 import Modal from "./components/Modal";
-import { useAuth } from "./hooks/useAuth";
+import SiteHeader from "./components/SiteHeader";
 import { loadJSON, saveJSON, makeDailyKey, makeMarathonKey, marathonMetaKey, makeSolvedKey, removeKey } from "./lib/persist";
-import { useDailyResetTimer } from "./hooks/useDailyResetTimer";
 
 const BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
 
@@ -41,14 +38,11 @@ export default function Home({
   marathonLevels
 }) {
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
   const [showOneVOneModal, setShowOneVOneModal] = useState(false);
   const [showOneVOneConfig, setShowOneVOneConfig] = useState(false);
   const [showVerifyEmailModal, setShowVerifyEmailModal] = useState(false);
   const [verifyEmailAddress, setVerifyEmailAddress] = useState("");
-  const resetTime = useDailyResetTimer();
 
   // Track separate stage indices for standard and speedrun marathon for display.
   const [marathonStandardIndexUI, setMarathonStandardIndexUI] = useState(marathonIndex || 0);
@@ -79,8 +73,6 @@ export default function Home({
   
   const handleCloseFeedback = useCallback(() => setShowFeedbackModal(false), []);
   const handleOpenFeedback = useCallback(() => setShowFeedbackModal(true), []);
-  const handleCloseAuth = useCallback(() => setShowAuthModal(false), []);
-  const handleOpenAuth = useCallback(() => setShowAuthModal(true), []);
   
   const handleDailyStandard = useCallback(() => {
     saveJSON("mw:dailyBoards", dailyBoards);
@@ -136,50 +128,8 @@ export default function Home({
   return (
     <div className="homeRoot">
       <div className="homeInner">
-        <header className="homeHeader">
-          <h1 className="homeTitle">BETTER WORDLE</h1>
-
-          <div className="homeHeaderRight">
-            <div className="homeHeaderInfo">
-              <div className="resetTimer">
-                Reset in: {resetTime}
-              </div>
-              {user && (
-                <div className="userInfo">
-                  {user.displayName || user.email || "Unknown"}
-                </div>
-              )}
-            </div>
-            <div className="homeHeaderButtons">
-              {user ? (
-                <button
-                  className="homeBtn homeBtnOutline"
-                  onClick={signOut}
-                >
-                  Sign Out
-                </button>
-              ) : (
-                <button
-                  className="homeBtn homeBtnOutline"
-                  onClick={handleOpenAuth}
-                >
-                  Sign In
-                </button>
-              )}
-              <button
-                className="homeBtn homeBtnOutline"
-                onClick={() => navigate('/leaderboard')}
-              >
-                Leaderboard
-              </button>
-              <HamburgerMenu onOpenFeedback={handleOpenFeedback} />
-            </div>
-          </div>
-        </header>
-
-        <AuthModal
-          isOpen={showAuthModal}
-          onRequestClose={handleCloseAuth}
+        <SiteHeader
+          onOpenFeedback={handleOpenFeedback}
           onSignUpComplete={(email) => {
             setVerifyEmailAddress(email);
             setShowVerifyEmailModal(true);

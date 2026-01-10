@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useLeaderboard } from '../hooks/useLeaderboard';
 import { useAuth } from '../hooks/useAuth';
+import FeedbackModal from './FeedbackModal';
+import SiteHeader from './SiteHeader';
 import './Leaderboard.css';
 
 function formatElapsed(ms) {
@@ -16,10 +17,10 @@ function formatElapsed(ms) {
 }
 
 export default function Leaderboard() {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [mode, setMode] = useState('daily');
   const [numBoards, setNumBoards] = useState(null); // null = all boards
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   const { entries, loading, error } = useLeaderboard(mode, numBoards, 100);
 
@@ -29,15 +30,9 @@ export default function Leaderboard() {
   return (
     <div className="leaderboardRoot">
       <div className="leaderboardInner">
-        <header className="leaderboardHeader">
-          <h1 className="leaderboardTitle">Speedrun Leaderboard</h1>
-          <button
-            className="homeBtn homeBtnOutline"
-            onClick={() => navigate('/')}
-          >
-            Home
-          </button>
-        </header>
+        <SiteHeader onOpenFeedback={() => setShowFeedbackModal(true)} />
+
+        <h1 className="leaderboardTitle">Speedrun Leaderboard</h1>
 
         <div className="leaderboardFilters">
           <div className="filterGroup">
@@ -114,6 +109,11 @@ export default function Leaderboard() {
             })}
           </div>
         )}
+
+        <FeedbackModal
+          isOpen={showFeedbackModal}
+          onRequestClose={() => setShowFeedbackModal(false)}
+        />
       </div>
     </div>
   );

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./hooks/useAuth";
-import HamburgerMenu from "./components/HamburgerMenu";
 import FeedbackModal from "./components/FeedbackModal";
+import SiteHeader from "./components/SiteHeader";
 import "./Profile.css";
 
 export default function Profile() {
@@ -88,26 +88,10 @@ export default function Profile() {
           </div>
         ) : (
           <>
-            <header className="profileHeader">
-              <button
-                onClick={handleCancel}
-                style={{
-                  border: "none",
-                  background: "transparent",
-                  color: "#ffffff",
-                  cursor: "pointer",
-                  fontSize: 16,
-                  fontWeight: "bold",
-                  letterSpacing: 1
-                }}
-              >
-                ← Home
-              </button>
-              <h1 className="profileTitle">Profile</h1>
-              <HamburgerMenu onOpenFeedback={() => setShowFeedbackModal(true)} />
-            </header>
+            <SiteHeader onOpenFeedback={() => setShowFeedbackModal(true)} />
 
             <div className="profileContent">
+              <h1 className="profileTitle">Profile</h1>
               <div className="profileCard">
                 <div className="profileSection">
                   <h2>User Information</h2>

@@ -32,8 +32,8 @@ import GamePopup from "./components/game/GamePopup";
 import OutOfGuessesPopup from "./components/game/OutOfGuessesPopup";
 import BoardSelector from "./components/game/BoardSelector";
 import NextStageBar from "./components/game/NextStageBar";
-import HamburgerMenu from "./components/HamburgerMenu";
 import FeedbackModal from "./components/FeedbackModal";
+import SiteHeader from "./components/SiteHeader";
 import OneVOneWaitingRoom from "./components/game/OneVOneWaitingRoom";
 import OpponentBoardView from "./components/game/OpponentBoardView";
 import Keyboard from "./components/Keyboard";
@@ -44,6 +44,8 @@ import { submitSpeedrunScore } from "./hooks/useLeaderboard";
 import { useTimedMessage } from "./hooks/useTimedMessage";
 import { useShare } from "./hooks/useShare";
 import { useSinglePlayerGame } from "./hooks/useSinglePlayerGame";
+import { useKeyboard } from "./hooks/useKeyboard";
+import "./Game.css";
 
 const Game = ({
   marathonLevels = [1, 2, 3, 4]
@@ -660,45 +662,39 @@ const Game = ({
     return perBoardLetterMaps[selectedBoardIndex];
   }, [selectedBoardIndex, perBoardLetterMaps]);
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (showPopup || showOutOfGuesses) return;
+  // Centralized helper for whether keyboard input should be blocked
+  const isInputBlocked = useCallback(() => {
+    if (showPopup || showOutOfGuesses) return true;
 
-      // If the user is typing into a text field/textarea/contentEditable element
-      // (e.g., in a modal), don't let the global game keyboard handler run.
-      const target = e.target;
+    // If the user is typing into a text field/textarea/contentEditable element
+    // (e.g., in a modal), don't let the global game keyboard handler run.
+    if (typeof document !== "undefined") {
+      const active = document.activeElement;
       if (
-        target &&
-        target instanceof HTMLElement &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable)
+        active &&
+        active instanceof HTMLElement &&
+        (active.tagName === "INPUT" ||
+          active.tagName === "TEXTAREA" ||
+          active.isContentEditable)
       ) {
-        return;
+        return true;
       }
-      
-      // In 1v1 mode, disable keyboard input if not player's turn (non-speedrun only).
-      if (isOneVOne && oneVOneGame.gameState) {
-        const gameState = oneVOneGame.gameState;
-        if (gameState.status !== 'playing') return;
-        if (!gameState.speedrun) {
-          const isPlayerHost = authUser && gameState.hostId === authUser.uid;
-          const isMyTurn = gameState.currentTurn === (isPlayerHost ? 'host' : 'guest');
-          if (!isMyTurn) return;
-        }
+    }
+
+    // In 1v1 mode, disable keyboard input if not player's turn (non-speedrun only).
+    if (isOneVOne && oneVOneGame.gameState) {
+      const gameState = oneVOneGame.gameState;
+      if (gameState.status !== "playing") return true;
+      if (!gameState.speedrun) {
+        const isPlayerHost = authUser && gameState.hostId === authUser.uid;
+        const isMyTurn = gameState.currentTurn === (isPlayerHost ? "host" : "guest");
+        if (!isMyTurn) return true;
       }
-      
-      const key = e.key.toUpperCase();
+    }
 
-      if (/^[A-Z]$/.test(key)) addLetter(key);
-      else if (key === "BACKSPACE") removeLetter();
-      else if (key === "ENTER") submitGuess();
-    };
+    return false;
+  }, [showPopup, showOutOfGuesses, isOneVOne, oneVOneGame.gameState, authUser]);
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showPopup, showOutOfGuesses, currentGuess, boards, maxTurns, allowedSet, isUnlimited, isOneVOne, oneVOneGame.gameState, authUser]);
 
   const addLetter = (letter) => {
     if (currentGuess.length >= WORD_LENGTH) return;
@@ -951,6 +947,14 @@ const Game = ({
     }
   };
 
+  // Hook up global physical keyboard handling after handlers are defined
+  useKeyboard({
+    disabled: isInputBlocked(),
+    onEnter: submitGuess,
+    onBackspace: removeLetter,
+    onLetter: addLetter,
+  });
+
   // Save game state whenever boards change (for incomplete games)
   useEffect(() => {
     if (boards.length > 0 && !isLoading) {
@@ -969,19 +973,8 @@ const Game = ({
   }, [saveGameState, navigate]);
 
   const handleVirtualKey = (key) => {
-    if (showPopup || showOutOfGuesses) return;
-    
-    // In 1v1 mode, disable keyboard input if not player's turn (non-speedrun only).
-    if (isOneVOne && oneVOneGame.gameState) {
-      const gameState = oneVOneGame.gameState;
-      if (gameState.status !== 'playing') return;
-      if (!gameState.speedrun) {
-        const isPlayerHost = authUser && gameState.hostId === authUser.uid;
-        const isMyTurn = gameState.currentTurn === (isPlayerHost ? 'host' : 'guest');
-        if (!isMyTurn) return;
-      }
-    }
-    
+    if (isInputBlocked()) return;
+
     if (key === "ENTER") submitGuess();
     else if (key === "BACK") removeLetter();
     else addLetter(key);
@@ -998,7 +991,10 @@ const Game = ({
 
   const allSolved = useMemo(() => boards.length > 0 && boards.every((b) => b.isSolved), [boards]);
 
-  const solutionsText = useMemo(() => boards.map((b) => b.solution).join(" · "), [boards]);
+  const solutionsText = useMemo(
+    () => boards.map((b) => b.solution).filter(Boolean).map((w) => w.toUpperCase()).join(" · "),
+    [boards]
+  );
   const turnsUsed = useMemo(() => getTurnsUsed(boards), [boards]);
 
   const statusText =
@@ -1325,169 +1321,16 @@ const Game = ({
 
         {/* Fixed keyboard footer (multi-board aware) - only while game is playing */}
         {oneVOneGame.gameState && oneVOneGame.gameState.status === 'playing' && (
-          <footer
-            style={{
-              position: "fixed",
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: 1000,
-              borderTop: "1px solid #3a3a3c",
-              padding: "8px 4px calc(16px + env(safe-area-inset-bottom, 0px))",
-              background: "#121213",
-            }}
-          >
-            <div
-              style={{
-                maxWidth: "100%",
-                width: "100%",
-                padding: "0 4px",
-                margin: "0 auto",
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-              }}
-            >
-              {KEYBOARD_ROWS.map((row, rIndex) => (
-                <div
-                  key={rIndex}
-                  style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    gap: 3,
-                    padding: "0 2px",
-                  }}
-                >
-                  {row.map((key) => {
-                    const isAction = key === "ENTER" || key === "BACK";
-                    const isLetter = /^[A-Z]$/.test(key);
-
-                    const isMultiNoFocus = multiBoardCount > 1 && selectedBoardIndex == null;
-                    let baseBg = "#818384";
-
-                    if (!isMultiNoFocus && isLetter) {
-                      const map =
-                        selectedBoardIndex == null
-                          ? perBoardLetterMaps[0]
-                          : focusedLetterMap;
-                      const status = map && map[key] ? map[key] : "none";
-                      baseBg = status === "none" ? "#818384" : colorForStatus(status);
-                    }
-
-                    const display = key === "BACK" ? "⌫" : key;
-
-                    const showGridOverlay = isLetter && isMultiNoFocus;
-                    const multiStatuses = isLetter
-                      ? perBoardLetterMaps.map((m) => m[key] ?? "none")
-                      : [];
-
-                    // Calculate responsive sizes for mobile
-                    const isMobile = window.innerWidth <= 768;
-                    const actionButtonMaxWidth = isMobile ? "none" : 92;
-                    const letterButtonMaxWidth = isMobile ? "none" : 44;
-                    const buttonHeight = isMobile ? 42 : 52;
-                    const buttonPadding = isMobile
-                      ? isAction
-                        ? "4px 4px"
-                        : "4px 2px"
-                      : "6px 4px";
-                    const fontSize = isAction
-                      ? isMobile
-                        ? `${Math.round(buttonHeight * 0.4)}px`
-                        : `${Math.round(buttonHeight * 0.5)}px`
-                      : `${Math.round(buttonHeight * 0.7)}px`;
-
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => handleVirtualKey(key)}
-                        style={{
-                          position: "relative",
-                          flex: isAction ? 1.6 : 1,
-                          maxWidth: isAction
-                            ? actionButtonMaxWidth
-                            : letterButtonMaxWidth,
-                          minWidth: 0,
-                          height: buttonHeight,
-                          padding: buttonPadding,
-                          borderRadius: 6,
-                          border: "none",
-                          backgroundColor: baseBg,
-                          color: "#ffffff",
-                          fontWeight: "bold",
-                          fontSize: fontSize,
-                          cursor: "pointer",
-                          textTransform: "uppercase",
-                          overflow: "hidden",
-                          whiteSpace: "nowrap",
-                          textOverflow: "ellipsis",
-                          boxSizing: "border-box",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <div
-                          style={{
-                            position: "relative",
-                            zIndex: 2,
-                            lineHeight: `${buttonHeight}px`,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            width: "100%",
-                            height: "100%",
-                            padding: isAction ? "0 4px" : "0",
-                          }}
-                        >
-                          {display}
-                        </div>
-
-                        {showGridOverlay && (
-                          <div
-                            style={{
-                              position: "absolute",
-                              left: 6,
-                              right: 6,
-                              bottom: 6,
-                              height: 22,
-                              display: "grid",
-                              gridTemplateColumns: `repeat(${gridCols1v1}, 1fr)`,
-                              gap: 2,
-                              opacity: 0.95,
-                            }}
-                          >
-                            {multiStatuses.map((st, idx) => (
-                              <div
-                                key={idx}
-                                style={{
-                                  borderRadius: 2,
-                                  backgroundColor: colorForMiniCell(st),
-                                  border: "1px solid rgba(0,0,0,0.25)",
-                                }}
-                              />
-                            ))}
-                            {Array.from({
-                              length: gridCols1v1 * gridRows1v1 - multiBoardCount,
-                            }).map((_, i) => (
-                              <div
-                                key={`pad-${i}`}
-                                style={{
-                                  borderRadius: 2,
-                                  backgroundColor: "rgba(0,0,0,0.12)",
-                                }}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
+          <footer className="keyboardFooter">
+            <Keyboard
+              numBoards={multiBoardCount}
+              selectedBoardIndex={selectedBoardIndex}
+              perBoardLetterMaps={perBoardLetterMaps}
+              focusedLetterMap={focusedLetterMap}
+              gridCols={gridCols1v1}
+              gridRows={gridRows1v1}
+              onVirtualKey={handleVirtualKey}
+            />
           </footer>
         )}
       </>
@@ -1564,18 +1407,7 @@ const Game = ({
         .mw-back  { transform: rotateX(180deg); }
       `}</style>
 
-      <GameHeader
-        mode={mode}
-        numBoards={numBoards}
-        speedrunEnabled={speedrunEnabled}
-        solutionsText={solutionsText}
-        maxTurns={maxTurns}
-        stageElapsedMs={stageElapsedMs}
-        displayTotalMs={displayTotalMs}
-        formatElapsed={formatElapsed}
-        onBack={handleBack}
-        onOpenFeedback={() => setShowFeedbackModal(true)}
-      />
+      <SiteHeader onOpenFeedback={() => setShowFeedbackModal(true)} />
 
       <main
         style={{
@@ -1585,6 +1417,29 @@ const Game = ({
           paddingBottom: KEYBOARD_HEIGHT + (showNextStageBar ? 62 : 16)
         }}
       >
+        <GameHeader
+          mode={mode}
+          numBoards={numBoards}
+          speedrunEnabled={speedrunEnabled}
+        />
+
+        {solutionsText && solutionsText.length > 0 && (
+          <div
+            style={{
+              padding: "0 16px 8px",
+              fontSize: 12,
+              color: "#d7dadc",
+              textTransform: "uppercase",
+              fontWeight: "normal",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {solutionsText}
+          </div>
+        )}
+
         <div style={{ padding: "16px" }}>
         {/* Status bar: boards, guesses, timer */}
         <div
@@ -1733,119 +1588,16 @@ const Game = ({
       )}
 
       {/* Fixed keyboard footer */}
-      <footer
-        style={{
-          position: "fixed",
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 1000,
-          borderTop: "1px solid #3a3a3c",
-          padding: "8px 4px calc(16px + env(safe-area-inset-bottom, 0px))",
-          background: "#121213"
-        }}
-      >
-        <div style={{ maxWidth: "100%", width: "100%", padding: "0 4px", margin: "0 auto", display: "flex", flexDirection: "column", gap: 6 }}>
-          {KEYBOARD_ROWS.map((row, rIndex) => (
-            <div key={rIndex} style={{ display: "flex", justifyContent: "center", gap: 3, padding: "0 2px" }}>
-              {row.map((key) => {
-                const isAction = key === "ENTER" || key === "BACK";
-                const isLetter = /^[A-Z]$/.test(key);
-
-                const isMultiNoFocus = numBoards > 1 && selectedBoardIndex == null;
-                let baseBg = "#818384";
-
-                if (!isMultiNoFocus && isLetter) {
-                  const map = selectedBoardIndex == null ? perBoardLetterMaps[0] : focusedLetterMap;
-                  const status = map && map[key] ? map[key] : "none";
-                  baseBg = status === "none" ? "#818384" : colorForStatus(status);
-                }
-
-                const display = key === "BACK" ? "⌫" : key;
-
-                const showGridOverlay = isLetter && isMultiNoFocus;
-                const multiStatuses = isLetter ? perBoardLetterMaps.map((m) => m[key] ?? "none") : [];
-
-                // Calculate responsive sizes for mobile
-                const isMobile = window.innerWidth <= 768;
-                const actionButtonMaxWidth = isMobile ? "none" : 92;
-                const letterButtonMaxWidth = isMobile ? "none" : 44;
-                const buttonGap = isMobile ? 3 : 4;
-                const buttonHeight = isMobile ? 42 : 52;
-                const buttonPadding = isMobile ? (isAction ? "4px 4px" : "4px 2px") : "6px 4px";
-                // Font size is 70% of button height for letters, smaller for action buttons to fit text
-                // On mobile, use even smaller font for action buttons to prevent overflow
-                const fontSize = isAction 
-                  ? isMobile 
-                    ? `${Math.round(buttonHeight * 0.4)}px`
-                    : `${Math.round(buttonHeight * 0.5)}px`
-                  : `${Math.round(buttonHeight * 0.7)}px`;
-
-                return (
-                  <button
-                    key={key}
-                    onClick={() => handleVirtualKey(key)}
-                    style={{
-                      position: "relative",
-                      flex: isAction ? 1.6 : 1,
-                      maxWidth: isAction ? actionButtonMaxWidth : letterButtonMaxWidth,
-                      minWidth: 0,
-                      height: buttonHeight,
-                      padding: buttonPadding,
-                      borderRadius: 6,
-                      border: "none",
-                      backgroundColor: baseBg,
-                      color: "#ffffff",
-                      fontWeight: "bold",
-                      fontSize: fontSize,
-                      cursor: "pointer",
-                      textTransform: "uppercase",
-                      overflow: "hidden",
-                      whiteSpace: "nowrap",
-                      textOverflow: "ellipsis",
-                      boxSizing: "border-box",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center"
-                    }}
-                  >
-                    <div style={{ position: "relative", zIndex: 2, lineHeight: `${buttonHeight}px`, overflow: "hidden", textOverflow: "ellipsis", display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%", padding: isAction ? "0 4px" : "0" }}>{display}</div>
-
-                    {showGridOverlay && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: 6,
-                          right: 6,
-                          bottom: 6,
-                          height: 22,
-                          display: "grid",
-                          gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
-                          gap: 2,
-                          opacity: 0.95
-                        }}
-                      >
-                        {multiStatuses.map((st, idx) => (
-                          <div
-                            key={idx}
-                            style={{
-                              borderRadius: 2,
-                              backgroundColor: colorForMiniCell(st),
-                              border: "1px solid rgba(0,0,0,0.25)"
-                            }}
-                          />
-                        ))}
-                        {Array.from({ length: gridCols * gridRows - numBoards }).map((_, i) => (
-                          <div key={`pad-${i}`} style={{ borderRadius: 2, backgroundColor: "rgba(0,0,0,0.12)" }} />
-                        ))}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </div>
+      <footer className="keyboardFooter">
+        <Keyboard
+          numBoards={numBoards}
+          selectedBoardIndex={selectedBoardIndex}
+          perBoardLetterMaps={perBoardLetterMaps}
+          focusedLetterMap={focusedLetterMap}
+          gridCols={gridCols}
+          gridRows={gridRows}
+          onVirtualKey={handleVirtualKey}
+        />
       </footer>
 
       <BoardSelector

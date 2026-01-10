@@ -3,6 +3,7 @@ import GameHeader from "./GameHeader";
 import OneVOneWaitingRoom from "./OneVOneWaitingRoom";
 import OpponentBoardView from "./OpponentBoardView";
 import GameBoard from "./GameBoard";
+import SiteHeader from "../SiteHeader";
 import { KEYBOARD_HEIGHT, formatElapsed as formatElapsedLib, scoreGuess } from "../../lib/wordle";
 import { calculateNonSpeedrunScore } from "../../lib/gameUtils";
 import { FLIP_MS } from "../../lib/gameConstants";
@@ -46,17 +47,11 @@ export default function OneVOneGameView({
 
     return (
       <div style={{ minHeight: "100vh", backgroundColor: "#121213", color: "#ffffff" }}>
+        <SiteHeader onOpenFeedback={onOpenFeedback} />
         <GameHeader
           mode={mode}
           numBoards={initialNumBoards || 1}
           speedrunEnabled={false}
-          solutionsText=""
-          maxTurns={6}
-          stageElapsedMs={0}
-          displayTotalMs={0}
-          formatElapsed={formatElapsedLib}
-          onBack={onBack}
-          onOpenFeedback={onOpenFeedback}
         />
         <OneVOneWaitingRoom
           gameCode={gameCode || ""}
@@ -154,7 +149,7 @@ export default function OneVOneGameView({
     : gameState.solution
     ? [gameState.solution]
     : [];
-  const headerSolutionsText = solutionList.map((w) => w.toUpperCase()).join(" · ");
+  const solutionsText = solutionList.map((w) => w.toUpperCase()).join(" · ");
   const numBoardsForHeader = solutionList.length || 1;
 
   // Whose turn is it? Used to highlight the active board.
@@ -299,19 +294,7 @@ export default function OneVOneGameView({
           color: "#ffffff",
         }}
       >
-        <GameHeader
-          mode={mode}
-          numBoards={numBoardsForHeader}
-          speedrunEnabled={isSpeedrun}
-          solutionsText={headerSolutionsText}
-          maxTurns={maxTurns}
-          stageElapsedMs={0}
-          displayTotalMs={0}
-          formatElapsed={formatElapsedLib}
-          onBack={onBack}
-          onOpenFeedback={onOpenFeedback}
-          maxTurnsLabel={isSpeedrun ? "unlimited" : undefined}
-        />
+        <SiteHeader onOpenFeedback={onOpenFeedback} />
 
         <main
           style={{
@@ -321,6 +304,29 @@ export default function OneVOneGameView({
             paddingBottom: KEYBOARD_HEIGHT + 16,
           }}
         >
+          <GameHeader
+            mode={mode}
+            numBoards={numBoardsForHeader}
+            speedrunEnabled={isSpeedrun}
+          />
+
+          {solutionsText && solutionsText.length > 0 && (
+            <div
+              style={{
+                padding: "0 16px 8px",
+                fontSize: 12,
+                color: "#d7dadc",
+                textTransform: "uppercase",
+                fontWeight: "normal",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {solutionsText}
+            </div>
+          )}
+
           <div
             style={{
               padding: "16px",
