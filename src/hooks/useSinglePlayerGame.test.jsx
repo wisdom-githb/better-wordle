@@ -30,7 +30,7 @@ vi.mock('../lib/gameConstants', () => ({
 import { loadJSON } from '../lib/persist';
 import { loadWordLists } from '../lib/wordLists';
 import { selectDailyWords } from '../lib/dailyWords';
-import { getMaxTurns } from '../lib/wordle';
+import { getMaxTurns, createBoardState } from '../lib/wordle';
 import { useSinglePlayerGame } from './useSinglePlayerGame';
 
 beforeEach(() => {
@@ -212,5 +212,107 @@ describe('useSinglePlayerGame', () => {
     // Popup should be scheduled after FLIP_COMPLETE_MS (100ms)
     await new Promise((resolve) => setTimeout(resolve, 150));
     expect(setShowPopup).toHaveBeenCalledWith(true);
+  });
+
+  it('resumes an in-progress saved speedrun game instead of starting a new one', async () => {
+    /** @type {any} */ (loadJSON).mockReturnValueOnce(null); // no solved state
+
+    const partialBoard = {
+      solution: 'APPLE',
+      guesses: [
+        { word: 'OTHER', colors: ['grey', 'grey', 'grey', 'grey', 'grey'] },
+      ],
+      isSolved: false,
+      isDead: false,
+      lastRevealId: 1,
+    };
+
+    const savedGameState = {
+      boards: [partialBoard],
+      currentGuess: 'AP',
+      isUnlimited: true,
+      maxTurns: 12,
+      stageStartTime: 1_000,
+      stageElapsedMs: 2_000,
+      committedStageMs: 0,
+      revealId: 3,
+    };
+
+    /** @type {any} */ (loadJSON).mockReturnValueOnce(savedGameState); // saved game state
+
+    const setBoards = vi.fn();
+    const setCurrentGuess = vi.fn();
+    const setMessage = vi.fn();
+    const clearMessageTimer = vi.fn();
+    const setShowOutOfGuesses = vi.fn();
+    const setIsUnlimited = vi.fn();
+    const setSelectedBoardIndex = vi.fn();
+    const setRevealId = vi.fn();
+    const setIsFlipping = vi.fn();
+    const setMaxTurns = vi.fn();
+    const setAllowedSet = vi.fn();
+    const setIsLoading = vi.fn();
+    const setShowPopup = vi.fn();
+    const setTimedMessage = vi.fn();
+
+    const refs = createRefs();
+
+    // Provide a stable Date.now so we can assert timer restoration
+    vi.setSystemTime(10_000);
+
+    renderHook((props) => useSinglePlayerGame(props), {
+      initialProps: {
+        isOneVOne: false,
+        mode: 'daily',
+        speedrunEnabled: true,
+        numBoards: 1,
+        marathonIndex: 0,
+        getGameStateKey: () => 'GAME_STATE_KEY',
+        ...refs,
+        setBoards,
+        setCurrentGuess,
+        setMessage,
+        clearMessageTimer,
+        setShowOutOfGuesses,
+        setIsUnlimited,
+        setSelectedBoardIndex,
+        setRevealId,
+        setIsFlipping,
+        setMaxTurns,
+        setAllowedSet,
+        setIsLoading,
+        setShowPopup,
+        setTimedMessage,
+      },
+    });
+
+    await waitFor(() => {
+      expect(setBoards).toHaveBeenCalledWith(savedGameState.boards);
+    });
+
+    expect(setCurrentGuess).toHaveBeenCalledWith('AP');
+    expect(setMaxTurns).toHaveBeenCalledWith(12);
+    expect(setIsUnlimited).toHaveBeenCalledWith(true);
+    expect(setSelectedBoardIndex).toHaveBeenCalledWith(null);
+    expect(setRevealId).toHaveBeenCalledWith(3);
+    expect(setIsFlipping).toHaveBeenCalledWith(false);
+    expect(setShowPopup).toHaveBeenCalledWith(false);
+    expect(setShowOutOfGuesses).toHaveBeenCalledWith(false);
+    expect(setMessage).toHaveBeenCalledWith('');
+    expect(clearMessageTimer).toHaveBeenCalled();
+
+    // Allowed guesses should be restored, but a brand new game should not be started
+    expect(loadWordLists).toHaveBeenCalledTimes(1);
+    expect(selectDailyWords).not.toHaveBeenCalled();
+    expect(createBoardState).not.toHaveBeenCalled();
+
+    // Timer state should be resumed in-progress
+    expect(refs.stageEndRef.current).toBeNull();
+    expect(refs.committedRef.current).toBe(false);
+    expect(refs.committedStageMsRef.current).toBe(0);
+    expect(refs.stageStartRef.current).toBe(8_000);
+
+    // Loading should be cleared
+    expect(setIsLoading).toHaveBeenCalledWith(false);
   });
 });

@@ -5,7 +5,6 @@ import { WORD_LENGTH, buildLetterMapFromGuesses, getTurnsUsed, formatElapsed } f
 import { FLIP_COMPLETE_MS } from "../../lib/gameConstants";
 import { useAuth } from "../../hooks/useAuth";
 import { useOneVOneGame } from "../../hooks/useOneVOneGame";
-import { useOneVOneScores } from "../../hooks/useOneVOneScores";
 import { useOneVOneController } from "../../hooks/useOneVOneController";
 import { useTimedMessage } from "../../hooks/useTimedMessage";
 import { useShare } from "../../hooks/useShare";
@@ -39,12 +38,15 @@ export default function GameOneVOne() {
     return false;
   })();
 
+  const boardsParam = searchParams.get("boards");
+
   const gameCode = codeParam || searchParams.get("code") || null;
 
   const oneVOneGame = useOneVOneGame(gameCode || null, isHost, speedrunEnabled);
 
   const [boards, setBoards] = useState([]);
   const [currentGuess, setCurrentGuess] = useState("");
+  const currentGuessRef = useRef("");
   const [maxTurns, setMaxTurns] = useState(6);
   const [allowedSet, setAllowedSet] = useState(new Set());
   const [isLoading, setIsLoading] = useState(true);
@@ -74,10 +76,18 @@ export default function GameOneVOne() {
     return () => clearInterval(id);
   }, [oneVOneGame.gameState]);
 
+  // Keep an always-fresh ref of the current guess so that even callbacks
+  // captured by mocks or older renders (e.g. in tests) see the latest value.
+  useEffect(() => {
+    currentGuessRef.current = currentGuess;
+  }, [currentGuess]);
+
   const numBoards = useMemo(
     () => (boards.length > 0 ? boards.length : 1),
     [boards]
   );
+
+  const gameState = oneVOneGame.gameState;
 
   const {
     friendRequestSent,
@@ -99,7 +109,7 @@ export default function GameOneVOne() {
     isHost,
     gameCode,
     speedrunEnabled,
-    boardsParam: null,
+    boardsParam,
     numBoards,
     authUser,
     isVerifiedUser,
@@ -131,6 +141,9 @@ export default function GameOneVOne() {
     () => boards.map((b) => buildLetterMapFromGuesses(b.guesses)),
     [boards]
   );
+
+  const invalidCurrentGuess =
+    currentGuess.length === WORD_LENGTH && !allowedSet.has(currentGuess);
 
   const focusedLetterMap = useMemo(() => {
     if (selectedBoardIndex == null) return null;
@@ -203,12 +216,25 @@ export default function GameOneVOne() {
 
   const submitGuess = async () => {
     if (showPopup || showOutOfGuesses) return;
-    if (currentGuess.length !== WORD_LENGTH) return;
 
-    if (!allowedSet.has(currentGuess)) {
+    const guess = currentGuessRef.current;
+
+    // If the guess is not complete (fewer than WORD_LENGTH letters), treat
+    // Enter as "clear" so the player can quickly start over.
+    if (guess.length !== WORD_LENGTH) {
+      if (guess.length > 0) {
+        setCurrentGuess("");
+      }
+      return;
+    }
+
+    // For 1v1 games, a full 5-letter guess should always go through the
+    // submitGuess hook so that validation can happen on the backend.
+    // We still surface a local "Not in word list" message when we have
+    // a dictionary, but we do not return early here.
+    if (!allowedSet.has(guess)) {
       setTimedMessage("Not in word list.", 5000);
       setCurrentGuess("");
-      return;
     }
 
     if (oneVOneGame.gameState) {
@@ -254,7 +280,7 @@ export default function GameOneVOne() {
         return;
       }
 
-      const guessToSubmit = currentGuess;
+      const guessToSubmit = guess;
       setCurrentGuess("");
       setMessage("");
       clearMessageTimer();
@@ -314,9 +340,6 @@ export default function GameOneVOne() {
   const popupTotalMs = 0;
   const isMarathonSpeedrun = false;
 
-  const { myScore: oneVOneMyScore, opponentScore: oneVOneOpponentScore } =
-    useOneVOneScores(oneVOneGame.gameState, authUser, maxTurns);
-
   const shareText = useMemo(() => {
     if (!boards || boards.length === 0) {
       return "Play Better Wordle!";
@@ -362,7 +385,7 @@ export default function GameOneVOne() {
         initialNumBoards={numBoards}
         maxTurns={maxTurns}
         currentGuess={currentGuess}
-        invalidCurrentGuess={false}
+        invalidCurrentGuess={invalidCurrentGuess}
         revealId={revealId}
         boardRefs={boardRefs}
         boards={boards}
@@ -397,7 +420,6 @@ export default function GameOneVOne() {
         <GamePopup
           allSolved={allSolved}
           boards={boards}
-          score={0}
           speedrunEnabled={speedrunEnabled}
           stageElapsedMs={stageElapsedMs}
           popupTotalMs={popupTotalMs}
@@ -416,8 +438,6 @@ export default function GameOneVOne() {
           commitStageIfNeeded={() => {}}
           isOneVOne={true}
           oneVOneGameState={oneVOneGame.gameState}
-          myScore={oneVOneMyScore}
-          opponentScore={oneVOneOpponentScore}
           winner={oneVOneGame.gameState ? oneVOneGame.gameState.winner : null}
           isPlayerHost={
             oneVOneGame.gameState && authUser
@@ -447,21 +467,23 @@ export default function GameOneVOne() {
         onRequestClose={() => setShowFeedbackModal(false)}
       />
 
-      <BoardSelector
-        numBoards={numBoards}
-        showBoardSelector={showBoardSelector}
-        setShowBoardSelector={setShowBoardSelector}
-        boards={boards}
-        selectedBoardIndex={selectedBoardIndex}
-        setSelectedBoardIndex={setSelectedBoardIndex}
-        boardRefs={boardRefs}
-        isUnlimited={false}
-        speedrunEnabled={speedrunEnabled}
-        statusText={statusText}
-      />
+      {gameState && gameState.status === "playing" && (
+        <BoardSelector
+          numBoards={numBoards}
+          showBoardSelector={showBoardSelector}
+          setShowBoardSelector={setShowBoardSelector}
+          boards={boards}
+          selectedBoardIndex={selectedBoardIndex}
+          setSelectedBoardIndex={setSelectedBoardIndex}
+          boardRefs={boardRefs}
+          isUnlimited={false}
+          speedrunEnabled={speedrunEnabled}
+          statusText={statusText}
+        />
+      )}
 
-      {oneVOneGame.gameState &&
-        oneVOneGame.gameState.status === "playing" &&
+      {gameState &&
+        gameState.status === "playing" &&
         !hasPlayerSolvedAllOneVOneBoards && (
           <footer className="keyboardFooter">
             <Keyboard

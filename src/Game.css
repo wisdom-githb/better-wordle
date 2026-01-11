@@ -213,6 +213,10 @@
   line-height: 22px;
 }
 
+.keyLabelBackspace {
+  font-size: 20px;
+}
+
 .keyOverlayGrid {
   position: absolute;
   left: 6px;

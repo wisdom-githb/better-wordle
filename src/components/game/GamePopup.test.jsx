@@ -23,7 +23,6 @@ describe('GamePopup - single player', () => {
       <GamePopup
         allSolved={true}
         boards={boards}
-        score={123}
         speedrunEnabled={false}
         stageElapsedMs={0}
         popupTotalMs={0}
@@ -31,6 +30,8 @@ describe('GamePopup - single player', () => {
         solvedCount={2}
         mode="daily"
         marathonHasNext={false}
+        turnsUsed={4}
+        maxTurns={6}
         onShare={onShare}
         onClose={onClose}
         onNextStage={() => {}}
@@ -42,9 +43,12 @@ describe('GamePopup - single player', () => {
     );
 
     expect(screen.getByText(/Congratulations!/i)).toBeInTheDocument();
-    expect(screen.getByText(/Score: 123/)).toBeInTheDocument();
+    expect(screen.getByText(/Guesses used: 4\/6/)).toBeInTheDocument();
     expect(screen.getByText(/Solutions/i)).toBeInTheDocument();
     expect(screen.getByText(/Board 1: APPLE/)).toBeInTheDocument();
+
+    // Default canShare behaviour: Share button is visible for non-1v1 games.
+    expect(screen.getByRole('button', { name: /Share/i })).toBeInTheDocument();
   });
 
   it('shows stage summary and next-stage button in marathon speedrun', () => {
@@ -57,7 +61,6 @@ describe('GamePopup - single player', () => {
       <GamePopup
         allSolved={false}
         boards={[{ solution: 'APPLE', isSolved: true }]}
-        score={50}
         speedrunEnabled={true}
         stageElapsedMs={5000}
         popupTotalMs={10000}
@@ -65,6 +68,8 @@ describe('GamePopup - single player', () => {
         solvedCount={1}
         mode="marathon"
         marathonHasNext={true}
+        turnsUsed={3}
+        maxTurns={6}
         onShare={() => {}}
         onClose={onClose}
         onNextStage={onNextStage}
@@ -85,12 +90,105 @@ describe('GamePopup - single player', () => {
     expect(commitStageIfNeeded).toHaveBeenCalledWith(5000);
     expect(onNextStage).toHaveBeenCalledTimes(1);
   });
+
+  it('does not show Next Stage button when allowNextStageAfterPopup is false', () => {
+    const onNextStage = vi.fn();
+    const freezeStageTimer = vi.fn(() => 5000);
+    const commitStageIfNeeded = vi.fn();
+
+    render(
+      <GamePopup
+        allSolved={false}
+        boards={[{ solution: 'APPLE', isSolved: true }]}
+        speedrunEnabled={true}
+        stageElapsedMs={5000}
+        popupTotalMs={10000}
+        formatElapsed={formatElapsed}
+        solvedCount={1}
+        mode="marathon"
+        marathonHasNext={true}
+        turnsUsed={3}
+        maxTurns={6}
+        onShare={() => {}}
+        onClose={() => {}}
+        onNextStage={onNextStage}
+        freezeStageTimer={freezeStageTimer}
+        isMarathonSpeedrun={true}
+        commitStageIfNeeded={commitStageIfNeeded}
+        isOneVOne={false}
+        allowNextStageAfterPopup={false}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: /Next Stage/i })).toBeNull();
+  });
+
+  it('hides Share button when canShare is false', () => {
+    const onShare = vi.fn();
+
+    render(
+      <GamePopup
+        allSolved={true}
+        boards={[{ solution: 'APPLE', isSolved: true }]}
+        speedrunEnabled={false}
+        stageElapsedMs={0}
+        popupTotalMs={0}
+        formatElapsed={formatElapsed}
+        solvedCount={1}
+        mode="marathon"
+        marathonHasNext={true}
+        turnsUsed={3}
+        maxTurns={6}
+        onShare={onShare}
+        onClose={() => {}}
+        onNextStage={() => {}}
+        freezeStageTimer={() => 0}
+        isMarathonSpeedrun={false}
+        commitStageIfNeeded={() => {}}
+        isOneVOne={false}
+        canShare={false}
+      />
+    );
+
+    // Share button should not be rendered when canShare is explicitly false.
+    expect(screen.queryByRole('button', { name: /Share/i })).toBeNull();
+  });
+
+  it('shows only total time (no stage time) for daily speedrun mode', () => {
+    const onClose = vi.fn();
+
+    render(
+      <GamePopup
+        allSolved={true}
+        boards={[{ solution: 'APPLE', isSolved: true }]}
+        speedrunEnabled={true}
+        stageElapsedMs={5000}
+        popupTotalMs={5000}
+        formatElapsed={formatElapsed}
+        solvedCount={1}
+        mode="daily"
+        marathonHasNext={false}
+        turnsUsed={3}
+        maxTurns={6}
+        onShare={() => {}}
+        onClose={onClose}
+        onNextStage={() => {}}
+        freezeStageTimer={() => 0}
+        isMarathonSpeedrun={false}
+        commitStageIfNeeded={() => {}}
+        isOneVOne={false}
+      />
+    );
+
+    expect(screen.getByText(/Total time:/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Stage time:/i)).toBeNull();
+  });
 });
 
 describe('GamePopup - 1v1 mode', () => {
   const formatElapsed = (ms) => `${(ms / 1000).toFixed(1)}s`;
 
-  it('shows win/lose/tie labels and scores in non-speedrun 1v1', () => {
+  it('shows win/lose/tie labels and guesses/time in 1v1', () => {
     const onRematch = vi.fn();
     const onChangeMode = vi.fn();
 
@@ -99,13 +197,14 @@ describe('GamePopup - 1v1 mode', () => {
       status: 'finished',
       hostRematch: true,
       guestRematch: false,
+      hostGuesses: ['APPLE'],
+      guestGuesses: ['APPLE', 'OTHER'],
     };
 
     render(
       <GamePopup
         allSolved={false}
         boards={[]}
-        score={0}
         speedrunEnabled={false}
         stageElapsedMs={0}
         popupTotalMs={0}
@@ -121,9 +220,7 @@ describe('GamePopup - 1v1 mode', () => {
         commitStageIfNeeded={() => {}}
         isOneVOne={true}
         oneVOneGameState={oneVOneGameState}
-        myScore={200}
-        opponentScore={150}
-        winner={null}
+        winner={"host"}
         isPlayerHost={true}
         onRematch={onRematch}
         onChangeMode={onChangeMode}
@@ -131,8 +228,8 @@ describe('GamePopup - 1v1 mode', () => {
     );
 
     expect(screen.getByText(/You Won!/i)).toBeInTheDocument();
-    expect(screen.getByText(/Your Score/i)).toBeInTheDocument();
-    expect(screen.getByText(/Opponent's Score/i)).toBeInTheDocument();
+    expect(screen.getByText(/Your Guesses/i)).toBeInTheDocument();
+    expect(screen.getByText(/Opponent's Guesses/i)).toBeInTheDocument();
 
     // Rematch and Change Mode buttons should be present for host
     expect(screen.getByRole('button', { name: /Rematch/i })).toBeInTheDocument();

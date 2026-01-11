@@ -95,15 +95,14 @@ vi.mock('./lib/wordLists', () => ({
 }));
 
 // --- Game utils / persistence / daily words ---
-export const calculateNonSpeedrunScoreMock = vi.fn(() => 999);
-export const calculateSpeedrunScoreMock = vi.fn(() => 123);
-
-vi.mock('./lib/gameUtils', () => ({
-  calculateNonSpeedrunScore: (...args) => calculateNonSpeedrunScoreMock(...args),
-  calculateSpeedrunScore: (...args) => calculateSpeedrunScoreMock(...args),
-  generateShareText: vi.fn(() => 'share-text'),
-  isMobileDevice: vi.fn(() => false),
-}));
+vi.mock('./lib/gameUtils', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    generateShareText: vi.fn(() => 'share-text'),
+    isMobileDevice: vi.fn(() => false),
+  };
+});
 
 export const saveJSONMock = vi.fn();
 export const loadJSONMock = vi.fn();
@@ -165,39 +164,61 @@ vi.mock('./components/game/GamePopup', () => ({
   default: (props) => {
     lastGamePopupProps = props;
     return <div data-testid="popup">POPUP</div>;
-  }, // eslint-disable-line react/display-name
+  }, // eslint-disable-line react-display-name
 }));
+let lastOutOfGuessesProps = null;
 vi.mock('./components/game/OutOfGuessesPopup', () => ({
-  default: () => <div data-testid="out-of-guesses">OUT</div>, // eslint-disable-line react/display-name
+  __esModule: true,
+  default: (props) => {
+    lastOutOfGuessesProps = props;
+    return <div data-testid="out-of-guesses">OUT</div>;
+  }, // eslint-disable-line react-display-name
+}));
+let lastCommentsThreadId = null;
+vi.mock('./components/game/CommentsSection', () => ({
+  __esModule: true,
+  default: ({ threadId }) => {
+    lastCommentsThreadId = threadId;
+    return <div data-testid="comments">COMMENTS</div>;
+  }, // eslint-disable-line react-display-name
 }));
 vi.mock('./components/game/BoardSelector', () => ({
-  default: () => null, // eslint-disable-line react/display-name
+  default: () => null, // eslint-disable-line react-display-name
 }));
 vi.mock('./components/FeedbackModal', () => ({
   default: () => null, // eslint-disable-line react/display-name
 }));
 vi.mock('./components/SiteHeader', () => ({
-  default: () => <header data-testid="site-header" />, // eslint-disable-line react/display-name
+  default: () => <header data-testid="site-header" />, // eslint-disable-line react-display-name
 }));
 vi.mock('./components/game/OneVOneGameView', () => ({
-  default: () => <div data-testid="onevone-view" />, // eslint-disable-line react/display-name
+  default: () => <div data-testid="onevone-view" />, // eslint-disable-line react-display-name
 }));
 
-// GameBoard: expose currentGuess to tests
+// GameBoard: record latest board props and expose currentGuess to tests
+let lastRenderedBoards = [];
 vi.mock('./components/game/GameBoard', () => ({
-  default: ({ currentGuess }) => (
-    <div data-testid="current-guess">{currentGuess}</div>
-  ), // eslint-disable-line react/display-name
+  default: ({ board, index, currentGuess }) => {
+    if (typeof index === 'number') {
+      lastRenderedBoards[index] = board;
+    }
+    return <div data-testid="current-guess">{currentGuess}</div>;
+  }, // eslint-disable-line react-display-name
 }));
 
 import { useOneVOneGame } from './hooks/useOneVOneGame';
 import { useAuth } from './hooks/useAuth';
 import { useKeyboard } from './hooks/useKeyboard';
+import * as wordleLib from './lib/wordle';
+import * as gameUtils from './lib/gameUtils';
 import Game from './Game';
 
 beforeEach(() => {
   vi.clearAllMocks();
   lastGamePopupProps = null;
+  lastOutOfGuessesProps = null;
+  lastCommentsThreadId = null;
+  lastRenderedBoards = [];
   currentQuery = '?mode=daily&speedrun=false&boards=1';
   loadJSONMock.mockImplementation((_, fallback) => fallback);
   window.scrollTo = vi.fn();
@@ -356,7 +377,7 @@ describe('Game – param guards', () => {
 });
 
 describe('Game – non-speedrun end-of-game', () => {
-  it('when all boards solved before maxTurns saves solved state, computes score and shows GamePopup after flip', async () => {
+  it('when all boards solved before maxTurns saves solved state and shows GamePopup after flip', async () => {
     vi.useFakeTimers();
     configureSingleBoardNonSpeedrun();
 
@@ -384,7 +405,7 @@ describe('Game – non-speedrun end-of-game', () => {
     );
     expect(solvedKey).toBe('mw:solved:key');
     expect(solvedState.allSolved).toBe(true);
-    expect(calculateNonSpeedrunScoreMock).toHaveBeenCalled();
+    // No scoring is done anymore, but solved state is still saved.
 
     // Popup should appear only after FLIP_COMPLETE_MS
     await act(async () => {
@@ -397,8 +418,6 @@ describe('Game – non-speedrun end-of-game', () => {
     });
     expect(screen.getByTestId('popup')).toBeInTheDocument();
 
-    // Popup props include the mocked score
-    expect(lastGamePopupProps.score).toBe(999);
     expect(lastGamePopupProps.allSolved).toBe(true);
   });
 
@@ -478,10 +497,205 @@ describe('Game – non-speedrun end-of-game', () => {
     // Our stub may be rendered later; at this point we expect none
     expect(screen.queryByTestId('popup')).toBeNull();
   });
+
+  it('allows continuing after running out of guesses, making boards playable again', async () => {
+    vi.useFakeTimers();
+
+    useSinglePlayerGameMock.mockImplementation(
+      ({
+        setBoards,
+        setAllowedSet,
+        setIsLoading,
+        setMaxTurns,
+        setIsUnlimited,
+        stageStartRef,
+        stageEndRef,
+        committedRef,
+        committedStageMsRef,
+        setRevealId,
+        setIsFlipping,
+      }) => {
+        setBoards([
+          {
+            solution: 'APPLE',
+            guesses: [
+              { word: 'OTHER', colors: ['grey', 'grey', 'grey', 'grey', 'grey'] },
+            ],
+            isSolved: false,
+            isDead: false,
+            lastRevealId: null,
+          },
+        ]);
+        setAllowedSet(new Set(['OTHER']));
+        setMaxTurns(2);
+        setIsUnlimited(false);
+        stageStartRef.current = Date.now();
+        stageEndRef.current = null;
+        committedRef.current = false;
+        committedStageMsRef.current = 0;
+        setRevealId(0);
+        setIsFlipping(false);
+        setIsLoading(false);
+      },
+    );
+
+    render(<Game marathonLevels={[1]} />);
+
+    const oKey = screen.getByRole('button', { name: 'O' });
+    const tKey = screen.getByRole('button', { name: 'T' });
+    const hKey = screen.getByRole('button', { name: 'H' });
+    const eKey = screen.getByRole('button', { name: 'E' });
+    const rKey = screen.getByRole('button', { name: 'R' });
+    const enterKey = screen.getByRole('button', { name: 'Enter' });
+
+    // Second wrong guess: OTHER again
+    fireEvent.click(oKey);
+    fireEvent.click(tKey);
+    fireEvent.click(hKey);
+    fireEvent.click(eKey);
+    fireEvent.click(rKey);
+
+    fireEvent.click(enterKey);
+
+    await act(async () => {
+      vi.advanceTimersByTime(FLIP_COMPLETE_MS + 50);
+    });
+
+    expect(screen.getByTestId('out-of-guesses')).toBeInTheDocument();
+    expect(lastOutOfGuessesProps).not.toBeNull();
+
+    // Invoke the continue handler from the popup to resume play
+    await act(async () => {
+      lastOutOfGuessesProps.onContinue();
+    });
+
+    // Boards should retain their guesses but no longer be marked dead
+    expect(lastRenderedBoards[0].guesses).toHaveLength(2);
+    expect(lastRenderedBoards[0].isDead).toBe(false);
+
+    // Keyboard should be re-enabled so guesses can be entered again
+    expect(useKeyboard).toHaveBeenCalled();
+    const keyboardArgs = useKeyboard.mock.calls[useKeyboard.mock.calls.length - 1][0];
+    expect(keyboardArgs.disabled).toBe(false);
+  });
+
+  it('shows GamePopup immediately when exiting from OutOfGuesses (no extra delay)', async () => {
+    vi.useFakeTimers();
+
+    useSinglePlayerGameMock.mockImplementation(
+      ({
+        setBoards,
+        setAllowedSet,
+        setIsLoading,
+        setMaxTurns,
+        setIsUnlimited,
+        stageStartRef,
+        stageEndRef,
+        committedRef,
+        committedStageMsRef,
+        setRevealId,
+        setIsFlipping,
+      }) => {
+        setBoards([
+          {
+            solution: 'APPLE',
+            guesses: [
+              { word: 'OTHER', colors: ['grey', 'grey', 'grey', 'grey', 'grey'] },
+            ],
+            isSolved: false,
+            isDead: false,
+            lastRevealId: null,
+          },
+        ]);
+        setAllowedSet(new Set(['OTHER']));
+        setMaxTurns(2);
+        setIsUnlimited(false);
+        stageStartRef.current = Date.now();
+        stageEndRef.current = null;
+        committedRef.current = false;
+        committedStageMsRef.current = 0;
+        setRevealId(0);
+        setIsFlipping(false);
+        setIsLoading(false);
+      },
+    );
+
+    render(<Game marathonLevels={[1]} />);
+
+    const oKey = screen.getByRole('button', { name: 'O' });
+    const tKey = screen.getByRole('button', { name: 'T' });
+    const hKey = screen.getByRole('button', { name: 'H' });
+    const eKey = screen.getByRole('button', { name: 'E' });
+    const rKey = screen.getByRole('button', { name: 'R' });
+    const enterKey = screen.getByRole('button', { name: 'Enter' });
+
+    // Second wrong guess: OTHER again to exhaust guesses.
+    fireEvent.click(oKey);
+    fireEvent.click(tKey);
+    fireEvent.click(hKey);
+    fireEvent.click(eKey);
+    fireEvent.click(rKey);
+
+    fireEvent.click(enterKey);
+
+    await act(async () => {
+      vi.advanceTimersByTime(FLIP_COMPLETE_MS + 50);
+    });
+
+    expect(screen.getByTestId('out-of-guesses')).toBeInTheDocument();
+    expect(lastOutOfGuessesProps).not.toBeNull();
+
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+    const callsBefore = setTimeoutSpy.mock.calls.length;
+
+    await act(async () => {
+      lastOutOfGuessesProps.onExit();
+    });
+
+    // GamePopup should now be visible immediately, without needing to advance timers.
+    expect(screen.getByTestId('popup')).toBeInTheDocument();
+    expect(setTimeoutSpy).toHaveBeenCalledTimes(callsBefore);
+
+    // Comments section should be shown for finished daily games, with a non-empty thread id.
+    expect(screen.getByTestId('comments')).toBeInTheDocument();
+    expect(typeof lastCommentsThreadId).toBe('string');
+    expect(lastCommentsThreadId.length).toBeGreaterThan(0);
+
+    setTimeoutSpy.mockRestore();
+  });
 });
 
 
-describe('Game – speedrun timers', () => {
+describe('Game  uses scoreGuess for scoring guesses', () => {
+  it('calls scoreGuess with the submitted guess and board solution in non-speedrun mode', () => {
+    const scoreSpy = vi.spyOn(wordleLib, 'scoreGuess');
+    configureSingleBoardNonSpeedrun();
+
+    render(<Game marathonLevels={[1]} />);
+
+    const oKey = screen.getByRole('button', { name: 'O' });
+    const tKey = screen.getByRole('button', { name: 'T' });
+    const hKey = screen.getByRole('button', { name: 'H' });
+    const eKey = screen.getByRole('button', { name: 'E' });
+    const rKey = screen.getByRole('button', { name: 'R' });
+    const enterKey = screen.getByRole('button', { name: 'Enter' });
+
+    // Submit a non-winning guess that shares letters with the solution (e.g. OTHER vs APPLE).
+    // This ensures the integration path uses the shared scoreGuess logic, which is separately
+    // tested for correct yellow/green/grey behavior in wordle.test.js.
+    fireEvent.click(oKey);
+    fireEvent.click(tKey);
+    fireEvent.click(hKey);
+    fireEvent.click(eKey);
+    fireEvent.click(rKey);
+
+    fireEvent.click(enterKey);
+
+    expect(scoreSpy).toHaveBeenCalledWith('OTHER', 'APPLE');
+  });
+});
+
+describe('Game  speedrun timers', () => {
   it('daily speedrun: freezeStageTimer uses Date.now difference and GamePopup receives stageElapsedMs/popupTotalMs', async () => {
     vi.useFakeTimers();
 
@@ -519,8 +733,7 @@ describe('Game – speedrun timers', () => {
     expect(lastGamePopupProps.stageElapsedMs).toBe(10_000);
     expect(lastGamePopupProps.popupTotalMs).toBe(10_000);
 
-    // Speedrun score uses popupTotalMs (or stageElapsedMs if 0)
-    expect(calculateSpeedrunScoreMock).toHaveBeenCalledWith(10_000, 1);
+    // No speedrun score is calculated anymore.
   });
 
   it('marathon speedrun: popupTotalMs uses cumulative time from previous stages', async () => {

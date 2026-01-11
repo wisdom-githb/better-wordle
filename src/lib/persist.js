@@ -1,5 +1,5 @@
 // Import getCurrentDateString for daily reset functionality
-import { getCurrentDateString } from "./dailyWords";
+import { getCurrentDateString } from "./dailyWords.js";
 
 const PREFIX = "mw:";
 export const SESSION_KEY = `${PREFIX}session`;

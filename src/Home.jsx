@@ -101,7 +101,8 @@ export default function Home({
   }, [navigate]);
   
   const handleMarathonSpeedrun = useCallback(() => {
-    navigate(`/game/marathon/speedrun`);
+    // Use query params so Game.jsx can read mode=marathon & speedrun=true
+    navigate(`/game?mode=marathon&speedrun=true`);
   }, [navigate]);
   
   const handleResetMarathonGuesses = useCallback(() => {
@@ -222,7 +223,7 @@ export default function Home({
           <section className="panel">
             <div className="panelTop">
               <div>
-                <h2 className="panelTitle">Daily Wordle-Style Puzzles</h2>
+                <h2 className="panelTitle">Daily Puzzles</h2>
                 <div className="panelDesc">
                   Choose how many words you want to play simultaneously.
                 </div>
@@ -281,7 +282,7 @@ export default function Home({
           <section className="panel">
             <div className="panelTop">
               <div>
-                <h2 className="panelTitle">Marathon &amp; Speedrun Modes</h2>
+                <h2 className="panelTitle">Marathon Puzzles</h2>
                 <div className="panelDesc">
                   Solve 1 word, then 2, then 3, ending at 4. Complete all stages to
                   win.
@@ -325,7 +326,7 @@ export default function Home({
               <div>
                 <h2 className="panelTitle">1v1 Wordle Battles With Friends</h2>
                 <div className="panelDesc">
-                  Challenge a friend to a head-to-head Wordle-style battle.
+                  Challenge anyone to a 1v1 match.
                 </div>
               </div>
             </div>

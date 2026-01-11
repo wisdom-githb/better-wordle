@@ -19,7 +19,8 @@ export default function Keyboard({
       {KEYBOARD_ROWS.map((row, rIndex) => (
         <div key={rIndex} className="keyboardRow">
           {row.map((key) => {
-            const isAction = key === "ENTER" || key === "BACK";
+            const isEnter = key === "ENTER";
+            const isBack = key === "BACK";
             const isLetter = /^[A-Z]$/.test(key);
 
             const isMultiNoFocus = numBoards > 1 && selectedBoardIndex == null;
@@ -42,11 +43,13 @@ export default function Keyboard({
               <button
                 key={key}
                 onClick={() => onVirtualKey(key)}
-                className={`keyBtn ${isAction ? "keyBtnAction" : ""}`}
+                className={`keyBtn ${isEnter || isBack ? "keyBtnAction" : ""}`}
                 style={{ backgroundColor: baseBg }}
                 aria-label={key === "BACK" ? "Backspace" : key === "ENTER" ? "Enter" : key}
               >
-                <div className="keyLabel">{display}</div>
+                <div className={`keyLabel ${key === "BACK" ? "keyLabelBackspace" : ""}`}>
+                  {display}
+                </div>
 
                 {showGridOverlay && (
                   <div

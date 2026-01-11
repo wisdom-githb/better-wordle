@@ -177,6 +177,14 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
             >
               Join
             </button>
+            <button
+              type="button"
+              onClick={onRequestClose}
+              className="homeBtn homeBtnOutline homeBtnLg"
+              style={{ width: '100%', marginTop: '12px' }}
+            >
+              Close
+            </button>
           </div>
         </div>
       </div>

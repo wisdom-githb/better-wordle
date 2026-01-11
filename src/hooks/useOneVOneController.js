@@ -564,8 +564,19 @@ export function useOneVOneController({
     }
     try {
       const { ANSWER_WORDS } = await loadWordLists();
-      // For 1v1, always pick fresh random words so each hosted game uses new words.
-      const boardsForThisGame = Math.max(1, numBoards || 1);
+      // For the initial 1v1 round, respect the boards count selected on the host
+      // screen (boardsParam). Fall back to the current numBoards (derived from
+      // existing boards/solutions) if no explicit boardsParam is present.
+      let boardsForThisGame = 1;
+      if (boardsParam != null) {
+        const parsed = parseInt(boardsParam, 10);
+        if (Number.isFinite(parsed)) {
+          const upper = Number.isFinite(maxOneVOneBoards) ? maxOneVOneBoards : 32;
+          boardsForThisGame = Math.max(1, Math.min(upper, parsed));
+        }
+      } else {
+        boardsForThisGame = Math.max(1, numBoards || 1);
+      }
       const seed = parseInt(gameCode, 10) + Date.now();
       const rng = new SeededRandom(seed);
       const solutions = Array.from({ length: boardsForThisGame }).map(() => {

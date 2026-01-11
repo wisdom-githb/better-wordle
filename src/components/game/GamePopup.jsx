@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 export default function GamePopup({
   allSolved,
   boards,
-  score,
   speedrunEnabled,
   stageElapsedMs,
   popupTotalMs,
@@ -12,6 +11,8 @@ export default function GamePopup({
   solvedCount,
   mode,
   marathonHasNext,
+  turnsUsed,
+  maxTurns,
   onShare,
   onClose,
   onNextStage,
@@ -20,12 +21,12 @@ export default function GamePopup({
   commitStageIfNeeded,
   isOneVOne,
   oneVOneGameState,
-  myScore,
-  opponentScore,
   winner,
   isPlayerHost,
   onRematch,
   onChangeMode,
+  canShare = true,
+  allowNextStageAfterPopup = true,
 }) {
   const navigate = useNavigate();
   
@@ -74,22 +75,13 @@ export default function GamePopup({
         {isOneVOne ? (() => {
           const isSpeedrun = oneVOneGameState?.speedrun || false;
 
-          // Derive win/lose/tie purely from scores from this player's perspective.
-          // In speedrun, lower time wins; in normal mode, higher score wins.
-          const haveScores = myScore !== null && myScore !== undefined &&
-            opponentScore !== null && opponentScore !== undefined;
-
+          // Derive win/lose/tie from winner + player role.
           let resultLabel = "It's a tie!";
-          if (haveScores) {
-            if (isSpeedrun) {
-              if (myScore < opponentScore) resultLabel = "You Won!";
-              else if (myScore > opponentScore) resultLabel = "You Lost";
-              else resultLabel = "It's a tie!";
-            } else {
-              if (myScore > opponentScore) resultLabel = "You Won!";
-              else if (myScore < opponentScore) resultLabel = "You Lost";
-              else resultLabel = "It's a tie!";
-            }
+          if (winner === 'host' || winner === 'guest') {
+            const didPlayerWin = (winner === 'host' && isPlayerHost) || (winner === 'guest' && !isPlayerHost);
+            const didPlayerLose = (winner === 'host' && !isPlayerHost) || (winner === 'guest' && isPlayerHost);
+            if (didPlayerWin) resultLabel = "You Won!";
+            else if (didPlayerLose) resultLabel = "You Lost";
           }
 
           let titleColor = "#c9b458";
@@ -135,22 +127,42 @@ export default function GamePopup({
 
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 16, color: "#818384", marginBottom: 4 }}>
-                  {oneVOneGameState?.speedrun ? "Your Time" : "Your Score"}
+                  {oneVOneGameState?.speedrun ? "Your Time" : "Your Guesses"}
                 </div>
                 <div style={{ fontSize: 24, color: "#ffffff", fontWeight: "bold" }}>
-                  {oneVOneGameState?.speedrun 
-                    ? (myScore !== null && myScore !== undefined ? formatElapsed(myScore) : "N/A")
-                    : (myScore || 0)}
+                  {(() => {
+                    if (!oneVOneGameState) return "N/A";
+                    if (oneVOneGameState.speedrun) {
+                      const myTimeMs = isPlayerHost
+                        ? oneVOneGameState.hostTimeMs ?? null
+                        : oneVOneGameState.guestTimeMs ?? null;
+                      return myTimeMs != null ? formatElapsed(myTimeMs) : "N/A";
+                    }
+                    const myGuesses = isPlayerHost
+                      ? oneVOneGameState.hostGuesses || []
+                      : oneVOneGameState.guestGuesses || [];
+                    return myGuesses.length;
+                  })()}
                 </div>
               </div>
               <div style={{ borderTop: "1px solid #3a3a3c", paddingTop: 12 }}>
                 <div style={{ fontSize: 16, color: "#818384", marginBottom: 4 }}>
-                  {oneVOneGameState?.speedrun ? "Opponent's Time" : "Opponent's Score"}
+                  {oneVOneGameState?.speedrun ? "Opponent's Time" : "Opponent's Guesses"}
                 </div>
                 <div style={{ fontSize: 24, color: "#ffffff", fontWeight: "bold" }}>
-                  {oneVOneGameState?.speedrun 
-                    ? (opponentScore !== null && opponentScore !== undefined ? formatElapsed(opponentScore) : "N/A")
-                    : (opponentScore || 0)}
+                  {(() => {
+                    if (!oneVOneGameState) return "N/A";
+                    if (oneVOneGameState.speedrun) {
+                      const opponentTimeMs = isPlayerHost
+                        ? oneVOneGameState.guestTimeMs ?? null
+                        : oneVOneGameState.hostTimeMs ?? null;
+                      return opponentTimeMs != null ? formatElapsed(opponentTimeMs) : "N/A";
+                    }
+                    const opponentGuesses = isPlayerHost
+                      ? oneVOneGameState.guestGuesses || []
+                      : oneVOneGameState.hostGuesses || [];
+                    return opponentGuesses.length;
+                  })()}
                 </div>
               </div>
             </div>
@@ -174,11 +186,13 @@ export default function GamePopup({
             {speedrunEnabled && (
               <div style={{ marginBottom: 12, color: "#d7dadc", fontSize: 15 }}>
                 <div>Total time: {formatElapsed(popupTotalMs)}</div>
-                <div>Stage time: {formatElapsed(stageElapsedMs)}</div>
+                {mode === "marathon" && (
+                  <div>Stage time: {formatElapsed(stageElapsedMs)}</div>
+                )}
               </div>
             )}
 
-            <div style={{ marginBottom: 14, fontSize: 16, color: "#d7dadc" }}>
+            <div style={{ marginBottom: 8, fontSize: 16, color: "#d7dadc" }}>
               {allSolved
                 ? boards.length === 1
                   ? "You solved the word."
@@ -186,8 +200,8 @@ export default function GamePopup({
                 : `You solved ${solvedCount} of ${boards.length} word${boards.length > 1 ? "s" : ""}.`}
             </div>
 
-            <div style={{ marginBottom: 14, fontSize: 20, color: "#ffffff", fontWeight: "bold" }}>
-              Score: {score}
+            <div style={{ marginBottom: 14, fontSize: 18, color: "#ffffff", fontWeight: "bold" }}>
+              Guesses used: {turnsUsed}/{maxTurns}
             </div>
           </>
         )}
@@ -271,7 +285,7 @@ export default function GamePopup({
         )}
 
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {!isOneVOne && (
+          {!isOneVOne && canShare && (
             <button
               onClick={onShare}
               style={{
@@ -377,7 +391,7 @@ export default function GamePopup({
             Home
           </button>
 
-          {mode === "marathon" && marathonHasNext && (
+          {mode === "marathon" && marathonHasNext && allowNextStageAfterPopup && (
             <button
               onClick={handleNextStage}
               style={{
