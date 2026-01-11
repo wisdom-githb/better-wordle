@@ -3,7 +3,7 @@ import {
   calculateNonSpeedrunScore,
   calculateSpeedrunScore,
   generateShareText,
-} from './gameUtils';
+} from './gameUtils.js';
 
 // Helper to create a board object
 function makeBoard(guesses, isSolved) {

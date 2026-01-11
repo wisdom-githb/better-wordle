@@ -8,7 +8,7 @@ import {
   makeMarathonKey,
   marathonMetaKey,
   makeSolvedKey,
-} from './persist';
+} from './persist.js';
 
 beforeEach(() => {
   window.localStorage.clear();

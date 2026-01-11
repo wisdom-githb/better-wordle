@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { SeededRandom, selectDailyWord, selectDailyWords } from './dailyWords';
+import { SeededRandom, selectDailyWord, selectDailyWords } from './dailyWords.js';
 
 // Note: getCurrentDateString uses Date.now under the hood via new Date().
 // We'll use vi.setSystemTime to make date-dependent behaviour deterministic.

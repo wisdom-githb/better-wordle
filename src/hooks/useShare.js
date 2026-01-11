@@ -1,6 +1,29 @@
 import { useCallback } from "react";
 import { isMobileDevice } from "../lib/gameUtils";
 
+function buildOneVOneShareText(code) {
+  let roomUrl = "";
+
+  try {
+    if (typeof window !== "undefined" && window.location) {
+      const { origin, pathname } = window.location;
+      const GAME_PATH = "/game";
+      const idx = pathname.indexOf(GAME_PATH);
+      const basePath = idx !== -1 ? pathname.slice(0, idx) : "";
+      const fullPath = `${basePath}${GAME_PATH}`;
+      roomUrl = `${origin}${fullPath}?mode=1v1&code=${code}`;
+    }
+  } catch (e) {
+    // Ignore and fall back to relative URL below
+  }
+
+  if (!roomUrl) {
+    roomUrl = `/game?mode=1v1&code=${code}`;
+  }
+
+  return `Join my Better Wordle 1v1 game\nLink: ${roomUrl}\nRoom code: ${code}`;
+}
+
 /**
  * Hook for sharing game results and 1v1 game codes.
  */
@@ -71,6 +94,7 @@ export function useShare(shareText, setTimedMessage) {
   const handleShareCode = useCallback(
     async (code) => {
       const isMobile = isMobileDevice();
+      const text = buildOneVOneShareText(code);
 
       try {
         // Mobile: Use native share API
@@ -78,7 +102,7 @@ export function useShare(shareText, setTimedMessage) {
           try {
             await navigator.share({
               title: "Join my Better Wordle game!",
-              text: `Join my game with code: ${code}`,
+              text,
             });
             return;
           } catch (shareErr) {
@@ -90,7 +114,6 @@ export function useShare(shareText, setTimedMessage) {
         }
 
         // Desktop (or mobile if share failed): Copy to clipboard
-        const text = `Join my Better Wordle game with code: ${code}`;
         if (navigator.clipboard && navigator.clipboard.writeText) {
           await navigator.clipboard.writeText(text);
           setTimedMessage("Code copied to clipboard!", 2000);

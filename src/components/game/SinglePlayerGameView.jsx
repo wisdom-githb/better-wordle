@@ -10,6 +10,7 @@ import GamePopup from "./GamePopup";
 import Keyboard from "../Keyboard";
 import SiteHeader from "../SiteHeader";
 import FeedbackModal from "../FeedbackModal";
+import CommentsSection from "./CommentsSection";
 import { KEYBOARD_HEIGHT } from "../../lib/wordle";
 
 export default function SinglePlayerGameView({
@@ -57,6 +58,8 @@ export default function SinglePlayerGameView({
   setShowFeedbackModal,
   setShowPopup,
   setShowOutOfGuesses,
+  showComments,
+  commentThreadId,
 }) {
   return (
     <div
@@ -146,6 +149,10 @@ export default function SinglePlayerGameView({
               />
             ))}
           </div>
+
+          {showComments && commentThreadId && (
+            <CommentsSection threadId={commentThreadId} />
+          )}
         </div>
       </main>
 
@@ -172,18 +179,20 @@ export default function SinglePlayerGameView({
         </footer>
       )}
 
-      <BoardSelector
-        numBoards={numBoards}
-        showBoardSelector={showBoardSelector}
-        setShowBoardSelector={setShowBoardSelector}
-        boards={boards}
-        selectedBoardIndex={selectedBoardIndex}
-        setSelectedBoardIndex={setSelectedBoardIndex}
-        boardRefs={boardRefs}
-        isUnlimited={isUnlimited}
-        speedrunEnabled={speedrunEnabled}
-        statusText={statusText}
-      />
+      {!allSolved && (
+        <BoardSelector
+          numBoards={numBoards}
+          showBoardSelector={showBoardSelector}
+          setShowBoardSelector={setShowBoardSelector}
+          boards={boards}
+          selectedBoardIndex={selectedBoardIndex}
+          setSelectedBoardIndex={setSelectedBoardIndex}
+          boardRefs={boardRefs}
+          isUnlimited={isUnlimited}
+          speedrunEnabled={speedrunEnabled}
+          statusText={statusText}
+        />
+      )}
 
       {showOutOfGuesses && (
         <OutOfGuessesPopup

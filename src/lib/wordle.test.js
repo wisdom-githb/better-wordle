@@ -8,7 +8,7 @@ import {
   formatElapsed,
   colorForStatus,
   colorForMiniCell,
-} from './wordle';
+} from './wordle.js';
 
 describe('scoreGuess', () => {
   it('marks all letters green for an exact match', () => {

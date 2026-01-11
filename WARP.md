@@ -208,3 +208,7 @@ All commands are run from the repository root.
 - When changing the deployment base path or GitHub Pages target repo name, update **both** `vite.config.js` (`base`) and any logic that depends on `import.meta.env.BASE_URL` (notably `src/main.jsx`, `useWordLists`, and `lib/wordLists.js`).
 - When modifying game rules, persistence, or timing, expect to update code across `src/Game.jsx`, `src/lib/wordle.js`, `src/lib/dailyWords.js`, `src/lib/persist.js`, and `src/lib/gameUtils.js` together.
 - Any changes to 1v1 behavior typically touch `src/Game.jsx`, `src/hooks/useOneVOneGame.js`, and the UI components under `src/components/game/` related to multiplayer (waiting room, opponent board, etc.).
+
+## Test cases
+
+- Always include/update unit test cases when writing code.

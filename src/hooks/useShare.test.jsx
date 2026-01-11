@@ -60,7 +60,7 @@ describe('useShare', () => {
     expect(setTimedMessage).not.toHaveBeenCalled();
   });
 
-  it('handleShareCode copies game code to clipboard when share is unavailable', async () => {
+  it('handleShareCode copies URL and room code to clipboard when share is unavailable', async () => {
     (isMobileDevice).mockReturnValue(false);
     const setTimedMessage = vi.fn();
 
@@ -70,9 +70,34 @@ describe('useShare', () => {
       await result.current.handleShareCode('123456');
     });
 
-    expect(mocks.clipboardWriteTextMock).toHaveBeenCalledWith(
-      'Join my Better Wordle game with code: 123456',
-    );
+    const origin = window.location.origin;
+    const expectedUrl = `${origin}/game?mode=1v1&code=123456`;
+    const expectedText = `Join my Better Wordle 1v1 game\nLink: ${expectedUrl}\nRoom code: 123456`;
+
+    expect(mocks.clipboardWriteTextMock).toHaveBeenCalledWith(expectedText);
     expect(setTimedMessage).toHaveBeenCalledWith('Code copied to clipboard!', 2000);
+  });
+
+  it('handleShareCode uses navigator.share with URL and room code on mobile', async () => {
+    (isMobileDevice).mockReturnValue(true);
+    const setTimedMessage = vi.fn();
+
+    const { result } = renderHook(() => useShare('ignored', setTimedMessage));
+
+    await act(async () => {
+      await result.current.handleShareCode('123456');
+    });
+
+    const origin = window.location.origin;
+    const expectedUrl = `${origin}/game?mode=1v1&code=123456`;
+    const expectedText = `Join my Better Wordle 1v1 game\nLink: ${expectedUrl}\nRoom code: 123456`;
+
+    expect(mocks.shareMock).toHaveBeenCalledTimes(1);
+    expect(mocks.shareMock.mock.calls[0][0]).toMatchObject({
+      title: 'Join my Better Wordle game!',
+      text: expectedText,
+    });
+    expect(mocks.clipboardWriteTextMock).not.toHaveBeenCalled();
+    expect(setTimedMessage).not.toHaveBeenCalled();
   });
 });

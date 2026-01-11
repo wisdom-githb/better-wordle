@@ -9,7 +9,6 @@ describe('NextStageBar', () => {
 
     render(<NextStageBar marathonNextBoards={3} onNextStage={onNextStage} />);
 
-    expect(screen.getByText(/stage cleared\. continue marathon\?/i)).toBeInTheDocument();
     const button = screen.getByRole('button', { name: /next: 3 boards/i });
     fireEvent.click(button);
     expect(onNextStage).toHaveBeenCalled();

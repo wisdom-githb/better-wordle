@@ -8,5 +8,11 @@ export default defineConfig({
     setupFiles: ['./src/test/setupTests.ts'],
     globals: true,
     css: true,
+    coverage: {
+      provider: 'istanbul',
+      reporter: ['text', 'html'],
+      include: ['src/**/*.{js,jsx,ts,tsx}'],
+      exclude: ['src/test/**'],
+    },
   },
 });

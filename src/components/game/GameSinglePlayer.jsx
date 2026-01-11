@@ -597,6 +597,18 @@ export default function GameSinglePlayer({
       ? "Play Better Wordle daily multi-board Wordle-style puzzles with standard and speedrun options, tracking your guesses and scores across boards."
       : "Play Better Wordle game modes including daily, marathon, speedrun and multi-board Wordle-style puzzles.";
 
+  const shouldShowComments = allSolved && (mode === "daily" || mode === "marathon");
+
+  const commentsThreadId = shouldShowComments
+    ? makeSolvedKey(
+        mode,
+        numBoards,
+        speedrunEnabled,
+        mode === "marathon" ? marathonIndex : null,
+        getCurrentDateString()
+      )
+    : null;
+
   if (isLoading) {
     return (
       <>
@@ -671,6 +683,8 @@ export default function GameSinglePlayer({
         setShowFeedbackModal={setShowFeedbackModal}
         setShowPopup={setShowPopup}
         setShowOutOfGuesses={setShowOutOfGuesses}
+        showComments={shouldShowComments}
+        commentThreadId={commentsThreadId}
       />
     </>
   );
