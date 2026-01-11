@@ -333,7 +333,7 @@ export default function GamePopup({
                 textTransform: "uppercase",
               }}
             >
-              Change mode
+              Change Mode
             </button>
           )}
 
@@ -395,7 +395,7 @@ export default function GamePopup({
                 textTransform: "uppercase"
               }}
             >
-              Next stage
+              Next Stage
             </button>
           )}
         </div>

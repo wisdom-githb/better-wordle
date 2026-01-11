@@ -79,7 +79,7 @@ export default function OneVOneGameView({
               cursor: "pointer",
             }}
           >
-            Click here to go to the home page
+            Home
           </button>
         </div>
       </div>
@@ -157,7 +157,7 @@ export default function OneVOneGameView({
             cursor: "pointer",
           }}
         >
-          Go Home
+          Home
         </button>
       </div>
     );
@@ -307,49 +307,6 @@ export default function OneVOneGameView({
 
   return (
     <>
-      {/* Wordle-style 2-sided flip styles (shared with single-player mode) */}
-      <style>{`
-        .mw-tile {
-          flex-shrink: 0;
-          perspective: 900px;
-        }
-
-        .mw-card {
-          width: 100%;
-          height: 100%;
-          position: relative;
-          transform-style: preserve-3d;
-          will-change: transform;
-        }
-
-        @keyframes mwFlipCard {
-          0%   { transform: rotateX(0deg); }
-          100% { transform: rotateX(180deg); }
-        }
-
-        .mw-flip {
-          animation: mwFlipCard ${FLIP_MS}ms ease-in-out both;
-          animation-fill-mode: both;
-        }
-
-        .mw-face {
-          position: absolute;
-          inset: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: bold;
-          font-size: 18px;
-          border-radius: 4px;
-          text-transform: uppercase;
-          backface-visibility: hidden;
-          -webkit-backface-visibility: hidden;
-        }
-
-        .mw-front { transform: rotateX(0deg); }
-        .mw-back  { transform: rotateX(180deg); }
-      `}</style>
-
       <div
         style={{
           minHeight: "100vh",

@@ -355,15 +355,11 @@ export default function HamburgerMenu({ onOpenFeedback }) {
                               alert(err?.message || 'Failed to cancel challenge');
                             }
                           }}
+                          className="homeBtn homeBtnOutline"
                           style={{
                             padding: "6px 10px",
-                            borderRadius: 6,
-                            border: "1px solid #3a3a3c",
-                            background: "transparent",
-                            color: "#ffffff",
                             fontSize: 11,
-                            fontWeight: "bold",
-                            cursor: "pointer",
+                            borderRadius: 6,
                           }}
                         >
                           Cancel
@@ -446,15 +442,11 @@ export default function HamburgerMenu({ onOpenFeedback }) {
                               alert(err?.message || 'Failed to accept challenge');
                             }
                           }}
+                          className="homeBtn homeBtnGreen"
                           style={{
                             padding: "6px 10px",
-                            borderRadius: 6,
-                            border: "none",
-                            background: "#6aaa64",
-                            color: "#ffffff",
                             fontSize: 11,
-                            fontWeight: "bold",
-                            cursor: "pointer",
+                            borderRadius: 6,
                           }}
                         >
                           Accept
@@ -468,15 +460,11 @@ export default function HamburgerMenu({ onOpenFeedback }) {
                               alert(err?.message || 'Failed to dismiss challenge');
                             }
                           }}
+                          className="homeBtn homeBtnOutline"
                           style={{
                             padding: "6px 10px",
-                            borderRadius: 6,
-                            border: "1px solid #3a3a3c",
-                            background: "transparent",
-                            color: "#ffffff",
                             fontSize: 11,
-                            fontWeight: "bold",
-                            cursor: "pointer",
+                            borderRadius: 6,
                           }}
                         >
                           Dismiss
@@ -491,17 +479,8 @@ export default function HamburgerMenu({ onOpenFeedback }) {
 
           <button
             onClick={() => setShowChallengesModal(false)}
-            style={{
-              marginTop: 4,
-              padding: "10px 16px",
-              borderRadius: 8,
-              border: "none",
-              background: "#6aaa64",
-              color: "#ffffff",
-              fontSize: 13,
-              fontWeight: "bold",
-              cursor: "pointer",
-            }}
+            className="homeBtn homeBtnGreen homeBtnLg"
+            style={{ marginTop: 4 }}
           >
             Close
           </button>

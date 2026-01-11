@@ -52,6 +52,7 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete }) {
           padding: "10px 16px 8px",
           borderBottom: "1px solid #3a3a3c",
           backgroundColor: "#121213",
+          marginBottom: "12px",
         }}
       >
         {/* Line 1: centered title with hamburger on the right */}

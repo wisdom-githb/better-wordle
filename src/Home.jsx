@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
 import "./Home.css";
 import FeedbackModal from "./components/FeedbackModal";
 import OneVOneModal from "./components/OneVOneModal";
@@ -76,12 +77,12 @@ export default function Home({
   
   const handleDailyStandard = useCallback(() => {
     saveJSON("mw:dailyBoards", dailyBoards);
-    navigate(`/game?mode=daily&boards=${dailyBoards}&speedrun=false`);
+    navigate(`/game/daily/${dailyBoards}`);
   }, [dailyBoards, navigate]);
   
   const handleDailySpeedrun = useCallback(() => {
     saveJSON("mw:dailyBoards", dailyBoards);
-    navigate(`/game?mode=daily&boards=${dailyBoards}&speedrun=true`);
+    navigate(`/game/daily/${dailyBoards}/speedrun`);
   }, [dailyBoards, navigate]);
   
   const handleResetDailyGuesses = useCallback(() => {
@@ -96,11 +97,11 @@ export default function Home({
   }, [dailyBoards]);
   
   const handleMarathonStandard = useCallback(() => {
-    navigate(`/game?mode=marathon&speedrun=false`);
+    navigate(`/game/marathon`);
   }, [navigate]);
   
   const handleMarathonSpeedrun = useCallback(() => {
-    navigate(`/game?mode=marathon&speedrun=true`);
+    navigate(`/game/marathon/speedrun`);
   }, [navigate]);
   
   const handleResetMarathonGuesses = useCallback(() => {
@@ -126,7 +127,15 @@ export default function Home({
   const dailyTitleRight = useMemo(() => `${dailyBoards} board${dailyBoards > 1 ? "s" : ""}`, [dailyBoards]);
 
   return (
-    <div className="homeRoot">
+    <>
+      <Helmet>
+        <title>Better Wordle</title>
+        <meta
+          name="description"
+          content="Better Wordle is a Wordle alternative with multi-board daily puzzles, marathon and speedrun modes, and 1v1 Wordle-style battles with friends."
+        />
+      </Helmet>
+      <div className="homeRoot">
       <div className="homeInner">
         <SiteHeader
           onOpenFeedback={handleOpenFeedback}
@@ -183,18 +192,10 @@ export default function Home({
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <button
                 type="button"
+                className="homeBtn homeBtnGreen homeBtnLg"
                 onClick={() => setShowVerifyEmailModal(false)}
                 style={{
-                  padding: "10px 20px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: "#6aaa64",
-                  color: "#ffffff",
-                  fontSize: 14,
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                  textTransform: "uppercase",
-                  letterSpacing: 0.5,
+                  minWidth: 120,
                 }}
               >
                 Got it
@@ -216,128 +217,166 @@ export default function Home({
           onConfigOpen={() => setShowOneVOneConfig(true)}
         />
 
-        {/* DAILY */}
-        <section className="panel">
-          <div className="panelTop">
-            <div>
-              <h2 className="panelTitle">Daily</h2>
-              <div className="panelDesc">
-                Choose how many words you want to play simultaneously.
+        <main>
+          {/* DAILY */}
+          <section className="panel">
+            <div className="panelTop">
+              <div>
+                <h2 className="panelTitle">Daily Wordle-Style Puzzles</h2>
+                <div className="panelDesc">
+                  Choose how many words you want to play simultaneously.
+                </div>
+              </div>
+
+              <div className="selector">
+                <label className="label" htmlFor="dailyBoards">
+                  Simultaneous words
+                </label>
+                <select
+                  id="dailyBoards"
+                  value={dailyBoards}
+                  onChange={(e) => setDailyBoards(parseInt(e.target.value, 10))}
+                  className="select"
+                >
+                  {BOARD_OPTIONS.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
-            <div className="selector">
-              <label className="label" htmlFor="dailyBoards">
-                Simultaneous words
-              </label>
-              <select
-                id="dailyBoards"
-                value={dailyBoards}
-                onChange={(e) => setDailyBoards(parseInt(e.target.value, 10))}
-                className="select"
+            <div className="panelBody">
+              <ModeRow
+                title="Daily (standard)"
+                desc="Limited turns. No timer. Good for casual play."
+                buttonText="Play Daily"
+                onClick={handleDailyStandard}
+                variant="green"
+                titleRight={dailyTitleRight}
+              />
+
+              <ModeRow
+                title="Daily (speedrun)"
+                desc="Unlimited guesses. Timer starts immediately."
+                buttonText="Speedrun Daily"
+                onClick={handleDailySpeedrun}
+                variant="green"
+                titleRight={dailyTitleRight}
+              />
+
+              <button
+                type="button"
+                className="homeBtn homeBtnOutline"
+                onClick={handleResetDailyGuesses}
+                style={{ marginTop: "12px" }}
               >
-                {BOARD_OPTIONS.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
+                Reset today&apos;s daily guesses
+              </button>
             </div>
-          </div>
+          </section>
 
-          <div className="panelBody">
-            <ModeRow
-              title="Daily (standard)"
-              desc="Limited turns. No timer. Good for casual play."
-              buttonText="Play daily"
-              onClick={handleDailyStandard}
-              variant="green"
-              titleRight={dailyTitleRight}
-            />
-
-            <ModeRow
-              title="Daily (speedrun)"
-              desc="Unlimited guesses. Timer starts immediately."
-              buttonText="Speedrun daily"
-              onClick={handleDailySpeedrun}
-              variant="green"
-              titleRight={dailyTitleRight}
-            />
-
-            <button
-              type="button"
-              className="homeBtn homeBtnOutline"
-              onClick={handleResetDailyGuesses}
-              style={{ marginTop: "12px" }}
-            >
-              Reset today&apos;s daily guesses
-            </button>
-          </div>
-        </section>
-
-        {/* MARATHON */}
-        <section className="panel">
-          <div className="panelTop">
-            <div>
-              <h2 className="panelTitle">Marathon</h2>
-              <div className="panelDesc">
-                Solve 1 word, then 2, then 3, ends at 4. Complete all stages to win.
+          {/* MARATHON */}
+          <section className="panel">
+            <div className="panelTop">
+              <div>
+                <h2 className="panelTitle">Marathon &amp; Speedrun Modes</h2>
+                <div className="panelDesc">
+                  Solve 1 word, then 2, then 3, ending at 4. Complete all stages to
+                  win.
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="panelBody">
-            <ModeRow
-              title="Marathon (standard)"
-              desc="Play standard marathon. Limited turns. No timer."
-              buttonText="Play marathon"
-              onClick={handleMarathonStandard}
-              variant="gold"
-              titleRight={`Stage ${marathonStandardIndexUI + 1}/${marathonLevels.length}`}
-            />
+            <div className="panelBody">
+              <ModeRow
+                title="Marathon (standard)"
+                desc="Play standard marathon. Limited turns. No timer."
+                buttonText="Play Marathon"
+                onClick={handleMarathonStandard}
+                variant="gold"
+                titleRight={`Stage ${marathonStandardIndexUI + 1}/${marathonLevels.length}`}
+              />
 
-            <ModeRow
-              title="Marathon (speedrun)"
-              desc="Play speedrun marathon. Unlimited guesses, timed cumulative"
-              buttonText="Speedrun marathon"
-              onClick={handleMarathonSpeedrun}
-              variant="gold"
-              titleRight={`Stage ${marathonSpeedrunIndexUI + 1}/${marathonLevels.length}`}
-            />
+              <ModeRow
+                title="Marathon (speedrun)"
+                desc="Play speedrun marathon. Unlimited guesses, timed cumulative."
+                buttonText="Speedrun Marathon"
+                onClick={handleMarathonSpeedrun}
+                variant="gold"
+                titleRight={`Stage ${marathonSpeedrunIndexUI + 1}/${marathonLevels.length}`}
+              />
 
-            <button
-              type="button"
-              className="homeBtn homeBtnOutline"
-              onClick={handleResetMarathonGuesses}
-              style={{ marginTop: "12px" }}
-            >
-              Reset today&apos;s marathon guesses
-            </button>
-          </div>
-        </section>
+              <button
+                type="button"
+                className="homeBtn homeBtnOutline"
+                onClick={handleResetMarathonGuesses}
+                style={{ marginTop: "12px" }}
+              >
+                Reset today&apos;s marathon guesses
+              </button>
+            </div>
+          </section>
 
-        {/* 1v1 MODE */}
-        <section className="panel">
-          <div className="panelTop">
-            <div>
-              <h2 className="panelTitle">1v1</h2>
-              <div className="panelDesc">
-                Challenge a friend to a head-to-head Wordle battle.
+          {/* 1v1 MODE */}
+          <section className="panel">
+            <div className="panelTop">
+              <div>
+                <h2 className="panelTitle">1v1 Wordle Battles With Friends</h2>
+                <div className="panelDesc">
+                  Challenge a friend to a head-to-head Wordle-style battle.
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="panelBody">
-            <ModeRow
-              title="1v1 Mode"
-              desc="Play against another player."
-              buttonText="Play 1v1"
-              onClick={() => setShowOneVOneModal(true)}
-              variant="gold"
-            />
-          </div>
-        </section>
+            <div className="panelBody">
+              <ModeRow
+                title="1v1 Mode"
+                desc="Play against another player in real time."
+                buttonText="Play 1v1"
+                onClick={() => setShowOneVOneModal(true)}
+                variant="gold"
+              />
+            </div>
+          </section>
+
+          {/* INTRO (moved to bottom for less visual weight, still visible for SEO) */}
+          <section className="homeIntro">
+            <details className="homeIntroDetails">
+              <summary className="homeIntroSummary">
+                Click here to know more about Better Wordle.
+              </summary>
+              <h1 className="homeTitle">
+                Better Wordle – Advanced Multi-Board &amp; 1v1 Wordle-Style Game
+              </h1>
+              <p className="homeIntroParagraph">
+                Better Wordle is a free, browser-based Wordle-style puzzle game that you
+                can play on any device. No downloads or sign-in required to get started –
+                just open the site and start solving.
+              </p>
+              <p className="homeIntroParagraph">
+                Play up to 32 boards at once with daily multi-board puzzles, push
+                yourself with marathon stages and speedrun timers, and challenge
+                friends in head-to-head 1v1 Wordle-style battles. Your best speedrun
+                times can appear on the global Better Wordle leaderboard.
+              </p>
+              <p className="homeIntroParagraph">
+                New to Better Wordle? Read the{" "}
+                <Link to="/faq" className="homeLink">
+                  Better Wordle FAQ
+                </Link>{" "}
+                or jump straight to the{" "}
+                <Link to="/leaderboard" className="homeLink">
+                  global Better Wordle leaderboard
+                </Link>{" "}
+                to see top players.
+              </p>
+            </details>
+          </section>
+        </main>
       </div>
     </div>
+    </>
   );
 }

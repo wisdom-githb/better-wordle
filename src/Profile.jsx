@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
 import { useAuth } from "./hooks/useAuth";
 import FeedbackModal from "./components/FeedbackModal";
 import SiteHeader from "./components/SiteHeader";
@@ -80,7 +81,15 @@ export default function Profile() {
   };
 
   return (
-    <div className="profileRoot">
+    <>
+      <Helmet>
+        <title>Profile & Friends – Better Wordle</title>
+        <meta
+          name="description"
+          content="Manage your Better Wordle profile, username, account security and linked Google account so your Wordle-style progress and 1v1 games stay in sync."
+        />
+      </Helmet>
+      <div className="profileRoot">
       <div className="profileContainer">
         {loading ? (
           <div style={{ textAlign: "center", padding: "40px 20px", color: "#d7dadc" }}>
@@ -131,14 +140,16 @@ export default function Profile() {
                     <button
                       onClick={handleSave}
                       disabled={isSaving}
-                      className="profileBtn profileBtnSave"
+                      className="profileBtn homeBtn homeBtnGreen homeBtnLg"
+                      style={{ opacity: isSaving ? 0.8 : 1, cursor: isSaving ? "not-allowed" : "pointer" }}
                     >
                       {isSaving ? "Saving..." : "Save Changes"}
                     </button>
                     <button
                       onClick={handleCancel}
                       disabled={isSaving}
-                      className="profileBtn profileBtnCancel"
+                      className="profileBtn homeBtn homeBtnOutline homeBtnLg"
+                      style={{ opacity: isSaving ? 0.8 : 1, cursor: isSaving ? "not-allowed" : "pointer" }}
                     >
                       Cancel
                     </button>
@@ -156,8 +167,8 @@ export default function Profile() {
                         <button
                           onClick={handleResendVerification}
                           disabled={sendingVerification}
-                          className="profileBtn profileBtnSave"
-                          style={{ padding: '6px 10px', fontSize: '12px' }}
+                          className="homeBtn homeBtnGreen"
+                          style={{ padding: '6px 10px', fontSize: '12px', opacity: sendingVerification ? 0.8 : 1, cursor: sendingVerification ? 'not-allowed' : 'pointer' }}
                         >
                           {sendingVerification ? 'Sending...' : 'Resend link'}
                         </button>
@@ -173,8 +184,8 @@ export default function Profile() {
                         <button
                           onClick={handleLinkGoogle}
                           disabled={linkingGoogle}
-                          className="profileBtn profileBtnSave"
-                          style={{ padding: '6px 10px', fontSize: '12px' }}
+                          className="homeBtn homeBtnGreen"
+                          style={{ padding: '6px 10px', fontSize: '12px', opacity: linkingGoogle ? 0.8 : 1, cursor: linkingGoogle ? 'not-allowed' : 'pointer' }}
                         >
                           {linkingGoogle ? 'Linking...' : 'Connect Google account'}
                         </button>
@@ -200,5 +211,6 @@ export default function Profile() {
         />
       </div>
     </div>
+    </>
   );
 }

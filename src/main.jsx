@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+import { HelmetProvider } from 'react-helmet-async'
 import App from './App.jsx'
 import './index.css'
 
@@ -35,8 +36,16 @@ if (typeof window !== 'undefined') {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter basename={baseUrl}>
-      <App />
-    </BrowserRouter>
+    <HelmetProvider>
+      <BrowserRouter
+        basename={baseUrl}
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
+        <App />
+      </BrowserRouter>
+    </HelmetProvider>
   </React.StrictMode>,
 )

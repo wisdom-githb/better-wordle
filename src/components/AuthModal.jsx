@@ -210,18 +210,12 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
           <button
             type="submit"
             disabled={loading}
+            className={"homeBtn homeBtnGreen homeBtnLg" + (loading ? " homeBtnNeutral" : "")}
             style={{
               width: '100%',
-              padding: '12px',
               marginBottom: '12px',
-              backgroundColor: '#6aaa64',
-              border: 'none',
-              borderRadius: '6px',
-              color: '#ffffff',
-              fontSize: '16px',
-              fontWeight: 'bold',
               cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.6 : 1
+              opacity: loading ? 0.8 : 1,
             }}
           >
             {loading ? 'Please wait...' : (isSignUp ? 'Create Account' : 'Sign In')}

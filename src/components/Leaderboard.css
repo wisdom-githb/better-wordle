@@ -14,6 +14,10 @@
   overflow-x: hidden;
 }
 
+.leaderboardContent {
+  padding: 0 16px 24px;
+}
+
 .leaderboardHeader {
   display: flex;
   justify-content: space-between;
@@ -24,7 +28,7 @@
 }
 
 .leaderboardTitle {
-  margin: 0;
+  margin: 0 0 12px 0;
   font-size: 32px;
   font-weight: bold;
   letter-spacing: 2px;

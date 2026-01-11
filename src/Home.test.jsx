@@ -51,10 +51,14 @@ import Home from './Home';
 
 const renderWithRouter = (ui) =>
   render(
-    <MemoryRouter initialEntries={['/']}>
+    <MemoryRouter
+      initialEntries={['/']}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <Routes>
         <Route path="/" element={ui} />
-        <Route path="/game" element={<div data-testid="game-route" />} />
+        {/* Match any /game path (e.g., /game/daily/3, /game/daily/3/speedrun) */}
+        <Route path="/game/*" element={<div data-testid="game-route" />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -81,10 +85,10 @@ describe('Home', () => {
     expect(setDailyBoards).toHaveBeenCalledWith(4);
   });
 
-  it('navigates to correct game URLs for daily and saves boards count', () => {
+  it('navigates to correct game URLs for daily and saves boards count', async () => {
     const setDailyBoards = vi.fn();
 
-    const { container } = renderWithRouter(
+    renderWithRouter(
       <Home dailyBoards={3} setDailyBoards={setDailyBoards} marathonLevels={[1, 2, 3, 4]} />,
     );
 
@@ -97,8 +101,10 @@ describe('Home', () => {
     fireEvent.click(speedrunDailyBtn);
     expect(saveJSON).toHaveBeenCalledWith('mw:dailyBoards', 3);
 
-    // After navigating, the /game route should be rendered by React Router.
-    expect(container.querySelector('[data-testid="game-route"]')).not.toBeNull();
+    // After navigating, a /game route (e.g., /game/daily/3 or /game/daily/3/speedrun)
+    // should be rendered by React Router.
+    const gameRoute = await screen.findByTestId('game-route');
+    expect(gameRoute).toBeInTheDocument();
   });
 
   it('calls removeKey for the correct daily keys when resetting daily guesses', () => {

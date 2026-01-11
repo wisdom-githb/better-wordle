@@ -1,0 +1,229 @@
+import React from "react";
+import GameHeader from "./GameHeader";
+import GameStatusBar from "./GameStatusBar";
+import GameToast from "./GameToast";
+import GameBoard from "./GameBoard";
+import NextStageBar from "./NextStageBar";
+import BoardSelector from "./BoardSelector";
+import OutOfGuessesPopup from "./OutOfGuessesPopup";
+import GamePopup from "./GamePopup";
+import Keyboard from "../Keyboard";
+import SiteHeader from "../SiteHeader";
+import FeedbackModal from "../FeedbackModal";
+import { KEYBOARD_HEIGHT } from "../../lib/wordle";
+
+export default function SinglePlayerGameView({
+  mode,
+  numBoards,
+  speedrunEnabled,
+  allSolved,
+  solutionsText,
+  message,
+  boards,
+  maxTurns,
+  isUnlimited,
+  currentGuess,
+  invalidCurrentGuess,
+  revealId,
+  selectedBoardIndex,
+  setSelectedBoardIndex,
+  boardRefs,
+  gridCols,
+  gridRows,
+  perBoardLetterMaps,
+  focusedLetterMap,
+  showNextStageBar,
+  marathonNextBoards,
+  goNextStage,
+  showBoardSelector,
+  setShowBoardSelector,
+  statusText,
+  showOutOfGuesses,
+  exitFromOutOfGuesses,
+  continueAfterOutOfGuesses,
+  showPopup,
+  score,
+  stageElapsedMs,
+  popupTotalMs,
+  formatElapsed,
+  solvedCount,
+  marathonHasNext,
+  handleShare,
+  freezeStageTimer,
+  isMarathonSpeedrun,
+  commitStageIfNeeded,
+  handleVirtualKey,
+  showFeedbackModal,
+  setShowFeedbackModal,
+  setShowPopup,
+  setShowOutOfGuesses,
+}) {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        backgroundColor: "#121213",
+        color: "#ffffff",
+      }}
+    >
+      <SiteHeader onOpenFeedback={() => setShowFeedbackModal(true)} />
+
+      <main
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          overflowX: "hidden",
+          paddingBottom:
+            (allSolved ? 16 : KEYBOARD_HEIGHT) + (showNextStageBar ? 62 : 16),
+        }}
+      >
+        <GameHeader
+          mode={mode}
+          numBoards={numBoards}
+          speedrunEnabled={speedrunEnabled}
+        />
+
+        {solutionsText && solutionsText.length > 0 && (
+          <div
+            style={{
+              padding: "0 16px 8px",
+              fontSize: 12,
+              color: "#d7dadc",
+              textTransform: "uppercase",
+              fontWeight: "normal",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {solutionsText}
+          </div>
+        )}
+
+        <div style={{ padding: "16px" }}>
+          {/* Status bar: boards, guesses, timer */}
+          <GameStatusBar
+            numBoards={numBoards}
+            speedrunEnabled={speedrunEnabled}
+            isMarathonSpeedrun={isMarathonSpeedrun}
+            formatElapsed={formatElapsed}
+            stageElapsedMs={stageElapsedMs}
+            displayTotalMs={popupTotalMs || stageElapsedMs}
+            turnsUsed={boards.reduce((acc, b) => acc + b.guesses.length, 0)}
+            maxTurns={maxTurns}
+          />
+
+          <GameToast message={message} />
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(auto-fit, minmax(${numBoards >= 16 ? 160 : 180}px, 1fr))`,
+              gap: 16,
+            }}
+          >
+            {boards.map((board, index) => (
+              <GameBoard
+                key={index}
+                board={board}
+                index={index}
+                numBoards={numBoards}
+                maxTurns={maxTurns}
+                isUnlimited={isUnlimited}
+                currentGuess={currentGuess}
+                invalidCurrentGuess={invalidCurrentGuess}
+                revealId={revealId}
+                isSelected={selectedBoardIndex === index}
+                onToggleSelect={() =>
+                  setSelectedBoardIndex((prev) => (prev === index ? null : index))
+                }
+                boardRef={(el) => {
+                  boardRefs.current[index] = el;
+                }}
+                speedrunEnabled={speedrunEnabled}
+              />
+            ))}
+          </div>
+        </div>
+      </main>
+
+      {showNextStageBar && (
+        <NextStageBar
+          marathonNextBoards={marathonNextBoards}
+          onNextStage={goNextStage}
+        />
+      )}
+
+      {/* Fixed keyboard footer - hide once all boards are solved so the
+          keyboard disappears instead of just blocking input. */}
+      {!allSolved && (
+        <footer className="keyboardFooter">
+          <Keyboard
+            numBoards={numBoards}
+            selectedBoardIndex={selectedBoardIndex}
+            perBoardLetterMaps={perBoardLetterMaps}
+            focusedLetterMap={focusedLetterMap}
+            gridCols={gridCols}
+            gridRows={gridRows}
+            onVirtualKey={handleVirtualKey}
+          />
+        </footer>
+      )}
+
+      <BoardSelector
+        numBoards={numBoards}
+        showBoardSelector={showBoardSelector}
+        setShowBoardSelector={setShowBoardSelector}
+        boards={boards}
+        selectedBoardIndex={selectedBoardIndex}
+        setSelectedBoardIndex={setSelectedBoardIndex}
+        boardRefs={boardRefs}
+        isUnlimited={isUnlimited}
+        speedrunEnabled={speedrunEnabled}
+        statusText={statusText}
+      />
+
+      {showOutOfGuesses && (
+        <OutOfGuessesPopup
+          maxTurns={maxTurns}
+          mode={mode}
+          marathonHasNext={marathonHasNext}
+          onExit={exitFromOutOfGuesses}
+          onContinue={continueAfterOutOfGuesses}
+          onNextStage={goNextStage}
+          freezeStageTimer={freezeStageTimer}
+          setShowOutOfGuesses={setShowOutOfGuesses}
+          setShowPopup={setShowPopup}
+        />
+      )}
+
+      {showPopup && (
+        <GamePopup
+          allSolved={allSolved}
+          boards={boards}
+          score={score}
+          speedrunEnabled={speedrunEnabled}
+          stageElapsedMs={stageElapsedMs}
+          popupTotalMs={popupTotalMs}
+          formatElapsed={formatElapsed}
+          solvedCount={solvedCount}
+          mode={mode}
+          marathonHasNext={marathonHasNext}
+          onShare={handleShare}
+          onClose={() => setShowPopup(false)}
+          onNextStage={goNextStage}
+          freezeStageTimer={freezeStageTimer}
+          isMarathonSpeedrun={isMarathonSpeedrun}
+          commitStageIfNeeded={commitStageIfNeeded}
+        />
+      )}
+
+      <FeedbackModal
+        isOpen={showFeedbackModal}
+        onRequestClose={() => setShowFeedbackModal(false)}
+      />
+    </div>
+  );
+}

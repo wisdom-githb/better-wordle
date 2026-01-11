@@ -204,7 +204,7 @@
 .keyBtnAction {
   flex: 1.6;
   max-width: 92px;
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .keyLabel {
@@ -311,3 +311,54 @@
   border-radius: 8px;
   font-size: 13px;
 }
+
+/* Wordle-style flip animation for tiles (shared by single-player and 1v1) */
+.mw-tile {
+  flex-shrink: 0;
+  perspective: 900px;
+}
+
+.mw-card {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+@keyframes mwFlipCard {
+  0% {
+    transform: rotateX(0deg);
+  }
+  100% {
+    transform: rotateX(180deg);
+  }
+}
+
+.mw-flip {
+  animation: mwFlipCard 500ms ease-in-out both;
+  animation-fill-mode: both;
+}
+
+.mw-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 18px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.mw-front {
+  transform: rotateX(0deg);
+}
+
+.mw-back {
+  transform: rotateX(180deg);
+}
+

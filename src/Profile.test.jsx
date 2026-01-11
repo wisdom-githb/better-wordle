@@ -26,7 +26,10 @@ import Profile from './Profile';
 
 const renderWithRouter = (ui, initialPath = '/profile') =>
   render(
-    <MemoryRouter initialEntries={[initialPath]}>
+    <MemoryRouter
+      initialEntries={[initialPath]}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <Routes>
         <Route path="/" element={<div data-testid="home" />} />
         <Route path="/profile" element={ui} />

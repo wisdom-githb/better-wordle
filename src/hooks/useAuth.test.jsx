@@ -799,6 +799,8 @@ describe('useAuth - friends & challenges helpers', () => {
 
     const chRef = ref(db, 'users/me/challenges/CH456');
     await set(chRef, { fromUserId: 'friend-1', gameCode: 'GM456' });
+    const sentRef = ref(db, 'users/friend-1/sentChallenges/GM456');
+    await set(sentRef, { toUserId: 'me', gameCode: 'GM456' });
     const gameRef = ref(db, 'onevone/GM456');
     await set(gameRef, { status: 'waiting' });
 
@@ -813,8 +815,10 @@ describe('useAuth - friends & challenges helpers', () => {
     });
 
     const chSnap = await get(chRef);
+    const sentSnap = await get(sentRef);
     const gameSnap = await get(gameRef);
     expect(chSnap.exists()).toBe(false);
+    expect(sentSnap.exists()).toBe(false);
     expect(gameSnap.val().status).toBe('cancelled');
     expect(gameSnap.val().cancelledByName).toBe('Me User');
   });

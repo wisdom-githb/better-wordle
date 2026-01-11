@@ -14,10 +14,18 @@ import { FLIP_COMPLETE_MS } from './lib/gameConstants';
 // --- React Router mock with controllable query string ---
 let currentQuery = '?mode=daily&speedrun=false&boards=1';
 
-vi.mock('react-router-dom', () => ({
-  useSearchParams: () => [new URLSearchParams(currentQuery)],
-  useNavigate: () => vi.fn(),
-}));
+// Partially mock react-router-dom so we preserve all real exports but
+// override useSearchParams/useNavigate for these tests. This also ensures
+// hooks like useParams are still defined, avoiding Vitest "No useParams
+// export is defined on the mock" errors when Game imports them.
+vi.mock('react-router-dom', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    useSearchParams: () => [new URLSearchParams(currentQuery)],
+    useNavigate: () => vi.fn(),
+  };
+});
 
 // --- Auth / misc hooks ---
 vi.mock('./hooks/useAuth', () => ({

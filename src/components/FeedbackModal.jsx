@@ -150,39 +150,26 @@ function FeedbackModal({ isOpen, onRequestClose }) {
           >
             <button
               type="button"
+              className="homeBtn homeBtnOutline homeBtnLg"
               onClick={handleClose}
               disabled={isSubmitting}
               style={{
-                padding: "10px 20px",
-                borderRadius: 8,
-                border: "1px solid #3a3a3c",
-                background: "transparent",
-                color: "#ffffff",
-                fontSize: 14,
-                fontWeight: "bold",
+                minWidth: 110,
+                opacity: isSubmitting ? 0.7 : 1,
                 cursor: isSubmitting ? "not-allowed" : "pointer",
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
               }}
             >
               Cancel
             </button>
             <button
               type="submit"
+              className={"homeBtn homeBtnGreen homeBtnLg" + (isSubmitting || !message.trim() ? " homeBtnNeutral" : "")}
               disabled={isSubmitting || !message.trim()}
               style={{
-                padding: "10px 20px",
-                borderRadius: 8,
-                border: "none",
-                background:
-                  isSubmitting || !message.trim() ? "#3a3a3c" : "#6aaa64",
-                color: "#ffffff",
-                fontSize: 14,
-                fontWeight: "bold",
+                minWidth: 150,
                 cursor:
                   isSubmitting || !message.trim() ? "not-allowed" : "pointer",
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
+                opacity: isSubmitting || !message.trim() ? 0.8 : 1,
               }}
             >
               {isSubmitting ? "Sending..." : "Send Feedback"}

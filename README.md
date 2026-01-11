@@ -1,5 +1,8 @@
 # better-wordle
-Better version of wordle with enhanced features
+
+Better Wordle is an advanced Wordle-style browser game with multi-board puzzles, marathon, speedrun, and 1v1 modes.
+
+**Live site:** https://wisdom-githb.github.io/better-wordle/
 
 ## Setup
 

@@ -1,4 +1,6 @@
 import '@testing-library/jest-dom';
+import React from 'react';
+import { vi } from 'vitest';
 
 // React 18 testing-library hint
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -9,6 +11,16 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 Object.defineProperty(window, 'scrollTo', {
   value: () => {},
   writable: true,
+});
+
+// Mock react-helmet-async so Helmet/HelmetProvider are no-ops in tests.
+// This avoids jsdom errors when the real HelmetDispatcher expects a
+// browser document/head implementation.
+vi.mock('react-helmet-async', () => {
+  return {
+    HelmetProvider: ({ children }: { children: React.ReactNode }) => React.createElement(React.Fragment, null, children),
+    Helmet: ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children),
+  };
 });
 
 // Navigator mocks

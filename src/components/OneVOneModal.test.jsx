@@ -74,8 +74,8 @@ describe('OneVOneModal', () => {
       />,
     );
 
-    // Host flow: clicking Host 1v1 opens config modal
-    fireEvent.click(screen.getByRole('button', { name: 'Host 1v1' }));
+    // Host flow: clicking Host opens config modal
+    fireEvent.click(screen.getByRole('button', { name: 'Host' }));
     expect(onConfigOpen).toHaveBeenCalled();
     expect(screen.getByText('1v1 Game Configuration')).toBeInTheDocument();
 
@@ -108,7 +108,7 @@ describe('OneVOneModal', () => {
     // Input non-6-digit code: button should remain disabled and not navigate
     const codeInput = getByPlaceholderText('000000');
     fireEvent.change(codeInput, { target: { value: '123' } });
-    const joinButton = getByRole('button', { name: 'Join 1v1' });
+    const joinButton = getByRole('button', { name: 'Join' });
     expect(joinButton).toBeDisabled();
     expect(navigateMock).not.toHaveBeenCalled();
 

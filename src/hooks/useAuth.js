@@ -46,6 +46,31 @@ export function useAuth() {
 
       setUser(authUser);
 
+      // If this is an email/password account without a username, assign a
+      // default "better-wordle-player-xxx" username (three random digits).
+      if (authUser) {
+        const hasPasswordProvider = (authUser.providerData || []).some(
+          (p) => p && p.providerId === 'password'
+        );
+        const hasUsername = !!authUser.displayName;
+        if (hasPasswordProvider && !hasUsername) {
+          const randomDigits = Math.floor(Math.random() * 1000)
+            .toString()
+            .padStart(3, '0');
+          const generatedUsername = `better-wordle-player-${randomDigits}`;
+
+          updateProfile(authUser, { displayName: generatedUsername })
+            .then(() => {
+              // Keep local user state in sync with the generated username.
+              setUser({ ...authUser, displayName: generatedUsername });
+            })
+            .catch((err) => {
+              // Failing to assign a default username should not block auth.
+              console.error('Failed to assign default username:', err);
+            });
+        }
+      }
+
       if (authUser) {
         // Only load social data for verified users (or OAuth providers like Google)
         const isVerifiedUser = authUser.emailVerified || (authUser.providerData || []).some(p => p.providerId === 'google.com');
@@ -467,14 +492,41 @@ export function useAuth() {
       setError(null);
       if (!auth.currentUser) throw new Error('No user signed in');
       const challengeRef = ref(database, `users/${auth.currentUser.uid}/challenges/${challengeId}`);
+
+      // Read the challenge payload first so we can also clean up the
+      // challenger's sentChallenges list when a friend declines.
+      const snapshot = await get(challengeRef);
+      let challengerId = null;
+      let effectiveGameCode = gameCode || challengeId;
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        challengerId = data.fromUserId || null;
+        if (!effectiveGameCode) {
+          effectiveGameCode = data.gameCode || challengeId;
+        }
+      }
+
+      // Always remove the incoming challenge for the current user so it no
+      // longer appears in their "Received" list.
       await remove(challengeRef);
+
+      // If we know who created the challenge, also remove it from their
+      // sentChallenges list so it disappears from the challenger's modal.
+      if (challengerId && effectiveGameCode) {
+        try {
+          const sentRef = ref(database, `users/${challengerId}/sentChallenges/${effectiveGameCode}`);
+          await remove(sentRef);
+        } catch (innerErr) {
+          console.error('Failed to remove challenge from sender\'s sentChallenges after dismiss:', innerErr);
+        }
+      }
 
       // If this dismissal corresponds to a specific 1v1 game, try to mark that
       // game as cancelled so the host waiting in the lobby sees a clear
       // message that their challenge was declined.
-      if (gameCode) {
+      if (effectiveGameCode) {
         try {
-          const gameRef = ref(database, `onevone/${gameCode}`);
+          const gameRef = ref(database, `onevone/${effectiveGameCode}`);
           const gameSnap = await get(gameRef);
           if (gameSnap.exists()) {
             const cancelledByName =
@@ -521,8 +573,18 @@ export function useAuth() {
 
       // Remove from the friend's incoming challenges list if we know who they are.
       if (friendId) {
-        const incomingRef = ref(database, `users/${friendId}/challenges/${gameCode}`);
-        await remove(incomingRef);
+        try {
+          const incomingRef = ref(database, `users/${friendId}/challenges/${gameCode}`);
+          await remove(incomingRef);
+        } catch (innerErr) {
+          // In some cases (e.g. legacy data or stricter security rules), the host
+          // may not have permission to modify the friend's /challenges/ node.
+          // That's OK: the receiver can still dismiss the challenge on their side.
+          console.error(
+            'Failed to remove incoming challenge after host cancelled sent challenge:',
+            innerErr,
+          );
+        }
       }
 
       // Best-effort: mark the backing 1v1 game as cancelled so any listeners

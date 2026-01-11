@@ -32,7 +32,8 @@ export default function Keyboard({
               baseBg = status === "none" ? "#818384" : colorForStatus(status);
             }
 
-            const display = key === "BACK" ? "⌫" : key;
+            const display =
+              key === "BACK" ? "⌫" : key === "ENTER" ? "Enter" : key;
 
             const showGridOverlay = isLetter && isMultiNoFocus;
             const multiStatuses = isLetter ? perBoardLetterMaps.map((m) => m[key] || "none") : [];

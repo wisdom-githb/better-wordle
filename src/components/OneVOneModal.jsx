@@ -23,7 +23,9 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
   }, [onConfigOpen]);
 
   const handleHostWithConfig = useCallback(() => {
-    // Navigate to game with configuration
+    // ORIGINAL BEHAVIOR: navigate with query params so Game can create
+    // the 1v1 game, generate a code, and then redirect to a URL that
+    // includes the real code. This preserves the waiting-room flow.
     navigate(`/game?mode=1v1&host=true&speedrun=${isSpeedrun}&boards=${numBoards}`);
     setShowConfig(false);
     onConfigClose?.();
@@ -36,7 +38,8 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
       return;
     }
 
-    // Navigate to game with mode=1v1, code, and preserve speedrun from URL if present
+    // ORIGINAL BEHAVIOR: navigate with query params so Game can join
+    // the existing 1v1 game via ?code=...
     navigate(`/game?mode=1v1&code=${gameCode}`);
     onRequestClose();
   }, [gameCode, navigate, onRequestClose]);
@@ -57,16 +60,8 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
               </p>
               <button
                 onClick={() => setShowAuthModal(true)}
-                style={{
-                  padding: '12px 24px',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: '#6aaa64',
-                  color: '#ffffff',
-                  fontSize: 14,
-                  fontWeight: 'bold',
-                  cursor: 'pointer'
-                }}
+                className="homeBtn homeBtnGreen homeBtnLg"
+                style={{ minWidth: 140 }}
               >
                 Sign In
               </button>
@@ -95,17 +90,8 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
           <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
             <button
               onClick={onRequestClose}
-              style={{
-                flex: 1,
-                padding: '12px',
-                borderRadius: 8,
-                border: '1px solid #3a3a3c',
-                background: 'transparent',
-                color: '#ffffff',
-                fontSize: 14,
-                fontWeight: 'bold',
-                cursor: 'pointer',
-              }}
+              className="homeBtn homeBtnOutline homeBtnLg"
+              style={{ flex: 1, textAlign: 'center' }}
             >
               Close
             </button>
@@ -114,17 +100,8 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
                 onRequestClose();
                 navigate('/profile');
               }}
-              style={{
-                flex: 1,
-                padding: '12px',
-                borderRadius: 8,
-                border: 'none',
-                background: '#6aaa64',
-                color: '#ffffff',
-                fontSize: 14,
-                fontWeight: 'bold',
-                cursor: 'pointer',
-              }}
+              className="homeBtn homeBtnGreen homeBtnLg"
+              style={{ flex: 1, textAlign: 'center' }}
             >
               Go to Profile
             </button>
@@ -145,19 +122,10 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
           <div>
             <button
               onClick={handleHost}
-              style={{
-                width: '100%',
-                padding: '14px',
-                borderRadius: 8,
-                border: 'none',
-                background: '#6aaa64',
-                color: '#ffffff',
-                fontSize: 16,
-                fontWeight: 'bold',
-                cursor: 'pointer'
-              }}
+              className="homeBtn homeBtnGreen homeBtnLg"
+              style={{ width: '100%' }}
             >
-              Host 1v1
+              Host
             </button>
             <p style={{ fontSize: 12, color: '#818384', marginTop: '8px', textAlign: 'center' }}>
               Create a new game and share the code with a friend
@@ -200,20 +168,14 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
             <button
               onClick={handleJoin}
               disabled={gameCode.length !== 6}
+              className={"homeBtn homeBtnLg " + (gameCode.length === 6 ? "homeBtnGold" : "homeBtnNeutral")}
               style={{
                 width: '100%',
-                padding: '14px',
-                borderRadius: 8,
-                border: 'none',
-                background: gameCode.length === 6 ? '#c9b458' : '#3a3a3c',
-                color: '#ffffff',
-                fontSize: 16,
-                fontWeight: 'bold',
+                opacity: gameCode.length === 6 ? 1 : 0.75,
                 cursor: gameCode.length === 6 ? 'pointer' : 'not-allowed',
-                opacity: gameCode.length === 6 ? 1 : 0.5
               }}
             >
-              Join 1v1
+              Join
             </button>
           </div>
         </div>
@@ -290,38 +252,20 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
             </div>
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
-              <button
+            <button
                 onClick={() => {
                   setShowConfig(false);
                   onConfigClose?.();
                 }}
-                style={{
-                  flex: 1,
-                  padding: '12px',
-                  borderRadius: 8,
-                  border: '1px solid #3a3a3c',
-                  background: 'transparent',
-                  color: '#ffffff',
-                  fontSize: 14,
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                }}
+                className="homeBtn homeBtnOutline homeBtnLg"
+                style={{ flex: 1, textAlign: 'center' }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleHostWithConfig}
-                style={{
-                  flex: 1,
-                  padding: '12px',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: '#6aaa64',
-                  color: '#ffffff',
-                  fontSize: 14,
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                }}
+                className="homeBtn homeBtnGreen homeBtnLg"
+                style={{ flex: 1, textAlign: 'center' }}
               >
                 Continue
               </button>

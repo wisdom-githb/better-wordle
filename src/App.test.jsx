@@ -43,7 +43,10 @@ import App from './App';
 describe('App routing', () => {
   it('renders Home on root path', () => {
     render(
-      <MemoryRouter initialEntries={['/']}>
+      <MemoryRouter
+        initialEntries={['/']}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <App />
       </MemoryRouter>,
     );
@@ -53,7 +56,10 @@ describe('App routing', () => {
 
   it('navigates unknown paths back to home', () => {
     render(
-      <MemoryRouter initialEntries={['/unknown-path']}>
+      <MemoryRouter
+        initialEntries={['/unknown-path']}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         <App />
       </MemoryRouter>,
     );
