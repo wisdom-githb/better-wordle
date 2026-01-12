@@ -7,6 +7,8 @@ let latestViewProps = null;
 let latestUseSinglePlayerGameArgs = null;
 let latestUseKeyboardArgs = null;
 const mockSetTimedMessage = vi.fn();
+const mockUseAuth = vi.fn(() => ({ user: null, isVerifiedUser: false }));
+const submitSpeedrunScoreMock = vi.fn();
 
 vi.mock('./SinglePlayerGameView', () => ({
   __esModule: true,
@@ -19,6 +21,23 @@ vi.mock('./SinglePlayerGameView', () => ({
 vi.mock('../../hooks/useSinglePlayerGame', () => ({
   useSinglePlayerGame: (args) => {
     latestUseSinglePlayerGameArgs = args;
+    // Provide default state to avoid breaking later calls
+    return {
+      boards: [],
+      currentGuess: '',
+      turnsUsed: 0,
+      maxTurns: 5,
+      allSolved: false,
+      finished: false,
+      canShare: false,
+      showPopup: false,
+      showOutOfGuesses: false,
+      commentThreadId: null,
+      showComments: false,
+      allowNextStageAfterPopup: true,
+      exitFromOutOfGuesses: () => {},
+      handleVirtualKey: () => {},
+    };
   },
 }));
 
@@ -44,6 +63,17 @@ vi.mock('../../lib/persist', () => ({
   marathonMetaKey: vi.fn(() => 'META_KEY'),
 }));
 
+vi.mock('../../hooks/useAuth', () => ({
+  useAuth: () => mockUseAuth(),
+}));
+
+vi.mock('../../hooks/useLeaderboard', () => ({
+  submitSpeedrunScore: (...args) => {
+    submitSpeedrunScoreMock(...args);
+    return Promise.resolve();
+  },
+}));
+
 // Capture how GameSinglePlayer wires callbacks into the keyboard hook.
 vi.mock('../../hooks/useKeyboard', () => ({
   useKeyboard: (args) => {
@@ -66,6 +96,9 @@ describe('GameSinglePlayer partial and full guess handling on Enter', () => {
     latestUseSinglePlayerGameArgs = null;
     latestUseKeyboardArgs = null;
     mockSetTimedMessage.mockClear();
+    mockUseAuth.mockReset();
+    mockUseAuth.mockReturnValue({ user: null, isVerifiedUser: false });
+    submitSpeedrunScoreMock.mockReset();
   });
 
   function renderGame() {
@@ -293,6 +326,9 @@ describe('GameSinglePlayer marathon share gating and totals', () => {
     latestUseKeyboardArgs = null;
     mockSetTimedMessage.mockClear();
     generateShareText.mockClear();
+    mockUseAuth.mockReset();
+    mockUseAuth.mockReturnValue({ user: null, isVerifiedUser: false });
+    submitSpeedrunScoreMock.mockReset();
 
     // Reset persist mocks to their baseline behaviour for each test in this suite.
     loadJSON.mockReset();
@@ -767,5 +803,140 @@ describe('GameSinglePlayer marathon share gating and totals', () => {
     // With mode="marathon", allSolved=true and marathonHasNext=false,
     // GameSinglePlayer should enable sharing.
     expect(latestViewProps.canShare).toBe(true);
+  });
+});
+
+describe('GameSinglePlayer speedrun leaderboard submission', () => {
+  beforeEach(() => {
+    latestViewProps = null;
+    latestUseSinglePlayerGameArgs = null;
+    latestUseKeyboardArgs = null;
+    mockSetTimedMessage.mockClear();
+    mockUseAuth.mockReset();
+    submitSpeedrunScoreMock.mockReset();
+  });
+
+  function renderDailySpeedrun() {
+    // Default auth: signed-in, verified user.
+    mockUseAuth.mockReturnValue({
+      user: {
+        uid: 'uid-speedrun',
+        displayName: 'Speed Runner',
+        email: 'speed@example.com',
+      },
+      isVerifiedUser: true,
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={['/game?mode=daily']}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <GameSinglePlayer
+          mode="daily"
+          boardsParam="1"
+          speedrunEnabled={true}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(latestUseSinglePlayerGameArgs).not.toBeNull();
+    expect(latestViewProps).not.toBeNull();
+    return latestUseSinglePlayerGameArgs;
+  }
+
+  it('submits daily speedrun score for verified user when all boards are solved', () => {
+    const { setBoards, setIsLoading, setAllowedSet } = renderDailySpeedrun();
+
+    act(() => {
+      // Single board with known solution; start unsolved so the normal submit
+      // path (including score submission) is exercised.
+      setAllowedSet(new Set(['APPLE']));
+      setBoards([
+        {
+          solution: 'APPLE',
+          guesses: [],
+          isSolved: false,
+          isDead: false,
+        },
+      ]);
+      setIsLoading(false);
+    });
+
+    const { handleVirtualKey } = latestViewProps;
+    expect(typeof handleVirtualKey).toBe('function');
+
+    act(() => {
+      handleVirtualKey('A');
+      handleVirtualKey('P');
+      handleVirtualKey('P');
+      handleVirtualKey('L');
+      handleVirtualKey('E');
+      handleVirtualKey('ENTER');
+    });
+
+    expect(submitSpeedrunScoreMock).toHaveBeenCalledTimes(1);
+    const [userId, userName, modeArg, numBoardsArg, timeMsArg, scoreArg] =
+      submitSpeedrunScoreMock.mock.calls[0];
+
+    expect(userId).toBe('uid-speedrun');
+    expect(userName).toBe('Speed Runner');
+    expect(modeArg).toBe('daily');
+    expect(numBoardsArg).toBe(1);
+    expect(typeof timeMsArg).toBe('number');
+    expect(scoreArg).toBe(0);
+  });
+
+  it('does not submit speedrun score when user is not verified', () => {
+    mockUseAuth.mockReturnValue({
+      user: {
+        uid: 'uid-unverified',
+        displayName: 'Unverified',
+        email: 'unverified@example.com',
+      },
+      isVerifiedUser: false,
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={['/game?mode=daily']}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <GameSinglePlayer
+          mode="daily"
+          boardsParam="1"
+          speedrunEnabled={true}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(latestUseSinglePlayerGameArgs).not.toBeNull();
+    const { setBoards, setIsLoading, setAllowedSet } = latestUseSinglePlayerGameArgs;
+
+    act(() => {
+      setAllowedSet(new Set(['APPLE']));
+      setBoards([
+        {
+          solution: 'APPLE',
+          guesses: [],
+          isSolved: false,
+          isDead: false,
+        },
+      ]);
+      setIsLoading(false);
+    });
+
+    const { handleVirtualKey } = latestViewProps;
+
+    act(() => {
+      handleVirtualKey('A');
+      handleVirtualKey('P');
+      handleVirtualKey('P');
+      handleVirtualKey('L');
+      handleVirtualKey('E');
+      handleVirtualKey('ENTER');
+    });
+
+    expect(submitSpeedrunScoreMock).not.toHaveBeenCalled();
   });
 });

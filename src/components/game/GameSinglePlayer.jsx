@@ -14,6 +14,7 @@ import { FLIP_COMPLETE_MS } from "../../lib/gameConstants";
 import { generateShareText } from "../../lib/gameUtils";
 import { getCurrentDateString } from "../../lib/dailyWords";
 import { submitSpeedrunScore } from "../../hooks/useLeaderboard";
+import { useAuth } from "../../hooks/useAuth";
 import { useTimedMessage } from "../../hooks/useTimedMessage";
 import { useShare } from "../../hooks/useShare";
 import { useSinglePlayerGame } from "../../hooks/useSinglePlayerGame";
@@ -31,6 +32,7 @@ export default function GameSinglePlayer({
 }) {
   const navigate = useNavigate();
   const { message, setMessage, setTimedMessage, clearMessageTimer } = useTimedMessage("");
+  const { user: authUser, isVerifiedUser } = useAuth();
 
   // Load marathon meta for current speedrun/daily config.
   const marathonMeta = loadJSON(marathonMetaKey(speedrunEnabled), {
@@ -287,8 +289,10 @@ export default function GameSinglePlayer({
   }, [allSolved, showPopup, showOutOfGuesses]);
 
   const addLetter = (letter) => {
-    if (currentGuess.length >= WORD_LENGTH) return;
-    setCurrentGuess((prev) => prev + letter);
+    if (currentGuessRef.current.length >= WORD_LENGTH) return;
+    const next = currentGuessRef.current + letter;
+    currentGuessRef.current = next;
+    setCurrentGuess(next);
     if (message) {
       setMessage("");
       clearMessageTimer();
@@ -296,8 +300,10 @@ export default function GameSinglePlayer({
   };
 
   const removeLetter = () => {
-    if (currentGuess.length === 0) return;
-    setCurrentGuess((prev) => prev.slice(0, -1));
+    if (currentGuessRef.current.length === 0) return;
+    const next = currentGuessRef.current.slice(0, -1);
+    currentGuessRef.current = next;
+    setCurrentGuess(next);
     if (message) {
       setMessage("");
       clearMessageTimer();
@@ -320,6 +326,7 @@ export default function GameSinglePlayer({
     // Enter as "clear" so the player can quickly start over.
     if (guess.length !== WORD_LENGTH) {
       if (guess.length > 0) {
+        currentGuessRef.current = "";
         setCurrentGuess("");
       }
       return;
@@ -327,6 +334,7 @@ export default function GameSinglePlayer({
 
     if (!allowedSet.has(guess)) {
       setTimedMessage("Not in word list.", 5000);
+      currentGuessRef.current = "";
       setCurrentGuess("");
       return;
     }
@@ -359,6 +367,7 @@ export default function GameSinglePlayer({
     setBoards(newBoards);
     setRevealId(nextRevealId);
     setIsFlipping(true);
+    currentGuessRef.current = "";
     setCurrentGuess("");
     setMessage("");
     clearMessageTimer();
@@ -421,8 +430,6 @@ export default function GameSinglePlayer({
 
       const isMarathonComplete =
         mode === "marathon" && marathonIndex >= marathonLevels.length - 1;
-      const authUser = null; // Leaderboard submission will be no-op without auth
-      const isVerifiedUser = false;
 
       const shouldSubmit =
         speedrunEnabled && authUser && isVerifiedUser && allSolvedNow &&
