@@ -23,12 +23,13 @@ describe('GamePopup - single player', () => {
       <GamePopup
         allSolved={true}
         boards={boards}
-        score={123}
         speedrunEnabled={false}
         stageElapsedMs={0}
         popupTotalMs={0}
         formatElapsed={formatElapsed}
         solvedCount={2}
+        turnsUsed={3}
+        maxTurns={8}
         mode="daily"
         marathonHasNext={false}
         onShare={onShare}
@@ -42,7 +43,7 @@ describe('GamePopup - single player', () => {
     );
 
     expect(screen.getByText(/Congratulations!/i)).toBeInTheDocument();
-    expect(screen.getByText(/Score: 123/)).toBeInTheDocument();
+    expect(screen.getByText(/Guesses used: 3\/8/)).toBeInTheDocument();
     expect(screen.getByText(/Solutions/i)).toBeInTheDocument();
     expect(screen.getByText(/Board 1: APPLE/)).toBeInTheDocument();
 
@@ -52,7 +53,7 @@ describe('GamePopup - single player', () => {
     expect(screen.queryByRole('button', { name: /Home/i })).not.toBeInTheDocument();
   });
 
-  it('shows stage summary and next-stage button in marathon speedrun', () => {
+  it('shows stage summary and next-stage button in marathon speedrun when all boards are solved', () => {
     const onNextStage = vi.fn();
     const freezeStageTimer = vi.fn(() => 5000);
     const commitStageIfNeeded = vi.fn();
@@ -60,14 +61,15 @@ describe('GamePopup - single player', () => {
 
     render(
       <GamePopup
-        allSolved={false}
+        allSolved={true}
         boards={[{ solution: 'APPLE', isSolved: true }]}
-        score={50}
         speedrunEnabled={true}
         stageElapsedMs={5000}
         popupTotalMs={10000}
         formatElapsed={formatElapsed}
         solvedCount={1}
+        turnsUsed={6}
+        maxTurns={8}
         mode="marathon"
         marathonHasNext={true}
         onShare={() => {}}
@@ -89,6 +91,38 @@ describe('GamePopup - single player', () => {
     expect(freezeStageTimer).toHaveBeenCalledTimes(1);
     expect(commitStageIfNeeded).toHaveBeenCalledWith(5000);
     expect(onNextStage).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not show Next Stage button in marathon popup when stage was not fully solved', () => {
+    const onNextStage = vi.fn();
+    const freezeStageTimer = vi.fn(() => 5000);
+    const commitStageIfNeeded = vi.fn();
+    const onClose = vi.fn();
+
+    render(
+      <GamePopup
+        allSolved={false}
+        boards={[{ solution: 'APPLE', isSolved: false }]}
+        speedrunEnabled={true}
+        stageElapsedMs={5000}
+        popupTotalMs={10000}
+        formatElapsed={formatElapsed}
+        solvedCount={0}
+        turnsUsed={8}
+        maxTurns={8}
+        mode="marathon"
+        marathonHasNext={true}
+        onShare={() => {}}
+        onClose={onClose}
+        onNextStage={onNextStage}
+        freezeStageTimer={freezeStageTimer}
+        isMarathonSpeedrun={true}
+        commitStageIfNeeded={commitStageIfNeeded}
+        isOneVOne={false}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: /Next Stage/i })).toBeNull();
   });
 });
 

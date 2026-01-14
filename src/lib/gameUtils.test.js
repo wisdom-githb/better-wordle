@@ -30,12 +30,77 @@ describe('generateShareText', () => {
       1,               // solvedCount
     );
 
+    // Heading and basic summary for single-board daily standard.
+    expect(text.startsWith('Better Wordle - Daily Standard')).toBe(true);
     // Should include at least one green square row from the guesses.
     expect(text).toContain('🟩');
     expect(text).toContain('Guesses: 1/6');
     expect(text).toContain('Solved!');
     expect(text).toContain('Play Better Wordle!');
     expect(text.length).toBeGreaterThan(0);
+  });
+
+  it('uses Better Wordle - Daily Standard heading and Not solved! for unsolved single-board daily standard games', () => {
+    const boards = [
+      makeBoard([
+        { word: 'GUESS1', colors: ['yellow', 'grey', 'grey', 'grey', 'green'] },
+        { word: 'GUESS2', colors: ['yellow', 'yellow', 'grey', 'grey', 'grey'] },
+        { word: 'GUESS3', colors: ['grey', 'grey', 'grey', 'yellow', 'grey'] },
+        { word: 'GUESS4', colors: ['yellow', 'yellow', 'grey', 'grey', 'grey'] },
+        { word: 'GUESS5', colors: ['grey', 'grey', 'yellow', 'grey', 'yellow'] },
+        { word: 'GUESS6', colors: ['grey', 'yellow', 'grey', 'grey', 'yellow'] },
+      ], false),
+    ];
+
+    const text = generateShareText(
+      boards,
+      'daily',
+      1,
+      false,
+      0,
+      0,
+      (ms) => `T${ms}`,
+      6,
+      6,
+      false,
+      0,
+    );
+
+    expect(text.startsWith('Better Wordle - Daily Standard')).toBe(true);
+    expect(text).toContain('Guesses: 6/6');
+    expect(text).toContain('Not solved!');
+  });
+
+  it('uses Better Wordle - Daily Standard heading and Solved! when continuing after out-of-guesses on single-board daily standard', () => {
+    const boards = [
+      makeBoard([
+        { word: 'GUESS1', colors: ['yellow', 'grey', 'grey', 'grey', 'green'] },
+        { word: 'GUESS2', colors: ['yellow', 'yellow', 'grey', 'grey', 'grey'] },
+        { word: 'GUESS3', colors: ['grey', 'grey', 'grey', 'yellow', 'grey'] },
+        { word: 'GUESS4', colors: ['yellow', 'yellow', 'grey', 'grey', 'grey'] },
+        { word: 'GUESS5', colors: ['grey', 'grey', 'yellow', 'grey', 'yellow'] },
+        { word: 'GUESS6', colors: ['grey', 'yellow', 'grey', 'grey', 'yellow'] },
+        { word: 'GUESS7', colors: ['green', 'green', 'green', 'green', 'green'] },
+      ], true),
+    ];
+
+    const text = generateShareText(
+      boards,
+      'daily',
+      1,
+      false,
+      0,
+      0,
+      (ms) => `T${ms}`,
+      7,
+      6,
+      true,
+      1,
+    );
+
+    expect(text.startsWith('Better Wordle - Daily Standard')).toBe(true);
+    expect(text).toContain('Guesses: 7/6');
+    expect(text).toContain('Solved!');
   });
 
   it('includes mode, boards, time and solved count for multi-board non-marathon games', () => {

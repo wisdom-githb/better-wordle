@@ -56,8 +56,15 @@ export function generateShareText(
     ? "Daily"
     : "Better";
 
+  const isDailyStandardSingle = mode === "daily" && numBoards === 1 && !speedrunEnabled;
+  const headingLine = isDailyStandardSingle
+    ? "Better Wordle - Daily Standard"
+    : `${headingPrefix} Better Wordle`;
+
+  const unsolvedLabel = isDailyStandardSingle ? "Not solved!" : "Not solved";
+
   // Heading
-  lines.push(`${headingPrefix} Better Wordle`);
+  lines.push(headingLine);
 
   // --- Marathon mode with per-stage breakdown ---
   if (isMarathon && Array.isArray(marathonStages) && marathonStages.length > 0) {
@@ -128,7 +135,7 @@ export function generateShareText(
     }
 
     lines.push(`Guesses: ${turnsUsed}/${maxTurns}`);
-    lines.push(allSolved ? "Solved!" : "Not solved");
+    lines.push(allSolved ? "Solved!" : unsolvedLabel);
   } else if (numBoards === 1) {
     // Other single-board modes: use a plain summary without emoji.
     lines.push("");
@@ -139,7 +146,7 @@ export function generateShareText(
     }
 
     lines.push(`Guesses: ${turnsUsed}/${maxTurns}`);
-    lines.push(allSolved ? "Solved!" : "Not solved");
+    lines.push(allSolved ? "Solved!" : unsolvedLabel);
   } else {
     // Multi-board non-marathon summary.
     lines.push("");

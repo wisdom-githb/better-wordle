@@ -238,6 +238,7 @@ export default function SinglePlayerGameView({
           commitStageIfNeeded={commitStageIfNeeded}
           canShare={canShare}
           allowNextStageAfterPopup={allowNextStageAfterPopup}
+          hasCommentsSection={showComments}
         />
       )}
 

@@ -21,15 +21,14 @@ describe('OutOfGuessesPopup', () => {
 
     expect(screen.getByText(/All guesses used/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/You reached the max turns \(6\)\. Do you want to exit, continue with unlimited guesses,\?/)
+      screen.getByText(
+        'You reached the max turns (6). Do you want to end the game, continue with unlimited guesses?'
+      )
     ).toBeInTheDocument();
   });
 
-  it('shows Next stage button and calls handlers in marathon mode', () => {
+  it('does not show Next stage button in marathon mode when out of guesses', () => {
     const onNextStage = vi.fn();
-    const freezeStageTimer = vi.fn();
-    const setShowOutOfGuesses = vi.fn();
-    const setShowPopup = vi.fn();
 
     render(
       <OutOfGuessesPopup
@@ -39,19 +38,13 @@ describe('OutOfGuessesPopup', () => {
         onExit={() => {}}
         onContinue={() => {}}
         onNextStage={onNextStage}
-        freezeStageTimer={freezeStageTimer}
-        setShowOutOfGuesses={setShowOutOfGuesses}
-        setShowPopup={setShowPopup}
+        freezeStageTimer={() => {}}
+        setShowOutOfGuesses={() => {}}
+        setShowPopup={() => {}}
       />
     );
 
-    const btn = screen.getByRole('button', { name: /next stage/i });
-    fireEvent.click(btn);
-
-    expect(freezeStageTimer).toHaveBeenCalledTimes(1);
-    expect(setShowOutOfGuesses).toHaveBeenCalledWith(false);
-    expect(setShowPopup).toHaveBeenCalledWith(false);
-    expect(onNextStage).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: /next stage/i })).toBeNull();
   });
 
   it('calls onExit and onContinue when buttons are clicked', () => {
@@ -72,7 +65,7 @@ describe('OutOfGuessesPopup', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /exit/i }));
+    fireEvent.click(screen.getByRole('button', { name: /end game/i }));
     fireEvent.click(screen.getByRole('button', { name: /continue/i }));
 
     expect(onExit).toHaveBeenCalledTimes(1);

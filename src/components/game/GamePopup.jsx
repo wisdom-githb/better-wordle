@@ -25,8 +25,11 @@ export default function GamePopup({
   isPlayerHost,
   onRematch,
   onChangeMode,
+  myScore,
+  opponentScore,
   canShare = true,
   allowNextStageAfterPopup = true,
+  hasCommentsSection = false,
 }) {
   const navigate = useNavigate();
   
@@ -48,7 +51,7 @@ export default function GamePopup({
   // to highlight that comments are available below the board.
   const showPostCommentCta =
     !isOneVOne &&
-    allSolved &&
+    (allSolved || hasCommentsSection) &&
     (mode === "daily" || mode === "marathon");
 
   return (
@@ -66,7 +69,7 @@ export default function GamePopup({
         justifyContent: "center",
         zIndex: 2000
       }}
-    >
+      >
       <div
         style={{
           backgroundColor: "#1a1a1b",
@@ -82,14 +85,23 @@ export default function GamePopup({
       >
         {isOneVOne ? (() => {
           const isSpeedrun = oneVOneGameState?.speedrun || false;
+          const hasExplicitScores =
+            typeof myScore === "number" || typeof opponentScore === "number";
 
-          // Derive win/lose/tie from winner + player role.
+          // Derive win/lose/tie from winner + player role, falling back to
+          // explicit scores when no winner flag is set.
           let resultLabel = "It's a tie!";
           if (winner === 'host' || winner === 'guest') {
             const didPlayerWin = (winner === 'host' && isPlayerHost) || (winner === 'guest' && !isPlayerHost);
             const didPlayerLose = (winner === 'host' && !isPlayerHost) || (winner === 'guest' && isPlayerHost);
             if (didPlayerWin) resultLabel = "You Won!";
             else if (didPlayerLose) resultLabel = "You Lost";
+          } else if (hasExplicitScores &&
+            typeof myScore === "number" &&
+            typeof opponentScore === "number"
+          ) {
+            if (myScore > opponentScore) resultLabel = "You Won!";
+            else if (myScore < opponentScore) resultLabel = "You Lost";
           }
 
           let titleColor = "#c9b458";
@@ -135,17 +147,25 @@ export default function GamePopup({
 
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 16, color: "#818384", marginBottom: 4 }}>
-                  {oneVOneGameState?.speedrun ? "Your Time" : "Your Guesses"}
+                  {isSpeedrun
+                    ? "Your Time"
+                    : hasExplicitScores
+                    ? "Your Score"
+                    : "Your Guesses"}
                 </div>
                 <div style={{ fontSize: 24, color: "#ffffff", fontWeight: "bold" }}>
                   {(() => {
-                    if (!oneVOneGameState) return "N/A";
-                    if (oneVOneGameState.speedrun) {
+                    if (isSpeedrun) {
+                      if (!oneVOneGameState) return "N/A";
                       const myTimeMs = isPlayerHost
-                        ? oneVOneGameState.hostTimeMs ?? null
-                        : oneVOneGameState.guestTimeMs ?? null;
+                        ? oneVOneGameState?.hostTimeMs ?? null
+                        : oneVOneGameState?.guestTimeMs ?? null;
                       return myTimeMs != null ? formatElapsed(myTimeMs) : "N/A";
                     }
+
+                    if (typeof myScore === "number") return myScore;
+
+                    if (!oneVOneGameState) return "N/A";
                     const myGuesses = isPlayerHost
                       ? oneVOneGameState.hostGuesses || []
                       : oneVOneGameState.guestGuesses || [];
@@ -155,17 +175,25 @@ export default function GamePopup({
               </div>
               <div style={{ borderTop: "1px solid #3a3a3c", paddingTop: 12 }}>
                 <div style={{ fontSize: 16, color: "#818384", marginBottom: 4 }}>
-                  {oneVOneGameState?.speedrun ? "Opponent's Time" : "Opponent's Guesses"}
+                  {isSpeedrun
+                    ? "Opponent's Time"
+                    : hasExplicitScores
+                    ? "Opponent's Score"
+                    : "Opponent's Guesses"}
                 </div>
                 <div style={{ fontSize: 24, color: "#ffffff", fontWeight: "bold" }}>
                   {(() => {
-                    if (!oneVOneGameState) return "N/A";
-                    if (oneVOneGameState.speedrun) {
+                    if (isSpeedrun) {
+                      if (!oneVOneGameState) return "N/A";
                       const opponentTimeMs = isPlayerHost
-                        ? oneVOneGameState.guestTimeMs ?? null
-                        : oneVOneGameState.hostTimeMs ?? null;
+                        ? oneVOneGameState?.guestTimeMs ?? null
+                        : oneVOneGameState?.hostTimeMs ?? null;
                       return opponentTimeMs != null ? formatElapsed(opponentTimeMs) : "N/A";
                     }
+
+                    if (typeof opponentScore === "number") return opponentScore;
+
+                    if (!oneVOneGameState) return "N/A";
                     const opponentGuesses = isPlayerHost
                       ? oneVOneGameState.guestGuesses || []
                       : oneVOneGameState.hostGuesses || [];
@@ -379,7 +407,7 @@ export default function GamePopup({
             {showPostCommentCta ? "View Comments" : "Close"}
           </button>
 
-          {mode === "marathon" && marathonHasNext && allowNextStageAfterPopup && (
+          {mode === "marathon" && marathonHasNext && allowNextStageAfterPopup && allSolved && (
             <button
               onClick={handleNextStage}
               style={{

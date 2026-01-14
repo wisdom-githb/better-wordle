@@ -49,8 +49,7 @@ export default function OutOfGuessesPopup({
         </h2>
 
         <div style={{ marginBottom: 16, fontSize: 14, color: "#d7dadc", lineHeight: 1.4 }}>
-          You reached the max turns ({maxTurns}). Do you want to exit, continue with unlimited guesses,
-          {mode === "marathon" && marathonHasNext ? " or go to the next stage?" : "?"}
+          You reached the max turns ({maxTurns}). Do you want to end the game, continue with unlimited guesses?
         </div>
 
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -71,7 +70,7 @@ export default function OutOfGuessesPopup({
               textTransform: "uppercase"
             }}
           >
-            Exit
+            End Game
           </button>
 
           <button
@@ -93,28 +92,6 @@ export default function OutOfGuessesPopup({
           >
             Continue
           </button>
-
-          {mode === "marathon" && marathonHasNext && (
-            <button
-              onClick={handleNextStage}
-              style={{
-                flex: 1,
-                minWidth: 160,
-                padding: "12px 0",
-                borderRadius: 10,
-                border: "none",
-                background: "#6aaa64",
-                color: "#ffffff",
-                fontSize: 14,
-                fontWeight: "bold",
-                cursor: "pointer",
-                letterSpacing: 1,
-                textTransform: "uppercase"
-              }}
-            >
-              Next stage
-            </button>
-          )}
         </div>
       </div>
     </div>
