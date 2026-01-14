@@ -10,46 +10,60 @@ function makeBoard(guesses, isSolved) {
 }
 
 describe('generateShareText', () => {
-  it('returns a non-empty string with key info for a single-board daily game with emoji grid', () => {
+  it('matches Daily standard - 1 word - solved in guess limit', () => {
     const boards = [
-      makeBoard([
-        { word: 'APPLE', colors: ['green', 'green', 'green', 'green', 'green'] },
-      ], true),
+      makeBoard(
+        [
+          { word: 'GUESS1', colors: ['yellow', 'grey', 'grey', 'grey', 'green'] },
+          { word: 'GUESS2', colors: ['green', 'green', 'green', 'green', 'green'] },
+        ],
+        true,
+      ),
     ];
+
     const text = generateShareText(
       boards,
-      'daily',         // mode
-      1,               // numBoards
-      false,           // speedrunEnabled
-      12_345,          // stageElapsedMs
-      0,               // popupTotalMs
-      (ms) => `T${ms}`,// dummy formatter
-      1,               // turnsUsed
-      6,               // maxTurns
-      true,            // allSolved
-      1,               // solvedCount
+      'daily',
+      1,
+      false,
+      0,
+      0,
+      (ms) => `T${ms}`,
+      2,
+      6,
+      true,
+      1,
     );
 
-    // Heading and basic summary for single-board daily standard.
-    expect(text.startsWith('Better Wordle - Daily Standard')).toBe(true);
-    // Should include at least one green square row from the guesses.
-    expect(text).toContain('🟩');
-    expect(text).toContain('Guesses: 1/6');
-    expect(text).toContain('Solved!');
-    expect(text).toContain('Play Better Wordle!');
-    expect(text.length).toBeGreaterThan(0);
+    const expected = [
+      'Better Wordle - Daily Standard',
+      '',
+      '🟨⬛⬛⬛🟩',
+      '🟩🟩🟩🟩🟩',
+      '',
+      'Guesses: 2/6',
+      'Solved!',
+      '',
+      'Play Better Wordle!',
+      'https://wisdom-githb.github.io/better-wordle/',
+    ].join('\n');
+
+    expect(text).toBe(expected);
   });
 
-  it('uses Better Wordle - Daily Standard heading and Not solved! for unsolved single-board daily standard games', () => {
+  it('matches Daily standard - 1 word - not solved in guess limit - exit', () => {
     const boards = [
-      makeBoard([
-        { word: 'GUESS1', colors: ['yellow', 'grey', 'grey', 'grey', 'green'] },
-        { word: 'GUESS2', colors: ['yellow', 'yellow', 'grey', 'grey', 'grey'] },
-        { word: 'GUESS3', colors: ['grey', 'grey', 'grey', 'yellow', 'grey'] },
-        { word: 'GUESS4', colors: ['yellow', 'yellow', 'grey', 'grey', 'grey'] },
-        { word: 'GUESS5', colors: ['grey', 'grey', 'yellow', 'grey', 'yellow'] },
-        { word: 'GUESS6', colors: ['grey', 'yellow', 'grey', 'grey', 'yellow'] },
-      ], false),
+      makeBoard(
+        [
+          { word: 'G1', colors: ['yellow', 'grey', 'grey', 'grey', 'green'] },
+          { word: 'G2', colors: ['yellow', 'yellow', 'grey', 'grey', 'grey'] },
+          { word: 'G3', colors: ['grey', 'grey', 'grey', 'yellow', 'grey'] },
+          { word: 'G4', colors: ['yellow', 'yellow', 'grey', 'grey', 'grey'] },
+          { word: 'G5', colors: ['grey', 'grey', 'yellow', 'grey', 'yellow'] },
+          { word: 'G6', colors: ['grey', 'yellow', 'grey', 'grey', 'yellow'] },
+        ],
+        false,
+      ),
     ];
 
     const text = generateShareText(
@@ -66,22 +80,40 @@ describe('generateShareText', () => {
       0,
     );
 
-    expect(text.startsWith('Better Wordle - Daily Standard')).toBe(true);
-    expect(text).toContain('Guesses: 6/6');
-    expect(text).toContain('Not solved!');
+    const expected = [
+      'Better Wordle - Daily Standard',
+      '',
+      '🟨⬛⬛⬛🟩',
+      '🟨🟨⬛⬛⬛',
+      '⬛⬛⬛🟨⬛',
+      '🟨🟨⬛⬛⬛',
+      '⬛⬛🟨⬛🟨',
+      '⬛🟨⬛⬛🟨',
+      '',
+      'Guesses: 6/6',
+      'Not solved!',
+      '',
+      'Play Better Wordle!',
+      'https://wisdom-githb.github.io/better-wordle/',
+    ].join('\n');
+
+    expect(text).toBe(expected);
   });
 
-  it('uses Better Wordle - Daily Standard heading and Solved! when continuing after out-of-guesses on single-board daily standard', () => {
+  it('matches Daily standard - 1 word - not solved in guess limit - continue - solve', () => {
     const boards = [
-      makeBoard([
-        { word: 'GUESS1', colors: ['yellow', 'grey', 'grey', 'grey', 'green'] },
-        { word: 'GUESS2', colors: ['yellow', 'yellow', 'grey', 'grey', 'grey'] },
-        { word: 'GUESS3', colors: ['grey', 'grey', 'grey', 'yellow', 'grey'] },
-        { word: 'GUESS4', colors: ['yellow', 'yellow', 'grey', 'grey', 'grey'] },
-        { word: 'GUESS5', colors: ['grey', 'grey', 'yellow', 'grey', 'yellow'] },
-        { word: 'GUESS6', colors: ['grey', 'yellow', 'grey', 'grey', 'yellow'] },
-        { word: 'GUESS7', colors: ['green', 'green', 'green', 'green', 'green'] },
-      ], true),
+      makeBoard(
+        [
+          { word: 'G1', colors: ['grey', 'yellow', 'grey', 'grey', 'grey'] },
+          { word: 'G2', colors: ['yellow', 'grey', 'grey', 'grey', 'yellow'] },
+          { word: 'G3', colors: ['yellow', 'grey', 'grey', 'grey', 'green'] },
+          { word: 'G4', colors: ['grey', 'grey', 'yellow', 'grey', 'yellow'] },
+          { word: 'G5', colors: ['grey', 'grey', 'grey', 'yellow', 'grey'] },
+          { word: 'G6', colors: ['grey', 'yellow', 'grey', 'grey', 'yellow'] },
+          { word: 'G7', colors: ['green', 'green', 'green', 'green', 'green'] },
+        ],
+        true,
+      ),
     ];
 
     const text = generateShareText(
@@ -98,178 +130,393 @@ describe('generateShareText', () => {
       1,
     );
 
-    expect(text.startsWith('Better Wordle - Daily Standard')).toBe(true);
-    expect(text).toContain('Guesses: 7/6');
-    expect(text).toContain('Solved!');
+    const expected = [
+      'Better Wordle - Daily Standard',
+      '',
+      '⬛🟨⬛⬛⬛',
+      '🟨⬛⬛⬛🟨',
+      '🟨⬛⬛⬛🟩',
+      '⬛⬛🟨⬛🟨',
+      '⬛⬛⬛🟨⬛',
+      '⬛🟨⬛⬛🟨',
+      '🟩🟩🟩🟩🟩',
+      '',
+      'Guesses: 7/6',
+      'Solved!',
+      '',
+      'Play Better Wordle!',
+      'https://wisdom-githb.github.io/better-wordle/',
+    ].join('\n');
+
+    expect(text).toBe(expected);
   });
 
-  it('includes mode, boards, time and solved count for multi-board non-marathon games', () => {
+  it('matches Daily standard - multiple words - solve in guess limit', () => {
+    const boards = [makeBoard([], true), makeBoard([], true)];
+
+    const text = generateShareText(
+      boards,
+      'daily',
+      2,
+      false,
+      0,
+      0,
+      (ms) => `T${ms}`,
+      4,
+      7,
+      true,
+      2,
+    );
+
+    const expected = [
+      'Better Wordle - Daily Standard',
+      '',
+      'Boards: 2',
+      'Guesses used: 4/7',
+      'Solved: 2/2',
+      '',
+      'Play Better Wordle!',
+      'https://wisdom-githb.github.io/better-wordle/',
+    ].join('\n');
+
+    expect(text).toBe(expected);
+  });
+
+  it('matches Daily standard - multiple words - not solved in guess limit - exit', () => {
+    const boards = [makeBoard([], false), makeBoard([], false)];
+
+    const text = generateShareText(
+      boards,
+      'daily',
+      2,
+      false,
+      0,
+      0,
+      (ms) => `T${ms}`,
+      7,
+      7,
+      false,
+      0,
+    );
+
+    const expected = [
+      'Better Wordle - Daily Standard',
+      '',
+      'Boards: 2',
+      'Guesses used: 7/7',
+      'Solved: 0/2',
+      '',
+      'Play Better Wordle!',
+      'https://wisdom-githb.github.io/better-wordle/',
+    ].join('\n');
+
+    expect(text).toBe(expected);
+  });
+
+  it('matches Daily standard - multiple words - not solved in guess limit - continue - solve', () => {
     const boards = [
-      makeBoard(Array(3).fill({ word: 'BOARD1' }), true),
-      makeBoard(Array(5).fill({ word: 'BOARD2' }), false),
-      makeBoard(Array(2).fill({ word: 'BOARD3' }), true),
+      makeBoard([], true),
+      makeBoard([], true),
+      makeBoard([], true),
+      makeBoard([], true),
+      makeBoard([], true),
     ];
 
     const text = generateShareText(
       boards,
       'daily',
-      3,
-      true,           // speedrunEnabled
-      30_000,
-      45_000,
-      (ms) => `T${ms}`,
       5,
-      8,
       false,
+      0,
+      0,
+      (ms) => `T${ms}`,
+      11,
+      10,
+      true,
+      5,
+    );
+
+    const expected = [
+      'Better Wordle - Daily Standard',
+      '',
+      'Boards: 5',
+      'Guesses used: 11/10',
+      'Solved: 5/5',
+      '',
+      'Play Better Wordle!',
+      'https://wisdom-githb.github.io/better-wordle/',
+    ].join('\n');
+
+    expect(text).toBe(expected);
+  });
+
+  it('matches Daily speedrun - 1 board', () => {
+    const boards = [
+      makeBoard(
+        [
+          { word: 'G1', colors: ['grey', 'grey', 'grey', 'grey', 'grey'] },
+          { word: 'G2', colors: ['grey', 'grey', 'grey', 'grey', 'yellow'] },
+          { word: 'G3', colors: ['yellow', 'yellow', 'grey', 'grey', 'yellow'] },
+          { word: 'G4', colors: ['green', 'grey', 'grey', 'grey', 'yellow'] },
+          { word: 'G5', colors: ['green', 'green', 'green', 'green', 'green'] },
+        ],
+        true,
+      ),
+    ];
+
+    const text = generateShareText(
+      boards,
+      'daily',
+      1,
+      true,
+      15_800,
+      15_800,
+      () => '00:15.8',
+      5,
+      6,
+      true,
+      1,
+    );
+
+    const expected = [
+      'Better Wordle - Daily Speedrun',
+      '',
+      '⬛⬛⬛⬛⬛',
+      '⬛⬛⬛⬛🟨',
+      '🟨🟨⬛⬛🟨',
+      '🟩⬛⬛⬛🟨',
+      '🟩🟩🟩🟩🟩',
+      '',
+      'Time: 00:15.8',
+      'Guesses: 5',
+      '',
+      'Play Better Wordle!',
+      'https://wisdom-githb.github.io/better-wordle/',
+    ].join('\n');
+
+    expect(text).toBe(expected);
+  });
+
+  it('matches Daily speedrun - multiple boards', () => {
+    const boards = [makeBoard([], true), makeBoard([], true)];
+
+    const text = generateShareText(
+      boards,
+      'daily',
+      2,
+      true,
+      14_300,
+      14_300,
+      () => '00:14.3',
+      6,
+      0,
+      true,
       2,
     );
 
-    expect(text).toContain('Daily Better Wordle');
-    expect(text).toContain('Boards: 3');
-    expect(text).toContain('Time: T45000');
-    expect(text).toContain('Guesses used: 5/8');
-    expect(text).toContain('Solved: 2/3');
-    expect(text).toContain('Play Better Wordle!');
+    const expected = [
+      'Better Wordle - Daily Speedrun',
+      '',
+      'Boards: 2',
+      'Time: 00:14.3',
+      'Guesses used: 6',
+      '',
+      'Play Better Wordle!',
+      'https://wisdom-githb.github.io/better-wordle/',
+    ].join('\n');
+
+    expect(text).toBe(expected);
   });
 
-  it('formats marathon multi-stage guesses correctly without emojis', () => {
-    const boards = [
-      makeBoard([], true),
-      makeBoard([], true),
-    ];
+  it('matches Marathon standard - all stages solved in guess limit', () => {
+    const boards = [makeBoard([], true)];
 
     const marathonStages = [
-      { boards: 1, turnsUsed: 2, maxTurns: 6, stageElapsedMs: 10_000 },
-      { boards: 2, turnsUsed: 3, maxTurns: 7, stageElapsedMs: 20_000 },
-      { boards: 3, turnsUsed: 4, maxTurns: 8, stageElapsedMs: 30_000 },
-      { boards: 4, turnsUsed: 5, maxTurns: 9, stageElapsedMs: 40_000 },
+      { boards: 1, turnsUsed: 2, maxTurns: 6, stageElapsedMs: 0, solvedCount: 1 },
+      { boards: 2, turnsUsed: 6, maxTurns: 7, stageElapsedMs: 0, solvedCount: 2 },
+      { boards: 3, turnsUsed: 4, maxTurns: 8, stageElapsedMs: 0, solvedCount: 3 },
+      { boards: 4, turnsUsed: 4, maxTurns: 9, stageElapsedMs: 0, solvedCount: 4 },
     ];
 
     const text = generateShareText(
       boards,
       'marathon',
-      10,              // total boards across stages
-      false,           // standard (non-speedrun)
+      10,
+      false,
       0,
       0,
       (ms) => `T${ms}`,
-      14,              // total turns used
-      30,              // total max turns
+      16,
+      30,
       true,
       10,
       marathonStages,
     );
 
-    expect(text).toContain('Marathon Better Wordle');
-    expect(text).toContain('Stage 1 (1 board):');
-    expect(text).toContain('Guesses used: 2/6');
-    expect(text).toContain('Stage 2 (2 boards):');
-    expect(text).toContain('Guesses used: 3/7');
-    expect(text).toContain('Stage 3 (3 boards):');
-    expect(text).toContain('Guesses used: 4/8');
-    expect(text).toContain('Stage 4 (4 boards):');
-    expect(text).toContain('Guesses used: 5/9');
-    expect(text).toContain('Total guesses used: 14/30');
-    expect(text).toContain('Play Better Wordle!');
+    const expected = [
+      'Better Wordle - Marathon Standard',
+      '',
+      'Stage 1 (1 board):',
+      'Guesses used: 2/6',
+      'Stage 2 (2 boards):',
+      'Guesses used: 6/7',
+      'Stage 3 (3 boards):',
+      'Guesses used: 4/8',
+      'Stage 4 (4 boards):',
+      'Guesses used: 4/9',
+      '',
+      'Total guesses used: 16/30',
+      '',
+      'Play Better Wordle!',
+      'https://wisdom-githb.github.io/better-wordle/',
+    ].join('\n');
+
+    expect(text).toBe(expected);
   });
 
-  it('formats marathon multi-stage speedrun times correctly without emojis', () => {
+  it('matches Marathon standard - solved stage 1, partial stage 2, then exit', () => {
     const boards = [makeBoard([], true)];
 
     const marathonStages = [
-      { boards: 1, turnsUsed: 0, maxTurns: 0, stageElapsedMs: 10_000 },
-      { boards: 2, turnsUsed: 0, maxTurns: 0, stageElapsedMs: 20_000 },
+      { boards: 1, turnsUsed: 2, maxTurns: 6, stageElapsedMs: 0, solvedCount: 1 },
+      { boards: 2, turnsUsed: 7, maxTurns: 7, stageElapsedMs: 0, solvedCount: 1 },
+      { boards: 3, turnsUsed: 0, maxTurns: 8, stageElapsedMs: 0, solvedCount: 0 },
+      { boards: 4, turnsUsed: 0, maxTurns: 9, stageElapsedMs: 0, solvedCount: 0 },
     ];
 
     const text = generateShareText(
       boards,
       'marathon',
       3,
-      true,             // speedrun
-      30_000,
-      30_000,
-      (ms) => `T${ms}`,
-      0,
-      0,
-      true,
-      3,
-      marathonStages,
-    );
-
-    expect(text).toContain('Marathon Better Wordle');
-    expect(text).toContain('Stage 1 (1 board):');
-    expect(text).toContain('Time: T10000');
-    expect(text).toContain('Stage 2 (2 boards):');
-    expect(text).toContain('Time: T20000');
-    expect(text).toContain('Total time: T30000');
-    expect(text).toContain('Play Better Wordle!');
-  });
-
-  it('marks unsolved marathon stages as Not solved and omits per-stage stats', () => {
-    const boards = [
-      makeBoard([], true),
-      makeBoard([], true),
-    ];
-
-    const marathonStages = [
-      { boards: 1, turnsUsed: 2, maxTurns: 6, stageElapsedMs: 10_000, solvedCount: 1 },
-      { boards: 2, turnsUsed: 3, maxTurns: 7, stageElapsedMs: 20_000, solvedCount: 2 },
-      // Third stage exists but is not fully solved: solvedCount < boards.
-      { boards: 3, turnsUsed: 0, maxTurns: 8, stageElapsedMs: 0, solvedCount: 1 },
-    ];
-
-    const text = generateShareText(
-      boards,
-      'marathon',
-      6,
       false,
       0,
       0,
       (ms) => `T${ms}`,
-      5,
+      9,
       13,
       false,
-      3,
+      2,
       marathonStages,
     );
 
-    expect(text).toContain('Stage 1 (1 board):');
-    expect(text).toContain('Guesses used: 2/6');
-    expect(text).toContain('Stage 2 (2 boards):');
-    expect(text).toContain('Guesses used: 3/7');
-    expect(text).toContain('Stage 3 (3 boards):');
-    expect(text).toContain('Not solved');
-    // Ensure we did not render a bogus guesses-used line for the unsolved stage.
-    expect(text).not.toContain('Guesses used: 0/8');
+    const expected = [
+      'Better Wordle - Marathon Standard',
+      '',
+      'Stage 1 (1 board):',
+      'Guesses used: 2/6',
+      'Stage 2 (2 boards):',
+      '1 board solved. Guesses used: 7/7',
+      'Stage 3 (3 boards):',
+      'Not solved',
+      'Stage 4 (4 boards):',
+      'Not solved',
+      '',
+      'Total guesses used: 9/13',
+      '',
+      'Play Better Wordle!',
+      'https://wisdom-githb.github.io/better-wordle/',
+    ].join('\n');
+
+    expect(text).toBe(expected);
   });
 
-  it('marks unsolved marathon speedrun stages as Not solved and omits per-stage times', () => {
+  it('matches Marathon standard - continue after stage 2 and solve all stages', () => {
     const boards = [makeBoard([], true)];
 
     const marathonStages = [
-      { boards: 1, turnsUsed: 0, maxTurns: 0, stageElapsedMs: 10_000, solvedCount: 1 },
-      { boards: 2, turnsUsed: 0, maxTurns: 0, stageElapsedMs: 20_000, solvedCount: 2 },
-      { boards: 3, turnsUsed: 0, maxTurns: 0, stageElapsedMs: 0, solvedCount: 1 },
+      { boards: 1, turnsUsed: 2, maxTurns: 6, stageElapsedMs: 0, solvedCount: 1 },
+      { boards: 2, turnsUsed: 8, maxTurns: 7, stageElapsedMs: 0, solvedCount: 2 },
+      { boards: 3, turnsUsed: 9, maxTurns: 8, stageElapsedMs: 0, solvedCount: 3 },
+      { boards: 4, turnsUsed: 4, maxTurns: 9, stageElapsedMs: 0, solvedCount: 4 },
     ];
 
     const text = generateShareText(
       boards,
       'marathon',
-      6,
-      true,
-      30_000,
-      30_000,
-      (ms) => `T${ms}`,
-      0,
-      0,
+      10,
       false,
-      3,
+      0,
+      0,
+      (ms) => `T${ms}`,
+      23,
+      30,
+      true,
+      10,
       marathonStages,
     );
 
-    expect(text).toContain('Stage 3 (3 boards):');
-    expect(text).toContain('Not solved');
-    expect(text).not.toContain('Time: T0');
+    const expected = [
+      'Better Wordle - Marathon Standard',
+      '',
+      'Stage 1 (1 board):',
+      'Guesses used: 2/6',
+      'Stage 2 (2 boards):',
+      'Guesses used: 8/7',
+      'Stage 3 (3 boards):',
+      'Guesses used: 9/8',
+      'Stage 4 (4 boards):',
+      'Guesses used: 4/9',
+      '',
+      'Total guesses used: 23/30',
+      '',
+      'Play Better Wordle!',
+      'https://wisdom-githb.github.io/better-wordle/',
+    ].join('\n');
+
+    expect(text).toBe(expected);
+  });
+
+  it('matches Marathon speedrun', () => {
+    const boards = [makeBoard([], true)];
+
+    const marathonStages = [
+      { boards: 1, turnsUsed: 0, maxTurns: 0, stageElapsedMs: 7_500, solvedCount: 1 },
+      { boards: 2, turnsUsed: 0, maxTurns: 0, stageElapsedMs: 15_400, solvedCount: 2 },
+      { boards: 3, turnsUsed: 0, maxTurns: 0, stageElapsedMs: 15_100, solvedCount: 3 },
+      { boards: 4, turnsUsed: 0, maxTurns: 0, stageElapsedMs: 13_800, solvedCount: 4 },
+    ];
+
+    const text = generateShareText(
+      boards,
+      'marathon',
+      10,
+      true,
+      51_900,
+      51_900,
+      (ms) => {
+        if (ms === 7_500) return '00:07.5';
+        if (ms === 15_400) return '00:15.4';
+        if (ms === 15_100) return '00:15.1';
+        if (ms === 13_800) return '00:13.8';
+        if (ms === 51_900) return '00:51.9';
+        return `MS${ms}`;
+      },
+      0,
+      0,
+      true,
+      10,
+      marathonStages,
+    );
+
+    const expected = [
+      'Better Wordle - Marathon Speedrun',
+      '',
+      'Stage 1 (1 board):',
+      'Time: 00:07.5',
+      'Stage 2 (2 boards):',
+      'Time: 00:15.4',
+      'Stage 3 (3 boards):',
+      'Time: 00:15.1',
+      'Stage 4 (4 boards):',
+      'Time: 00:13.8',
+      '',
+      'Total time: 00:51.9',
+      '',
+      'Play Better Wordle!',
+      'https://wisdom-githb.github.io/better-wordle/',
+    ].join('\n');
+
+    expect(text).toBe(expected);
   });
 
   it('returns generic text when boards array is empty', () => {
