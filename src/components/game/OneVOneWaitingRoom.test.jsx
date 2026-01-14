@@ -29,7 +29,7 @@ describe('OneVOneWaitingRoom', () => {
     expect(onShareCode).toHaveBeenCalledWith('123456');
   });
 
-  it('renders player rows with correct ready badges when guest has joined', () => {
+  it('renders player rows with correct ready badges when guest has joined (host view)', () => {
     render(
       <OneVOneWaitingRoom
         gameCode="123456"
@@ -48,6 +48,26 @@ describe('OneVOneWaitingRoom', () => {
     expect(screen.getAllByText('✓ Ready')[0]).toBeInTheDocument();
     expect(screen.getByText('Bob')).toBeInTheDocument();
     expect(screen.getAllByText('Not Ready')[0]).toBeInTheDocument();
+  });
+
+  it('shows the host label from the guest perspective as well', () => {
+    render(
+      <OneVOneWaitingRoom
+        gameCode="123456"
+        gameState={{
+          status: 'waiting',
+          hostName: 'Alice',
+          guestName: 'Bob',
+          hostReady: true,
+          guestReady: false,
+        }}
+        isHost={false}
+      />,
+    );
+
+    // Guest should see the host label on the other player row.
+    expect(screen.getByText('Alice (Host)')).toBeInTheDocument();
+    expect(screen.getByText('Bob')).toBeInTheDocument();
   });
 
   it('calls onReady and disables Not Ready when both players are ready', () => {

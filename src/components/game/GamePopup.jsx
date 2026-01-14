@@ -42,6 +42,14 @@ export default function GamePopup({
     onNextStage();
   };
 
+  // In daily and marathon modes (including speedrun variants), once the player
+  // has solved all boards we show a more descriptive label on the close button
+  // to highlight that comments are available below the board.
+  const showPostCommentCta =
+    !isOneVOne &&
+    allSolved &&
+    (mode === "daily" || mode === "marathon");
+
   return (
     <div
       onClick={handleBackdropClick}
@@ -354,27 +362,7 @@ export default function GamePopup({
               textTransform: "uppercase"
             }}
           >
-            Close
-          </button>
-
-          <button
-            onClick={() => navigate("/")}
-            style={{
-              flex: 1,
-              minWidth: 160,
-              padding: "12px 0",
-              borderRadius: 10,
-              border: "none",
-              background: "#c9b458",
-              color: "#121213",
-              fontSize: 14,
-              fontWeight: "bold",
-              cursor: "pointer",
-              letterSpacing: 1,
-              textTransform: "uppercase"
-            }}
-          >
-            Home
+            {showPostCommentCta ? "View Comments" : "Close"}
           </button>
 
           {mode === "marathon" && marathonHasNext && (

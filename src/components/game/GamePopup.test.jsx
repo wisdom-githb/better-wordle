@@ -10,7 +10,7 @@ vi.mock('react-router-dom', () => ({
 describe('GamePopup - single player', () => {
   const formatElapsed = (ms) => `${(ms / 1000).toFixed(1)}s`;
 
-  it('shows congratulations title, score, and solutions list when allSolved', () => {
+  it('shows congratulations title, score, solutions list, and View Comments CTA when allSolved daily', () => {
     const onShare = vi.fn();
     const onClose = vi.fn();
 
@@ -45,6 +45,11 @@ describe('GamePopup - single player', () => {
     expect(screen.getByText(/Score: 123/)).toBeInTheDocument();
     expect(screen.getByText(/Solutions/i)).toBeInTheDocument();
     expect(screen.getByText(/Board 1: APPLE/)).toBeInTheDocument();
+
+    // Close button should show "View Comments" in solved daily/marathon modes.
+    expect(screen.getByRole('button', { name: /View Comments/i })).toBeInTheDocument();
+    // Home button has been removed from the popup actions.
+    expect(screen.queryByRole('button', { name: /Home/i })).not.toBeInTheDocument();
   });
 
   it('shows stage summary and next-stage button in marathon speedrun', () => {

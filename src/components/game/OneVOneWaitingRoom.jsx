@@ -156,7 +156,7 @@ export default function OneVOneWaitingRoom({
                   alignItems: 'center'
                 }}>
                   <span style={{ color: '#ffffff', fontWeight: 'bold' }}>
-                    {otherPlayerName}
+                    {otherPlayerName} {!isHost ? '(Host)' : ''}
                   </span>
                   <span style={{
                     color: otherPlayerReady ? '#6aaa64' : '#818384',

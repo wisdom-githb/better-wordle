@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import GameHeader from "./GameHeader";
 import OneVOneWaitingRoom from "./OneVOneWaitingRoom";
 import OpponentBoardView from "./OpponentBoardView";
 import GameBoard from "./GameBoard";
 import SiteHeader from "../SiteHeader";
+import AuthModal from "../AuthModal";
 import { KEYBOARD_HEIGHT, formatElapsed as formatElapsedLib, scoreGuess } from "../../lib/wordle";
 import { calculateNonSpeedrunScore } from "../../lib/gameUtils";
 import { FLIP_MS } from "../../lib/gameConstants";
@@ -16,6 +17,7 @@ export default function OneVOneGameView({
   mode,
   gameCode,
   authUser,
+  authLoading,
   oneVOneGame,
   isLoading,
   maxTurns,
@@ -42,7 +44,116 @@ export default function OneVOneGameView({
   friends,
   onCancelChallenge,
 }) {
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const gameState = oneVOneGame.gameState;
+
+  // If we're still resolving auth, show a simple loading state that includes the header.
+  if (authLoading) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          backgroundColor: "#121213",
+          color: "#ffffff",
+        }}
+      >
+        <SiteHeader onOpenFeedback={onOpenFeedback} />
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "24px",
+          }}
+        >
+          Loading authentication...
+        </div>
+      </div>
+    );
+  }
+
+  // If the user is not signed in, show a dedicated login-required screen for 1v1.
+  if (!authUser) {
+    return (
+      <>
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            flexDirection: "column",
+            backgroundColor: "#121213",
+            color: "#ffffff",
+          }}
+        >
+          <SiteHeader onOpenFeedback={onOpenFeedback} />
+          <main
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "24px",
+              textAlign: "center",
+            }}
+          >
+            <h2
+              style={{
+                fontSize: 24,
+                fontWeight: "bold",
+                marginBottom: 16,
+              }}
+            >
+              Sign in to play 1v1 games
+            </h2>
+            <p
+              style={{
+                maxWidth: 480,
+                fontSize: 14,
+                color: "#d7dadc",
+                marginBottom: 24,
+                lineHeight: 1.6,
+              }}
+            >
+              A Better Wordle account is required to host or join 1v1 games.
+            </p>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+                width: "100%",
+                maxWidth: 320,
+              }}
+            >
+              <button
+                type="button"
+                className="homeBtn homeBtnGreen homeBtnLg"
+                onClick={() => setShowAuthModal(true)}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                className="homeBtn homeBtnOutline homeBtnLg"
+                onClick={onBack}
+              >
+                Back to Home
+              </button>
+            </div>
+          </main>
+        </div>
+
+        <AuthModal
+          isOpen={showAuthModal}
+          onRequestClose={() => setShowAuthModal(false)}
+        />
+      </>
+    );
+  }
 
   // If the invited friend has declined the challenge (via Challenges modal),
   // show a simple message to the host and offer a way back home.

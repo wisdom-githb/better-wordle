@@ -27,8 +27,14 @@ export default function GameOneVOne() {
   const { code: codeParam } = useParams();
 
   const { message, setMessage, setTimedMessage, clearMessageTimer } = useTimedMessage("");
-  const { user: authUser, sendFriendRequest, isVerifiedUser, friends, cancelSentChallenge } =
-    useAuth();
+  const {
+    user: authUser,
+    sendFriendRequest,
+    isVerifiedUser,
+    friends,
+    cancelSentChallenge,
+    loading: authLoading,
+  } = useAuth();
 
   const rawMode = searchParams.get("mode");
   const isHost = searchParams.get("host") === "true";
@@ -41,7 +47,12 @@ export default function GameOneVOne() {
 
   const gameCode = codeParam || searchParams.get("code") || null;
 
-  const oneVOneGame = useOneVOneGame(gameCode || null, isHost, speedrunEnabled);
+  // Only start listening to the 1v1 game in Firebase once we know the user
+  // auth state. This avoids a confusing "permission_denied" error when a
+  // friend opens a shared 1v1 link without being signed in.
+  const effectiveGameCode = authUser ? gameCode : null;
+
+  const oneVOneGame = useOneVOneGame(effectiveGameCode, isHost, speedrunEnabled);
 
   const [boards, setBoards] = useState([]);
   const [currentGuess, setCurrentGuess] = useState("");
@@ -357,6 +368,7 @@ export default function GameOneVOne() {
         mode="1v1"
         gameCode={gameCode}
         authUser={authUser}
+        authLoading={authLoading}
         oneVOneGame={oneVOneGame}
         isLoading={isLoading}
         initialNumBoards={numBoards}

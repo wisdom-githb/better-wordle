@@ -60,7 +60,7 @@ describe('Profile', () => {
     });
   });
 
-  it('renders user info and username editing, and saves valid username', async () => {
+  it('renders user info, hides actions initially, and shows them only when username changes', async () => {
     const updateUsername = vi.fn().mockResolvedValue(true);
 
     useAuth.mockReturnValue({
@@ -84,10 +84,19 @@ describe('Profile', () => {
     expect(screen.getByText('user@example.com')).toBeInTheDocument();
     expect(screen.getByText(/verified/i)).toBeInTheDocument();
 
+    // Action buttons should be hidden before any username change
+    expect(screen.queryByRole('button', { name: /save changes/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument();
+
     const usernameInput = screen.getByLabelText(/username/i);
     fireEvent.change(usernameInput, { target: { value: 'New Name' } });
 
+    // Buttons should appear after username changes
     const saveButton = screen.getByRole('button', { name: /save changes/i });
+    const cancelButton = screen.getByRole('button', { name: /cancel/i });
+    expect(saveButton).toBeInTheDocument();
+    expect(cancelButton).toBeInTheDocument();
+
     fireEvent.click(saveButton);
 
     await waitFor(() => {

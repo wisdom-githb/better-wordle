@@ -10,6 +10,7 @@ export default function Profile() {
   const navigate = useNavigate();
   const { user, loading, updateUsername, error, isVerifiedUser, resendVerificationEmail, linkGoogleAccount } = useAuth();
   const [username, setUsername] = useState("");
+  const [initialUsername, setInitialUsername] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [message, setMessage] = useState("");
@@ -22,7 +23,9 @@ export default function Profile() {
       return;
     }
     if (user) {
-      setUsername(user.displayName || "");
+      const name = user.displayName || "";
+      setUsername(name);
+      setInitialUsername(name);
     }
   }, [user, loading, navigate]);
 
@@ -36,6 +39,7 @@ export default function Profile() {
     setMessage("");
     try {
       await updateUsername(username);
+      setInitialUsername(username);
       setMessage("Username updated successfully!");
     } catch (err) {
       setMessage(`Error: ${error || err.message}`);
@@ -136,24 +140,26 @@ export default function Profile() {
                     </div>
                   )}
 
-                  <div className="profileActions">
-                    <button
-                      onClick={handleSave}
-                      disabled={isSaving}
-                      className="profileBtn homeBtn homeBtnGreen homeBtnLg"
-                      style={{ opacity: isSaving ? 0.8 : 1, cursor: isSaving ? "not-allowed" : "pointer" }}
-                    >
-                      {isSaving ? "Saving..." : "Save Changes"}
-                    </button>
-                    <button
-                      onClick={handleCancel}
-                      disabled={isSaving}
-                      className="profileBtn homeBtn homeBtnOutline homeBtnLg"
-                      style={{ opacity: isSaving ? 0.8 : 1, cursor: isSaving ? "not-allowed" : "pointer" }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
+                  {username !== initialUsername && (
+                    <div className="profileActions">
+                      <button
+                        onClick={handleSave}
+                        disabled={isSaving}
+                        className="profileBtn homeBtn homeBtnGreen homeBtnLg"
+                        style={{ opacity: isSaving ? 0.8 : 1, cursor: isSaving ? "not-allowed" : "pointer" }}
+                      >
+                        {isSaving ? "Saving..." : "Save Changes"}
+                      </button>
+                      <button
+                        onClick={handleCancel}
+                        disabled={isSaving}
+                        className="profileBtn homeBtn homeBtnOutline homeBtnLg"
+                        style={{ opacity: isSaving ? 0.8 : 1, cursor: isSaving ? "not-allowed" : "pointer" }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="profileSection" style={{ marginTop: '24px' }}>
