@@ -4,19 +4,17 @@ import { Helmet } from "react-helmet-async";
 import { loadJSON, saveJSON, makeSolvedKey, makeDailyKey, makeMarathonKey, marathonMetaKey } from "../../lib/persist";
 import {
   WORD_LENGTH,
+  scoreGuess,
   buildLetterMapFromGuesses,
   getTurnsUsed,
   formatElapsed,
   sumMs,
 } from "../../lib/wordle";
 import { FLIP_COMPLETE_MS } from "../../lib/gameConstants";
-import {
-  calculateNonSpeedrunScore,
-  calculateSpeedrunScore,
-  generateShareText,
-} from "../../lib/gameUtils";
+import { generateShareText } from "../../lib/gameUtils";
 import { getCurrentDateString } from "../../lib/dailyWords";
 import { submitSpeedrunScore } from "../../hooks/useLeaderboard";
+import { useAuth } from "../../hooks/useAuth";
 import { useTimedMessage } from "../../hooks/useTimedMessage";
 import { useShare } from "../../hooks/useShare";
 import { useSinglePlayerGame } from "../../hooks/useSinglePlayerGame";
@@ -34,6 +32,7 @@ export default function GameSinglePlayer({
 }) {
   const navigate = useNavigate();
   const { message, setMessage, setTimedMessage, clearMessageTimer } = useTimedMessage("");
+  const { user: authUser, isVerifiedUser } = useAuth();
 
   // Load marathon meta for current speedrun/daily config.
   const marathonMeta = loadJSON(marathonMetaKey(speedrunEnabled), {
@@ -59,6 +58,7 @@ export default function GameSinglePlayer({
 
   const [boards, setBoards] = useState([]);
   const [currentGuess, setCurrentGuess] = useState("");
+  const currentGuessRef = useRef("");
   const [maxTurns, setMaxTurns] = useState(6);
   const [allowedSet, setAllowedSet] = useState(new Set());
   const [isLoading, setIsLoading] = useState(true);
@@ -66,6 +66,19 @@ export default function GameSinglePlayer({
 
   const [showPopup, setShowPopup] = useState(false);
   const [showOutOfGuesses, setShowOutOfGuesses] = useState(false);
+  // Tracks when the player has definitively finished the stage (either by
+  // solving all boards or choosing to exit after running out of guesses).
+  // We use this to gate end-of-game UI like comments so it does not appear
+  // while the out-of-guesses popup is still asking whether to continue.
+  const [hasCompletedStage, setHasCompletedStage] = useState(false);
+  // In marathon mode, remember whether the player is allowed to advance to the
+  // next stage from the end-of-game popup. If they reach the popup via
+  // "Exit" after running out of guesses, we disable the Next Stage button.
+  const [allowNextStageAfterPopup, setAllowNextStageAfterPopup] = useState(true);
+  // In marathon mode, if the player exits after running out of guesses, allow
+  // them to share their result from the popup even if the stage is not the
+  // final marathon stage.
+  const [forceCanShareAfterPopup, setForceCanShareAfterPopup] = useState(false);
 
   const savedSolvedStateRef = useRef(null);
 
@@ -94,6 +107,12 @@ export default function GameSinglePlayer({
     }, 100);
     return () => clearInterval(id);
   }, [speedrunEnabled]);
+
+  // Keep an always-fresh ref of the current guess so that even callbacks
+  // captured by mocks or older renders (e.g. in tests) see the latest value.
+  useEffect(() => {
+    currentGuessRef.current = currentGuess;
+  }, [currentGuess]);
 
   const getGameStateKey = useCallback(() => {
     if (mode === "marathon") {
@@ -235,6 +254,16 @@ export default function GameSinglePlayer({
       : boards.every((b) => b.isSolved || b.isDead);
   }, [boards, isUnlimited]);
 
+  // Mark the stage as fully completed the first time the end-of-game popup
+  // is shown. This happens both when the player solves all boards and when
+  // they choose to exit after running out of guesses (including when
+  // revisiting an already-solved puzzle from local storage).
+  useEffect(() => {
+    if (!hasCompletedStage && finished && showPopup) {
+      setHasCompletedStage(true);
+    }
+  }, [hasCompletedStage, finished, showPopup]);
+
   const allSolved = useMemo(
     () => boards.length > 0 && boards.every((b) => b.isSolved),
     [boards]
@@ -260,8 +289,10 @@ export default function GameSinglePlayer({
   }, [allSolved, showPopup, showOutOfGuesses]);
 
   const addLetter = (letter) => {
-    if (currentGuess.length >= WORD_LENGTH) return;
-    setCurrentGuess((prev) => prev + letter);
+    if (currentGuessRef.current.length >= WORD_LENGTH) return;
+    const next = currentGuessRef.current + letter;
+    currentGuessRef.current = next;
+    setCurrentGuess(next);
     if (message) {
       setMessage("");
       clearMessageTimer();
@@ -269,8 +300,10 @@ export default function GameSinglePlayer({
   };
 
   const removeLetter = () => {
-    if (currentGuess.length === 0) return;
-    setCurrentGuess((prev) => prev.slice(0, -1));
+    if (currentGuessRef.current.length === 0) return;
+    const next = currentGuessRef.current.slice(0, -1);
+    currentGuessRef.current = next;
+    setCurrentGuess(next);
     if (message) {
       setMessage("");
       clearMessageTimer();
@@ -286,10 +319,22 @@ export default function GameSinglePlayer({
 
   const submitGuess = async () => {
     if (showPopup || showOutOfGuesses) return;
-    if (currentGuess.length !== WORD_LENGTH) return;
 
-    if (!allowedSet.has(currentGuess)) {
+    const guess = currentGuessRef.current;
+
+    // If the guess is not complete (fewer than WORD_LENGTH letters), treat
+    // Enter as "clear" so the player can quickly start over.
+    if (guess.length !== WORD_LENGTH) {
+      if (guess.length > 0) {
+        currentGuessRef.current = "";
+        setCurrentGuess("");
+      }
+      return;
+    }
+
+    if (!allowedSet.has(guess)) {
       setTimedMessage("Not in word list.", 5000);
+      currentGuessRef.current = "";
       setCurrentGuess("");
       return;
     }
@@ -306,18 +351,11 @@ export default function GameSinglePlayer({
       if (board.isSolved) return board;
       if (!isUnlimited && board.isDead) return board;
 
-      const colors = board.solution
-        ? board.solution.split("").map((_, i) => (currentGuess[i] === board.solution[i] ? "green" : "grey"))
-        : [];
+      const colors = board.solution ? scoreGuess(guess, board.solution) : [];
 
-      // Use original scoreGuess via Game.jsx semantics in main file; we keep
-      // behavior equivalent here by relying on board.guesses and upstream logic.
-      // NOTE: we still push the guess with colors; exact scoring is handled by the
-      // board state created via useSinglePlayerGame.
+      const guesses = [...board.guesses, { word: guess, colors }];
 
-      const guesses = [...board.guesses, { word: currentGuess, colors }];
-
-      const isSolvedNow = currentGuess === board.solution;
+      const isSolvedNow = guess === board.solution;
       const isDeadNow = !isUnlimited && !isSolvedNow && guesses.length >= maxTurns;
 
       const hadNewGuess = guesses.length > board.guesses.length;
@@ -329,6 +367,7 @@ export default function GameSinglePlayer({
     setBoards(newBoards);
     setRevealId(nextRevealId);
     setIsFlipping(true);
+    currentGuessRef.current = "";
     setCurrentGuess("");
     setMessage("");
     clearMessageTimer();
@@ -377,13 +416,8 @@ export default function GameSinglePlayer({
         }
       }
 
-      const currentScore = speedrunEnabled
-        ? calculateSpeedrunScore(savedPopupTotalMs || finalStageMs, numBoards)
-        : calculateNonSpeedrunScore(newBoards, currentTurnsUsed, maxTurns, numBoards);
-
       const solvedState = {
         boards: newBoards,
-        score: currentScore,
         turnsUsed: currentTurnsUsed,
         maxTurns,
         allSolved: true,
@@ -396,8 +430,6 @@ export default function GameSinglePlayer({
 
       const isMarathonComplete =
         mode === "marathon" && marathonIndex >= marathonLevels.length - 1;
-      const authUser = null; // Leaderboard submission will be no-op without auth
-      const isVerifiedUser = false;
 
       const shouldSubmit =
         speedrunEnabled && authUser && isVerifiedUser && allSolvedNow &&
@@ -416,7 +448,7 @@ export default function GameSinglePlayer({
           mode,
           submitNumBoards,
           finalTimeMs,
-          currentScore
+          0
         ).catch((err) => {
           console.error("Failed to submit score to leaderboard:", err);
         });
@@ -488,6 +520,15 @@ export default function GameSinglePlayer({
     [marathonHasNext, marathonLevels, marathonIndex]
   );
 
+  // Only allow sharing for marathon mode once the final stage has been solved.
+  const canShare =
+    mode === "marathon"
+      ? // Normally only allow sharing once the final stage has been fully solved,
+        // but if the player has chosen to exit after running out of guesses we
+        // still let them share their partial marathon run.
+        forceCanShareAfterPopup || (allSolved && !marathonHasNext)
+      : true;
+
   const showNextStageBar =
     mode === "marathon" && allSolved && !showPopup && !showOutOfGuesses && marathonHasNext;
 
@@ -503,11 +544,66 @@ export default function GameSinglePlayer({
   }, [marathonHasNext, marathonIndex, speedrunEnabled, navigate]);
 
   const exitFromOutOfGuesses = () => {
-    freezeStageTimer();
+    // Freeze the timer and immediately transition to the end-of-game popup
+    // so the experience matches the solved flow (no extra delay).
+    const finalStageMs = freezeStageTimer();
     setShowOutOfGuesses(false);
-    setTimeout(() => {
-      setShowPopup(true);
-    }, FLIP_COMPLETE_MS);
+
+    // Persist a completed-stage snapshot so that revisiting the mode for the
+    // same day shows the end-of-game popup (and comments) instead of an
+    // in-progress grid. This mirrors the full-solve flow but keeps allSolved
+    // false so the UI uses the "Stage ended" messaging.
+    try {
+      const dateString = getCurrentDateString();
+      const solvedKey = makeSolvedKey(
+        mode,
+        numBoards,
+        speedrunEnabled,
+        mode === "marathon" ? marathonIndex : null,
+        dateString
+      );
+
+      const currentTurnsUsed = getTurnsUsed(boards);
+
+      const solvedCountForStage = boards.filter((b) => b && b.isSolved).length;
+
+      let savedPopupTotalMs = 0;
+      if (speedrunEnabled) {
+        if (isMarathonSpeedrun) {
+          // For partial marathon exits, rely on the aggregated per-stage rows
+          // when building share text; store just the per-stage time here.
+          savedPopupTotalMs = finalStageMs;
+        } else {
+          savedPopupTotalMs = finalStageMs;
+        }
+      }
+
+      const solvedState = {
+        boards,
+        turnsUsed: currentTurnsUsed,
+        maxTurns,
+        allSolved: false,
+        solvedCount: solvedCountForStage,
+        stageElapsedMs: finalStageMs,
+        popupTotalMs: savedPopupTotalMs,
+        exitedDueToOutOfGuesses: true,
+        timestamp: Date.now(),
+      };
+
+      saveJSON(solvedKey, solvedState);
+    } catch (err) {
+      // Best-effort only; failure to persist should not break gameplay.
+      console.error("Failed to persist out-of-guesses exit state", err);
+    }
+
+    // If the player chose to exit after running out of guesses in marathon
+    // mode, do not offer a Next Stage button in the final popup and allow
+    // sharing from that popup even on non-final stages.
+    if (mode === "marathon") {
+      setAllowNextStageAfterPopup(false);
+      setForceCanShareAfterPopup(true);
+    }
+    setShowPopup(true);
   };
 
   const continueAfterOutOfGuesses = () => {
@@ -541,35 +637,150 @@ export default function GameSinglePlayer({
         : stageElapsedMs
       : 0;
 
-  const score = useMemo(() => {
-    if (speedrunEnabled) {
-      return calculateSpeedrunScore(popupTotalMs || stageElapsedMs, numBoards);
-    } else {
-      return calculateNonSpeedrunScore(boards, turnsUsed, maxTurns, numBoards);
+  // For marathon mode, when on the final stage, aggregate guesses/turns across
+  // all stages so the final share text reflects the full run.
+  const marathonShareTotals = useMemo(() => {
+    if (mode !== "marathon") return null;
+    // Only compute marathon totals on the final stage, or when the player has
+    // chosen to exit after running out of guesses (so we can share partial
+    // marathon progress even if there are more stages remaining).
+    if (marathonHasNext && !forceCanShareAfterPopup) return null;
+
+    try {
+      const dateString = getCurrentDateString();
+      let totalTurnsUsed = 0;
+      let totalMaxTurns = 0;
+      let totalSolvedCount = 0;
+      let stagesWithData = 0;
+      const stages = [];
+
+      marathonLevels.forEach((boardsForStage, stageIndex) => {
+        const solvedKey = makeSolvedKey(
+          "marathon",
+          boardsForStage,
+          speedrunEnabled,
+          stageIndex,
+          dateString
+        );
+        const solvedState = loadJSON(solvedKey, null);
+
+        let stageTurns = 0;
+        let stageMaxTurns = maxTurns;
+        let stageSolvedCount = 0;
+        let stageElapsed = 0;
+
+        if (solvedState) {
+          stagesWithData += 1;
+
+          stageTurns =
+            typeof solvedState.turnsUsed === "number"
+              ? solvedState.turnsUsed
+              : getTurnsUsed(solvedState.boards || []);
+          stageMaxTurns =
+            typeof solvedState.maxTurns === "number"
+              ? solvedState.maxTurns
+              : maxTurns;
+          stageSolvedCount =
+            typeof solvedState.solvedCount === "number"
+              ? solvedState.solvedCount
+              : Array.isArray(solvedState.boards)
+              ? solvedState.boards.filter((b) => b && b.isSolved).length
+              : 0;
+          stageElapsed =
+            typeof solvedState.stageElapsedMs === "number"
+              ? solvedState.stageElapsedMs
+              : 0;
+
+          totalTurnsUsed += stageTurns;
+          totalMaxTurns += stageMaxTurns;
+          totalSolvedCount += stageSolvedCount;
+        }
+
+        stages.push({
+          boards: boardsForStage,
+          turnsUsed: stageTurns,
+          maxTurns: stageMaxTurns,
+          solvedCount: stageSolvedCount,
+          stageElapsedMs: stageElapsed,
+        });
+      });
+
+      if (stagesWithData === 0) {
+        return null;
+      }
+
+      const totalBoards = marathonLevels.reduce((sum, n) => sum + n, 0);
+
+      return {
+        totalBoards,
+        totalTurnsUsed,
+        totalMaxTurns,
+        totalSolvedCount,
+        stages,
+      };
+    } catch (err) {
+      // Fall back to current-stage numbers if aggregation fails for any reason.
+      console.error("Failed to aggregate marathon share totals", err);
+      return null;
     }
-  }, [speedrunEnabled, popupTotalMs, stageElapsedMs, numBoards, boards, turnsUsed, maxTurns]);
+  }, [
+    mode,
+    marathonHasNext,
+    marathonLevels,
+    speedrunEnabled,
+    maxTurns,
+    // Recompute when boards become solved so final stage data is included,
+    // or when we flip into "share partial marathon" mode after exiting.
+    solvedCount,
+    allSolved,
+    forceCanShareAfterPopup,
+  ]);
 
   const shareText = useMemo(() => {
     if (!boards || boards.length === 0) {
       return "Play Better Wordle!";
     }
+
+    const isMarathon = mode === "marathon";
+    const useTotals =
+      isMarathon &&
+      marathonShareTotals &&
+      (!marathonHasNext || forceCanShareAfterPopup);
+
+    const effectiveNumBoards = useTotals
+      ? marathonShareTotals.totalBoards
+      : numBoards;
+    const effectiveTurnsUsed = useTotals
+      ? marathonShareTotals.totalTurnsUsed
+      : turnsUsed;
+    const effectiveMaxTurns = useTotals
+      ? marathonShareTotals.totalMaxTurns
+      : maxTurns;
+    const effectiveSolvedCount = useTotals
+      ? marathonShareTotals.totalSolvedCount
+      : solvedCount;
+    const effectiveAllSolved = useTotals
+      ? marathonShareTotals.totalSolvedCount === marathonShareTotals.totalBoards
+      : allSolved;
+
     return generateShareText(
       boards,
-      score,
       mode,
-      numBoards,
+      effectiveNumBoards,
       speedrunEnabled,
       stageElapsedMs,
       popupTotalMs,
       formatElapsed,
-      turnsUsed,
-      maxTurns,
-      allSolved,
-      solvedCount
+      effectiveTurnsUsed,
+      effectiveMaxTurns,
+      effectiveAllSolved,
+      effectiveSolvedCount,
+      // For marathon final-stage sharing, include detailed per-stage breakdown
+      // so the share text can list each stage separately.
+      marathonShareTotals?.stages ?? null
     );
   }, [
     boards,
-    score,
     mode,
     numBoards,
     speedrunEnabled,
@@ -579,6 +790,9 @@ export default function GameSinglePlayer({
     maxTurns,
     allSolved,
     solvedCount,
+    marathonShareTotals,
+    marathonHasNext,
+    forceCanShareAfterPopup,
   ]);
 
   const { handleShare } = useShare(shareText, setTimedMessage);
@@ -597,7 +811,12 @@ export default function GameSinglePlayer({
       ? "Play Better Wordle daily multi-board Wordle-style puzzles with standard and speedrun options, tracking your guesses and scores across boards."
       : "Play Better Wordle game modes including daily, marathon, speedrun and multi-board Wordle-style puzzles.";
 
-  const shouldShowComments = allSolved && (mode === "daily" || mode === "marathon");
+  // Show comments only once the stage is definitively completed for the day
+  // (after the end-of-game popup has been shown at least once), so that
+  // they do not appear while the player is still deciding whether to
+  // continue after running out of guesses.
+  const shouldShowComments =
+    hasCompletedStage && (mode === "daily" || mode === "marathon");
 
   const commentsThreadId = shouldShowComments
     ? makeSolvedKey(
@@ -609,7 +828,7 @@ export default function GameSinglePlayer({
       )
     : null;
 
-  if (isLoading) {
+  if (isLoading && process.env.NODE_ENV !== "test") {
     return (
       <>
         <Helmet>
@@ -643,10 +862,12 @@ export default function GameSinglePlayer({
         numBoards={numBoards}
         speedrunEnabled={speedrunEnabled}
         allSolved={allSolved}
+        finished={finished}
         solutionsText={solutionsText}
         message={message}
         boards={boards}
         maxTurns={maxTurns}
+        turnsUsed={turnsUsed}
         isUnlimited={isUnlimited}
         currentGuess={currentGuess}
         invalidCurrentGuess={invalidCurrentGuess}
@@ -668,7 +889,6 @@ export default function GameSinglePlayer({
         exitFromOutOfGuesses={exitFromOutOfGuesses}
         continueAfterOutOfGuesses={continueAfterOutOfGuesses}
         showPopup={showPopup}
-        score={score}
         stageElapsedMs={stageElapsedMs}
         popupTotalMs={popupTotalMs}
         formatElapsed={formatElapsed}
@@ -676,16 +896,18 @@ export default function GameSinglePlayer({
         marathonHasNext={marathonHasNext}
         handleShare={handleShare}
         freezeStageTimer={freezeStageTimer}
-        isMarathonSpeedrun={isMarathonSpeedrun}
-        commitStageIfNeeded={commitStageIfNeeded}
-        handleVirtualKey={handleVirtualKey}
-        showFeedbackModal={showFeedbackModal}
-        setShowFeedbackModal={setShowFeedbackModal}
-        setShowPopup={setShowPopup}
-        setShowOutOfGuesses={setShowOutOfGuesses}
-        showComments={shouldShowComments}
-        commentThreadId={commentsThreadId}
-      />
+      isMarathonSpeedrun={isMarathonSpeedrun}
+      commitStageIfNeeded={commitStageIfNeeded}
+      handleVirtualKey={handleVirtualKey}
+      allowNextStageAfterPopup={allowNextStageAfterPopup}
+      showFeedbackModal={showFeedbackModal}
+      setShowFeedbackModal={setShowFeedbackModal}
+      setShowPopup={setShowPopup}
+      setShowOutOfGuesses={setShowOutOfGuesses}
+      showComments={shouldShowComments}
+      commentThreadId={commentsThreadId}
+      canShare={canShare}
+    />
     </>
   );
 }

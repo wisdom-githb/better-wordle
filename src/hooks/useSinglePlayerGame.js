@@ -64,24 +64,35 @@ export function useSinglePlayerGame({
         const solvedMatchesConfig =
           solvedBoardsCount > 0 && solvedBoardsCount === numBoards;
 
-        if (solvedState && solvedState.allSolved && solvedMatchesConfig) {
-          // Mode already solved - load saved state and show popup.
-          // When revisiting the page (daily or marathon, normal or speedrun),
-          // replay the flip animation for the final solved row on each board
-          // instead of showing a static grid.
+        if (solvedState && solvedMatchesConfig) {
+          // Mode already has a completed stage state (either fully solved or
+          // exited after running out of guesses). Load saved state and show
+          // the end-of-game popup instead of resuming an in-progress board.
           const rawBoards = Array.isArray(solvedState.boards)
             ? solvedState.boards
             : [];
 
-          // Use a shared non-zero reveal id and assign it to all solved boards so
+          const exitedDueToOutOfGuesses = !!solvedState.exitedDueToOutOfGuesses;
+
+          // Use a shared non-zero reveal id and assign it to all relevant boards so
           // their final row replays the flip once when the page is opened.
           const replayRevealId = 1;
           const patchedBoards = rawBoards.map((b) => {
             if (!b) return b;
-            if (b.isSolved) {
+
+            // For fully solved stages, only re-flip solved boards.
+            if (!exitedDueToOutOfGuesses && b.isSolved) {
               return { ...b, lastRevealId: replayRevealId };
             }
-            // Preserve any existing lastRevealId for non-solved boards (defensive).
+
+            // For stages exited after running out of guesses, re-flip any board
+            // that has at least one guess so the player sees the final row
+            // animation again, even if the board is marked dead.
+            if (exitedDueToOutOfGuesses && Array.isArray(b.guesses) && b.guesses.length > 0) {
+              return { ...b, lastRevealId: replayRevealId };
+            }
+
+            // Preserve any existing lastRevealId for other boards (defensive).
             return { ...b, lastRevealId: b.lastRevealId ?? null };
           });
 
@@ -102,27 +113,40 @@ export function useSinglePlayerGame({
           const turns = getMaxTurns(numBoards);
           setMaxTurns(turns);
 
-          // For speedrun, restore timing state
+          // For speedrun, restore timing state based on the saved stage time.
           if (speedrunEnabled) {
-            stageStartRef.current = Date.now() - (solvedState.stageElapsedMs || 0);
+            const elapsedMs = solvedState.stageElapsedMs || 0;
+            stageStartRef.current = Date.now() - elapsedMs;
             stageEndRef.current = Date.now();
+            // For runs resumed from a completed state, treat the stage as
+            // already "committed" for display purposes so we don't change
+            // cumulative timing.
+            committedRef.current = true;
+            committedStageMsRef.current = elapsedMs;
           } else {
             stageStartRef.current = Date.now();
             stageEndRef.current = null;
+            committedRef.current = false;
+            committedStageMsRef.current = 0;
           }
-
-          committedRef.current = true;
-          committedStageMsRef.current = solvedState.stageElapsedMs || 0;
 
           const { ALLOWED_GUESSES } = await loadWordLists();
           setAllowedSet(new Set(ALLOWED_GUESSES));
 
           setIsLoading(false);
 
-          // Delay popup to ensure any potential animations are complete
-          setTimeout(() => {
+          if (exitedDueToOutOfGuesses) {
+            // When resuming a stage that ended due to running out of guesses,
+            // show the popup immediately so the user sees the end-of-stage state
+            // instead of an in-progress grid.
             setShowPopup(true);
-          }, FLIP_COMPLETE_MS);
+          } else {
+            // For fully solved stages, delay popup to ensure any potential
+            // animations are complete before showing the results.
+            setTimeout(() => {
+              setShowPopup(true);
+            }, FLIP_COMPLETE_MS);
+          }
           return;
         }
 

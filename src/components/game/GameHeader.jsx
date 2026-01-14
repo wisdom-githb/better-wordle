@@ -24,6 +24,7 @@ export default function GameHeader({
       style={{
         padding: "16px 16px 8px",
         backgroundColor: "#121213",
+        textAlign: "center",
       }}
     >
       <div

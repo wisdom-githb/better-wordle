@@ -6,7 +6,6 @@ import GameBoard from "./GameBoard";
 import SiteHeader from "../SiteHeader";
 import AuthModal from "../AuthModal";
 import { KEYBOARD_HEIGHT, formatElapsed as formatElapsedLib, scoreGuess } from "../../lib/wordle";
-import { calculateNonSpeedrunScore } from "../../lib/gameUtils";
 import { FLIP_MS } from "../../lib/gameConstants";
 
 /**
@@ -359,33 +358,8 @@ export default function OneVOneGameView({
   const myRematch = isPlayerHost ? gameState.hostRematch : gameState.guestRematch;
   const opponentRematch = isPlayerHost ? gameState.guestRematch : gameState.hostRematch;
 
-  const myScoreValue = (() => {
-    if (isSpeedrun) {
-      const myTimeMs = isPlayerHost
-        ? gameState.hostTimeMs || null
-        : gameState.guestTimeMs || null;
-      return myTimeMs !== null ? formatElapsedLib(myTimeMs) : "N/A";
-    }
-    const mockBoard = {
-      guesses: myGuesses.map((word) => ({ word, colors: [] })),
-      isSolved: mySolved,
-    };
-    return calculateNonSpeedrunScore([mockBoard], myGuesses.length, maxTurns, 1);
-  })();
-
-  const opponentScoreValue = (() => {
-    if (isSpeedrun) {
-      const opponentTimeMs = isPlayerHost
-        ? gameState.guestTimeMs || null
-        : gameState.hostTimeMs || null;
-      return opponentTimeMs !== null ? formatElapsedLib(opponentTimeMs) : "N/A";
-    }
-    const mockBoard = {
-      guesses: opponentGuesses.map((word) => ({ word, colors: [] })),
-      isSolved: opponentSolved,
-    };
-    return calculateNonSpeedrunScore([mockBoard], opponentGuesses.length, maxTurns, 1);
-  })();
+  const myGuessCount = myGuesses.length;
+  const opponentGuessCount = opponentGuesses.length;
 
   const currentTurnLabel = isSpeedrun
     ? "Speedrun: both players guessing"
@@ -434,7 +408,11 @@ export default function OneVOneGameView({
             flex: 1,
             overflowY: "auto",
             overflowX: "hidden",
-            paddingBottom: KEYBOARD_HEIGHT + 16,
+            // Reserve keyboard height while playing; once the game is finished,
+            // shrink bottom padding so comments and end-of-game controls sit
+            // closer to the bottom of the viewport.
+            paddingBottom:
+              (gameState.status === "finished" ? 16 : KEYBOARD_HEIGHT) + 16,
           }}
         >
           <GameHeader
@@ -561,7 +539,7 @@ export default function OneVOneGameView({
                 >
                   <div>
                     <div style={{ fontSize: 12, color: "#818384" }}>
-                      {isSpeedrun ? "Your Time" : "Your Score"}
+                      {isSpeedrun ? "Your Time" : "Your Guesses"}
                     </div>
                     <div
                       style={{
@@ -570,13 +548,13 @@ export default function OneVOneGameView({
                         color: "#ffffff",
                       }}
                     >
-                      {myScoreValue}
+                      {isSpeedrun ? renderSpeedrunTime(true) : myGuessCount}
                     </div>
                   </div>
                   <div style={{ fontSize: 20, color: "#818384" }}>vs</div>
                   <div>
                     <div style={{ fontSize: 12, color: "#818384" }}>
-                      {isSpeedrun ? "Opponent's Time" : "Opponent's Score"}
+                      {isSpeedrun ? "Opponent's Time" : "Opponent's Guesses"}
                     </div>
                     <div
                       style={{
@@ -585,7 +563,7 @@ export default function OneVOneGameView({
                         color: "#ffffff",
                       }}
                     >
-                      {opponentScoreValue}
+                      {isSpeedrun ? renderSpeedrunTime(false) : opponentGuessCount}
                     </div>
                   </div>
                 </div>
@@ -721,7 +699,7 @@ export default function OneVOneGameView({
             >
               {boards.map((board, index) => {
                 const solutionForBoard = board.solution || gameState.solution;
-
+                
                 // Build opponent colors for this board from opponent guesses.
                 // Once the opponent has solved THIS board (guessed this
                 // solution), we stop showing additional guesses on that

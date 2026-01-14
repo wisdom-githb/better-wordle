@@ -75,6 +75,33 @@ describe('CommentsSection', () => {
     expect(screen.getByText(expectedTime)).toBeInTheDocument();
   });
 
+  it('shows newest comments first based on createdAt', () => {
+    render(<CommentsSection threadId="thread-1" />);
+
+    const older = new Date('2024-01-01T10:00:00Z').getTime();
+    const newer = new Date('2024-01-01T11:00:00Z').getTime();
+
+    emitCommentsSnapshot({
+      c1: {
+        username: 'Old',
+        text: 'First',
+        createdAt: older,
+        userReactions: {},
+      },
+      c2: {
+        username: 'New',
+        text: 'Second',
+        createdAt: newer,
+        userReactions: {},
+      },
+    });
+
+    const items = screen.getAllByRole('listitem');
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent('New');
+    expect(items[1]).toHaveTextContent('Old');
+  });
+
   it('submits a new comment with createdAt and userReactions fields', async () => {
     useAuthMock.mockReturnValue({
       user: {

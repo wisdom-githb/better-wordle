@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  calculateNonSpeedrunScore,
-  calculateSpeedrunScore,
-  generateShareText,
-} from './gameUtils.js';
+import { generateShareText } from './gameUtils.js';
 
 // Helper to create a board object
 function makeBoard(guesses, isSolved) {
@@ -13,61 +9,8 @@ function makeBoard(guesses, isSolved) {
   };
 }
 
-describe('calculateNonSpeedrunScore', () => {
-  it('gives 100 for a perfect single-board win (one guess)', () => {
-    const boards = [makeBoard([{ word: 'APPLE' }], true)];
-    const score = calculateNonSpeedrunScore(boards, 1, 6, 1);
-    expect(score).toBe(100);
-  });
-
-  it('gives 50 for solved boards that use max turns', () => {
-    const boards = [makeBoard(Array(6).fill({ word: 'APPLE' }), true)];
-    const score = calculateNonSpeedrunScore(boards, 6, 6, 1);
-    expect(score).toBe(50);
-  });
-
-  it('scores partially-solved multi-board games between 30 and 50', () => {
-    const boards = [
-      makeBoard([{ word: 'APPLE' }], true),                 // solved
-      makeBoard(Array(3).fill({ word: 'OTHER' }), false),   // unsolved
-    ];
-    const turnsUsed = 3;
-    const maxTurns = 6;
-    const score = calculateNonSpeedrunScore(boards, turnsUsed, maxTurns, 2);
-    expect(score).toBeGreaterThanOrEqual(30);
-    expect(score).toBeLessThanOrEqual(50);
-  });
-
-  it('gives base minimum score when nothing is solved', () => {
-    const boards = [
-      makeBoard([{ word: 'GUESS' }], false),
-      makeBoard([{ word: 'GUESS' }], false),
-    ];
-    const score = calculateNonSpeedrunScore(boards, 1, 6, 2);
-    expect(score).toBeGreaterThanOrEqual(30);
-  });
-});
-
-describe('calculateSpeedrunScore', () => {
-  it('gives 100 for times faster than the excellent threshold', () => {
-    const score = calculateSpeedrunScore(5_000, 1); // 5s for 1 board
-    expect(score).toBe(100);
-  });
-
-  it('gives minimum score for very slow times', () => {
-    const score = calculateSpeedrunScore(1_000_000, 4); // way beyond thresholds
-    expect(score).toBe(30);
-  });
-
-  it('scores slower times lower than faster times for same board count', () => {
-    const fast = calculateSpeedrunScore(20_000, 4);
-    const slow = calculateSpeedrunScore(80_000, 4);
-    expect(fast).toBeGreaterThan(slow);
-  });
-});
-
 describe('generateShareText', () => {
-  it('returns a non-empty string with key info for a single-board game', () => {
+  it('returns a non-empty string with key info for a single-board daily game with emoji grid', () => {
     const boards = [
       makeBoard([
         { word: 'APPLE', colors: ['green', 'green', 'green', 'green', 'green'] },
@@ -75,7 +18,6 @@ describe('generateShareText', () => {
     ];
     const text = generateShareText(
       boards,
-      90,              // score
       'daily',         // mode
       1,               // numBoards
       false,           // speedrunEnabled
@@ -88,14 +30,15 @@ describe('generateShareText', () => {
       1,               // solvedCount
     );
 
-    expect(text).toContain('Score: 90');
+    // Should include at least one green square row from the guesses.
+    expect(text).toContain('🟩');
     expect(text).toContain('Guesses: 1/6');
-    expect(text).toContain('✅ Solved!');
+    expect(text).toContain('Solved!');
     expect(text).toContain('Play Better Wordle!');
     expect(text.length).toBeGreaterThan(0);
   });
 
-  it('includes mode, boards, score and solved count for multi-board games', () => {
+  it('includes mode, boards, time and solved count for multi-board non-marathon games', () => {
     const boards = [
       makeBoard(Array(3).fill({ word: 'BOARD1' }), true),
       makeBoard(Array(5).fill({ word: 'BOARD2' }), false),
@@ -104,8 +47,7 @@ describe('generateShareText', () => {
 
     const text = generateShareText(
       boards,
-      75,
-      'marathon',
+      'daily',
       3,
       true,           // speedrunEnabled
       30_000,
@@ -117,16 +59,157 @@ describe('generateShareText', () => {
       2,
     );
 
-    expect(text).toContain('Better Wordle - 3 boards');
-    expect(text).toContain('Score: 75');
+    expect(text).toContain('Daily Better Wordle');
+    expect(text).toContain('Boards: 3');
+    expect(text).toContain('Time: T45000');
+    expect(text).toContain('Guesses used: 5/8');
     expect(text).toContain('Solved: 2/3');
     expect(text).toContain('Play Better Wordle!');
+  });
+
+  it('formats marathon multi-stage guesses correctly without emojis', () => {
+    const boards = [
+      makeBoard([], true),
+      makeBoard([], true),
+    ];
+
+    const marathonStages = [
+      { boards: 1, turnsUsed: 2, maxTurns: 6, stageElapsedMs: 10_000 },
+      { boards: 2, turnsUsed: 3, maxTurns: 7, stageElapsedMs: 20_000 },
+      { boards: 3, turnsUsed: 4, maxTurns: 8, stageElapsedMs: 30_000 },
+      { boards: 4, turnsUsed: 5, maxTurns: 9, stageElapsedMs: 40_000 },
+    ];
+
+    const text = generateShareText(
+      boards,
+      'marathon',
+      10,              // total boards across stages
+      false,           // standard (non-speedrun)
+      0,
+      0,
+      (ms) => `T${ms}`,
+      14,              // total turns used
+      30,              // total max turns
+      true,
+      10,
+      marathonStages,
+    );
+
+    expect(text).toContain('Marathon Better Wordle');
+    expect(text).toContain('Stage 1 (1 board):');
+    expect(text).toContain('Guesses used: 2/6');
+    expect(text).toContain('Stage 2 (2 boards):');
+    expect(text).toContain('Guesses used: 3/7');
+    expect(text).toContain('Stage 3 (3 boards):');
+    expect(text).toContain('Guesses used: 4/8');
+    expect(text).toContain('Stage 4 (4 boards):');
+    expect(text).toContain('Guesses used: 5/9');
+    expect(text).toContain('Total guesses used: 14/30');
+    expect(text).toContain('Play Better Wordle!');
+  });
+
+  it('formats marathon multi-stage speedrun times correctly without emojis', () => {
+    const boards = [makeBoard([], true)];
+
+    const marathonStages = [
+      { boards: 1, turnsUsed: 0, maxTurns: 0, stageElapsedMs: 10_000 },
+      { boards: 2, turnsUsed: 0, maxTurns: 0, stageElapsedMs: 20_000 },
+    ];
+
+    const text = generateShareText(
+      boards,
+      'marathon',
+      3,
+      true,             // speedrun
+      30_000,
+      30_000,
+      (ms) => `T${ms}`,
+      0,
+      0,
+      true,
+      3,
+      marathonStages,
+    );
+
+    expect(text).toContain('Marathon Better Wordle');
+    expect(text).toContain('Stage 1 (1 board):');
+    expect(text).toContain('Time: T10000');
+    expect(text).toContain('Stage 2 (2 boards):');
+    expect(text).toContain('Time: T20000');
+    expect(text).toContain('Total time: T30000');
+    expect(text).toContain('Play Better Wordle!');
+  });
+
+  it('marks unsolved marathon stages as Not solved and omits per-stage stats', () => {
+    const boards = [
+      makeBoard([], true),
+      makeBoard([], true),
+    ];
+
+    const marathonStages = [
+      { boards: 1, turnsUsed: 2, maxTurns: 6, stageElapsedMs: 10_000, solvedCount: 1 },
+      { boards: 2, turnsUsed: 3, maxTurns: 7, stageElapsedMs: 20_000, solvedCount: 2 },
+      // Third stage exists but is not fully solved: solvedCount < boards.
+      { boards: 3, turnsUsed: 0, maxTurns: 8, stageElapsedMs: 0, solvedCount: 1 },
+    ];
+
+    const text = generateShareText(
+      boards,
+      'marathon',
+      6,
+      false,
+      0,
+      0,
+      (ms) => `T${ms}`,
+      5,
+      13,
+      false,
+      3,
+      marathonStages,
+    );
+
+    expect(text).toContain('Stage 1 (1 board):');
+    expect(text).toContain('Guesses used: 2/6');
+    expect(text).toContain('Stage 2 (2 boards):');
+    expect(text).toContain('Guesses used: 3/7');
+    expect(text).toContain('Stage 3 (3 boards):');
+    expect(text).toContain('Not solved');
+    // Ensure we did not render a bogus guesses-used line for the unsolved stage.
+    expect(text).not.toContain('Guesses used: 0/8');
+  });
+
+  it('marks unsolved marathon speedrun stages as Not solved and omits per-stage times', () => {
+    const boards = [makeBoard([], true)];
+
+    const marathonStages = [
+      { boards: 1, turnsUsed: 0, maxTurns: 0, stageElapsedMs: 10_000, solvedCount: 1 },
+      { boards: 2, turnsUsed: 0, maxTurns: 0, stageElapsedMs: 20_000, solvedCount: 2 },
+      { boards: 3, turnsUsed: 0, maxTurns: 0, stageElapsedMs: 0, solvedCount: 1 },
+    ];
+
+    const text = generateShareText(
+      boards,
+      'marathon',
+      6,
+      true,
+      30_000,
+      30_000,
+      (ms) => `T${ms}`,
+      0,
+      0,
+      false,
+      3,
+      marathonStages,
+    );
+
+    expect(text).toContain('Stage 3 (3 boards):');
+    expect(text).toContain('Not solved');
+    expect(text).not.toContain('Time: T0');
   });
 
   it('returns generic text when boards array is empty', () => {
     const text = generateShareText(
       [],
-      0,
       'daily',
       1,
       false,

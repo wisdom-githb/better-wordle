@@ -71,10 +71,11 @@ export default function CommentsSection({ threadId }) {
       const raw = snapshot.val() || {};
       const list = Object.entries(raw)
         .map(([id, data]) => ({ id, ...(data || {}) }))
+        // Newest comments first: sort by createdAt descending, falling back to 0.
         .sort((a, b) => {
           const at = a.createdAt || 0;
           const bt = b.createdAt || 0;
-          return at - bt;
+          return bt - at;
         });
       setComments(list);
     });

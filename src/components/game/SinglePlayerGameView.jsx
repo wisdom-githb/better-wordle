@@ -1,4 +1,5 @@
 import React from "react";
+import { useInRouterContext } from "react-router-dom";
 import GameHeader from "./GameHeader";
 import GameStatusBar from "./GameStatusBar";
 import GameToast from "./GameToast";
@@ -18,10 +19,12 @@ export default function SinglePlayerGameView({
   numBoards,
   speedrunEnabled,
   allSolved,
+  finished,
   solutionsText,
   message,
   boards,
   maxTurns,
+  turnsUsed,
   isUnlimited,
   currentGuess,
   invalidCurrentGuess,
@@ -43,7 +46,6 @@ export default function SinglePlayerGameView({
   exitFromOutOfGuesses,
   continueAfterOutOfGuesses,
   showPopup,
-  score,
   stageElapsedMs,
   popupTotalMs,
   formatElapsed,
@@ -54,13 +56,17 @@ export default function SinglePlayerGameView({
   isMarathonSpeedrun,
   commitStageIfNeeded,
   handleVirtualKey,
+  allowNextStageAfterPopup,
   showFeedbackModal,
   setShowFeedbackModal,
   setShowPopup,
   setShowOutOfGuesses,
   showComments,
   commentThreadId,
+  canShare,
 }) {
+  const inRouter = useInRouterContext();
+
   return (
     <div
       style={{
@@ -71,7 +77,9 @@ export default function SinglePlayerGameView({
         color: "#ffffff",
       }}
     >
-      <SiteHeader onOpenFeedback={() => setShowFeedbackModal(true)} />
+      {inRouter && (
+        <SiteHeader onOpenFeedback={() => setShowFeedbackModal(true)} />
+      )}
 
       <main
         style={{
@@ -79,7 +87,7 @@ export default function SinglePlayerGameView({
           overflowY: "auto",
           overflowX: "hidden",
           paddingBottom:
-            (allSolved ? 16 : KEYBOARD_HEIGHT) + (showNextStageBar ? 62 : 16),
+            (finished ? 16 : KEYBOARD_HEIGHT) + (showNextStageBar ? 62 : 16),
         }}
       >
         <GameHeader
@@ -114,7 +122,7 @@ export default function SinglePlayerGameView({
             formatElapsed={formatElapsed}
             stageElapsedMs={stageElapsedMs}
             displayTotalMs={popupTotalMs || stageElapsedMs}
-            turnsUsed={boards.reduce((acc, b) => acc + b.guesses.length, 0)}
+            turnsUsed={turnsUsed}
             maxTurns={maxTurns}
           />
 
@@ -163,9 +171,10 @@ export default function SinglePlayerGameView({
         />
       )}
 
-      {/* Fixed keyboard footer - hide once all boards are solved so the
-          keyboard disappears instead of just blocking input. */}
-      {!allSolved && (
+      {/* Fixed keyboard footer - hide once the stage is finished (either all boards are
+          solved or the player is out of guesses), so the keyboard disappears instead of
+          just blocking input. */}
+      {!finished && (
         <footer className="keyboardFooter">
           <Keyboard
             numBoards={numBoards}
@@ -179,7 +188,7 @@ export default function SinglePlayerGameView({
         </footer>
       )}
 
-      {!allSolved && (
+      {!finished && (
         <BoardSelector
           numBoards={numBoards}
           showBoardSelector={showBoardSelector}
@@ -212,7 +221,6 @@ export default function SinglePlayerGameView({
         <GamePopup
           allSolved={allSolved}
           boards={boards}
-          score={score}
           speedrunEnabled={speedrunEnabled}
           stageElapsedMs={stageElapsedMs}
           popupTotalMs={popupTotalMs}
@@ -220,12 +228,16 @@ export default function SinglePlayerGameView({
           solvedCount={solvedCount}
           mode={mode}
           marathonHasNext={marathonHasNext}
+          turnsUsed={turnsUsed}
+          maxTurns={maxTurns}
           onShare={handleShare}
           onClose={() => setShowPopup(false)}
           onNextStage={goNextStage}
           freezeStageTimer={freezeStageTimer}
           isMarathonSpeedrun={isMarathonSpeedrun}
           commitStageIfNeeded={commitStageIfNeeded}
+          canShare={canShare}
+          allowNextStageAfterPopup={allowNextStageAfterPopup}
         />
       )}
 

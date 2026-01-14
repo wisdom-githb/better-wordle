@@ -1,0 +1,292 @@
+import React from 'react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, act } from '@testing-library/react';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+
+let latestOneVOneViewProps = null;
+let latestKeyboardProps = null;
+let latestUseKeyboardArgs = null;
+const mockSubmitGuess = vi.fn();
+const mockSetTimedMessage = vi.fn();
+
+vi.mock('./OneVOneGameView', () => ({
+  __esModule: true,
+  default: (props) => {
+    latestOneVOneViewProps = props;
+    return <div data-testid="onevone-view" />;
+  },
+}));
+
+vi.mock('../Keyboard', () => ({
+  __esModule: true,
+  default: (props) => {
+    latestKeyboardProps = props;
+    return <div data-testid="keyboard" />;
+  },
+}));
+
+vi.mock('../../hooks/useAuth', () => ({
+  useAuth: () => ({
+    user: { uid: 'user-1', displayName: 'User One' },
+    sendFriendRequest: vi.fn(),
+    isVerifiedUser: false,
+    friends: [],
+    cancelSentChallenge: vi.fn(),
+  }),
+}));
+
+vi.mock('../../hooks/useOneVOneGame', () => ({
+  useOneVOneGame: () => ({
+    gameState: {
+      status: 'playing',
+      speedrun: false,
+      hostId: 'user-1',
+      guestId: 'user-2',
+      currentTurn: 'host',
+      solutions: ['APPLE'],
+      hostGuesses: [],
+      guestGuesses: [],
+    },
+    submitGuess: mockSubmitGuess,
+    switchTurn: vi.fn(),
+    requestRematch: vi.fn(),
+  }),
+}));
+
+vi.mock('../../hooks/useKeyboard', () => ({
+  useKeyboard: (args) => {
+    latestUseKeyboardArgs = args;
+  },
+}));
+
+vi.mock('../../hooks/useOneVOneController', () => ({
+  useOneVOneController: () => ({
+    friendRequestSent: false,
+    hasPlayerSolvedAllOneVOneBoards: false,
+    isOneVOneConfigModalOpen: false,
+    oneVOneConfigBoardsDraft: 1,
+    oneVOneConfigSpeedrunDraft: false,
+    setIsOneVOneConfigModalOpen: vi.fn(),
+    setOneVOneConfigBoardsDraft: vi.fn(),
+    setOneVOneConfigSpeedrunDraft: vi.fn(),
+    handleOneVOneReady: vi.fn(),
+    handleOneVOneStart: vi.fn(),
+    handleCancelHostedChallenge: vi.fn(),
+    handleAddFriendRequest: vi.fn(),
+    openOneVOneConfigFromEnd: vi.fn(),
+    applyOneVOneConfig: vi.fn(),
+  }),
+}));
+
+vi.mock('../../hooks/useTimedMessage', () => ({
+  useTimedMessage: () => ({
+    message: '',
+    setMessage: vi.fn(),
+    setTimedMessage: mockSetTimedMessage,
+    clearMessageTimer: vi.fn(),
+  }),
+}));
+
+vi.mock('../../hooks/useShare', () => ({
+  useShare: () => ({
+    handleShare: vi.fn(),
+    handleShareCode: vi.fn(),
+  }),
+}));
+
+vi.mock('../FeedbackModal', () => ({
+  __esModule: true,
+  default: ({ isOpen }) => (isOpen ? <div data-testid="feedback-modal" /> : null),
+}));
+
+vi.mock('./GameToast', () => ({
+  __esModule: true,
+  default: () => <div data-testid="game-toast" />,
+}));
+
+vi.mock('./OneVOneConfigModal', () => ({
+  __esModule: true,
+  default: () => <div data-testid="config-modal" />,
+}));
+
+vi.mock('./BoardSelector', () => ({
+  __esModule: true,
+  default: () => <div data-testid="board-selector" />,
+}));
+
+vi.mock('./GamePopup', () => ({
+  __esModule: true,
+  default: () => <div data-testid="game-popup" />,
+}));
+
+import GameOneVOne from './GameOneVOne';
+
+describe('GameOneVOne partial and full guess handling on Enter', () => {
+  beforeEach(() => {
+    latestOneVOneViewProps = null;
+    latestKeyboardProps = null;
+    latestUseKeyboardArgs = null;
+    mockSubmitGuess.mockClear();
+    mockSetTimedMessage.mockClear();
+  });
+
+  function renderGame() {
+    render(
+      <MemoryRouter
+        initialEntries={['/onevone/123?mode=1v1&host=true']}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <Routes>
+          <Route path="/onevone/:code" element={<GameOneVOne />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(latestKeyboardProps).not.toBeNull();
+    return latestKeyboardProps;
+  }
+
+  it('does nothing when Enter is pressed with 0 letters', () => {
+    const { onVirtualKey } = renderGame();
+    expect(typeof onVirtualKey).toBe('function');
+    expect(latestOneVOneViewProps.currentGuess).toBe('');
+
+    act(() => {
+      onVirtualKey('ENTER');
+    });
+
+    expect(latestOneVOneViewProps.currentGuess).toBe('');
+    expect(mockSubmitGuess).not.toHaveBeenCalled();
+  });
+
+  it('clears currentGuess when Enter is pressed with fewer than 5 letters via virtual keyboard', () => {
+    const { onVirtualKey } = renderGame();
+
+    act(() => {
+      onVirtualKey('A');
+      onVirtualKey('B');
+      onVirtualKey('C');
+    });
+
+    expect(latestOneVOneViewProps.currentGuess).toBe('ABC');
+
+    act(() => {
+      onVirtualKey('ENTER');
+    });
+
+    expect(latestOneVOneViewProps.currentGuess).toBe('');
+    expect(mockSubmitGuess).not.toHaveBeenCalled();
+  });
+
+  it('follows normal submit path (not partial-clear) when Enter is pressed with 5 letters', () => {
+    const { onVirtualKey } = renderGame();
+
+    act(() => {
+      onVirtualKey('A');
+      onVirtualKey('P');
+      onVirtualKey('P');
+      onVirtualKey('L');
+      onVirtualKey('E');
+    });
+
+    expect(latestOneVOneViewProps.currentGuess).toBe('APPLE');
+
+    act(() => {
+      onVirtualKey('ENTER');
+    });
+
+    // For 1v1 games, a full 5-letter guess should call the submitGuess hook.
+    expect(mockSubmitGuess).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats physical Enter via useKeyboard onEnter the same as virtual Enter', () => {
+    const { onVirtualKey } = renderGame();
+
+    expect(latestUseKeyboardArgs).not.toBeNull();
+    const { onEnter } = latestUseKeyboardArgs;
+    expect(typeof onEnter).toBe('function');
+
+    // Partial guess: 3 letters, then physical Enter -> clears guess and does not submit.
+    act(() => {
+      onVirtualKey('A');
+      onVirtualKey('B');
+      onVirtualKey('C');
+    });
+    expect(latestOneVOneViewProps.currentGuess).toBe('ABC');
+
+    mockSubmitGuess.mockClear();
+    act(() => {
+      onEnter();
+    });
+
+    expect(latestOneVOneViewProps.currentGuess).toBe('');
+    expect(mockSubmitGuess).not.toHaveBeenCalled();
+
+    // Full 5-letter guess: physical Enter should follow normal submit path and call submitGuess.
+    act(() => {
+      onVirtualKey('A');
+      onVirtualKey('P');
+      onVirtualKey('P');
+      onVirtualKey('L');
+      onVirtualKey('E');
+    });
+    expect(latestOneVOneViewProps.currentGuess).toBe('APPLE');
+
+    mockSubmitGuess.mockClear();
+    act(() => {
+      onEnter();
+    });
+
+    expect(mockSubmitGuess).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not mark the row invalid while guess is shorter than WORD_LENGTH', () => {
+    const { onVirtualKey } = renderGame();
+
+    act(() => {
+      onVirtualKey('A');
+      onVirtualKey('B');
+      onVirtualKey('C');
+    });
+
+    expect(latestOneVOneViewProps.currentGuess).toBe('ABC');
+    expect(latestOneVOneViewProps.invalidCurrentGuess).toBe(false);
+  });
+
+  it('marks the current row invalid in the view when 5-letter guess is not in word list', () => {
+    const { onVirtualKey } = renderGame();
+
+    act(() => {
+      onVirtualKey('O');
+      onVirtualKey('T');
+      onVirtualKey('H');
+      onVirtualKey('E');
+      onVirtualKey('R');
+    });
+
+    expect(latestOneVOneViewProps.currentGuess).toBe('OTHER');
+    expect(latestOneVOneViewProps.invalidCurrentGuess).toBe(true);
+  });
+
+  it('shows a "Not in word list." toast and clears guess when submitting an invalid 5-letter word', () => {
+    const { onVirtualKey } = renderGame();
+
+    act(() => {
+      onVirtualKey('O');
+      onVirtualKey('T');
+      onVirtualKey('H');
+      onVirtualKey('E');
+      onVirtualKey('R');
+    });
+
+    expect(latestOneVOneViewProps.currentGuess).toBe('OTHER');
+
+    mockSetTimedMessage.mockClear();
+    act(() => {
+      onVirtualKey('ENTER');
+    });
+
+    expect(mockSetTimedMessage).toHaveBeenCalledWith('Not in word list.', 5000);
+    expect(latestOneVOneViewProps.currentGuess).toBe('');
+  });
+});
