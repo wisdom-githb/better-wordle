@@ -29,13 +29,13 @@ beforeEach(() => {
 });
 
 describe('Leaderboard component', () => {
-  it('shows loading and empty states appropriately', () => {
+  it('shows loading and empty states appropriately', async () => {
     // Loading state
     useLeaderboard.mockReturnValueOnce({ entries: [], loading: true, error: null });
 
     const { rerender } = render(<Leaderboard />);
 
-    expect(screen.getByText(/loading leaderboard/i)).toBeInTheDocument();
+    expect(await screen.findByText(/loading leaderboard/i)).toBeInTheDocument();
     expect(screen.queryByText(/no entries yet/i)).toBeNull();
 
     // Empty state after loading completes
@@ -43,11 +43,14 @@ describe('Leaderboard component', () => {
 
     rerender(<Leaderboard />);
 
-    expect(screen.getByText(/no entries yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no entries yet/i)).toBeInTheDocument();
   });
 
-  it('toggles mode between daily and marathon and passes args to useLeaderboard', () => {
+  it('toggles mode between daily and marathon and passes args to useLeaderboard', async () => {
     const { rerender } = render(<Leaderboard />);
+
+    // Wait for initial lazy/Suspense work to settle
+    await screen.findByRole('heading', { name: /speedrun leaderboard/i });
 
     const modeSelect = screen.getAllByRole('combobox')[0];
     expect(modeSelect).toHaveValue('daily');
@@ -66,8 +69,10 @@ describe('Leaderboard component', () => {
     expect(calls.some(([mode, boards, limit]) => mode === 'marathon' && boards === null && limit === 100)).toBe(true);
   });
 
-  it('shows boards filter only for daily mode and supports "All" vs specific board counts', () => {
+  it('shows boards filter only for daily mode and supports "All" vs specific board counts', async () => {
     render(<Leaderboard />);
+
+    await screen.findByRole('heading', { name: /speedrun leaderboard/i });
 
     // Daily mode by default: boards filter visible
     const selects = screen.getAllByRole('combobox');
@@ -91,7 +96,7 @@ describe('Leaderboard component', () => {
     expect(screen.getAllByRole('combobox').length).toBe(1);
   });
 
-  it('renders rows with correct rank, fields, and highlights current user', () => {
+  it('renders rows with correct rank, fields, and highlights current user', async () => {
     const entries = [
       { id: '1', userId: 'u1', userName: 'Alice', numBoards: 3, timeMs: 12_345, score: 200 },
       { id: '2', userId: 'u2', userName: 'Bob', numBoards: 3, timeMs: 15_000, score: 150 },
@@ -101,6 +106,8 @@ describe('Leaderboard component', () => {
     useLeaderboard.mockReturnValue({ entries, loading: false, error: null });
 
     render(<Leaderboard />);
+
+    await screen.findByRole('heading', { name: /speedrun leaderboard/i });
 
     // Header row plus two data rows
     const rows = screen.getAllByText(/#\d/).map((el) => el.closest('.leaderboardRow'));

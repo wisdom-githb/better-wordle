@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, Suspense, lazy } from "react";
 import { useNavigate } from "react-router-dom";
-import FriendsModal from "./FriendsModal";
 import { useAuth } from "../hooks/useAuth";
 import Modal from "./Modal";
+
+const FriendsModal = lazy(() => import("./FriendsModal"));
 
 export default function HamburgerMenu({ onOpenFeedback }) {
   const navigate = useNavigate();
@@ -250,10 +251,12 @@ export default function HamburgerMenu({ onOpenFeedback }) {
         />
       )}
 
-      <FriendsModal
-        isOpen={showFriendsModal}
-        onRequestClose={() => setShowFriendsModal(false)}
-      />
+      <Suspense fallback={null}>
+        <FriendsModal
+          isOpen={showFriendsModal}
+          onRequestClose={() => setShowFriendsModal(false)}
+        />
+      </Suspense>
 
       {/* Incoming 1v1 challenges modal */}
       <Modal

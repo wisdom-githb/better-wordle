@@ -1,10 +1,11 @@
 // src/Game.js
-import React from "react";
+import React, { lazy } from "react";
 import { useSearchParams, useParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import GameOneVOne from "./components/game/GameOneVOne";
-import GameSinglePlayer from "./components/game/GameSinglePlayer";
 import "./Game.css";
+
+const GameOneVOne = lazy(() => import("./components/game/GameOneVOne"));
+const GameSinglePlayer = lazy(() => import("./components/game/GameSinglePlayer"));
 
 const Game = ({
   marathonLevels = [1, 2, 3, 4],
@@ -18,7 +19,9 @@ const Game = ({
   let mode = "daily";
   if (modeParam === "daily" || modeParam === "marathon") {
     mode = modeParam;
-  } else if (modeParam === "1v1" || (modeParam === "game" && codeParam)) {
+  } else if (modeParam === "1v1" || codeParam) {
+    // Treat any route with a 1v1 code param (e.g. /game/1v1/:code or /game/1v1/:code/:variant)
+    // as a 1v1 game, even when there is no explicit :mode param.
     mode = "1v1";
   } else if (rawMode === "daily" || rawMode === "marathon" || rawMode === "1v1") {
     mode = rawMode;
@@ -41,12 +44,12 @@ const Game = ({
 
   const isOneVOne = mode === "1v1";
   const pageTitle = isOneVOne
-    ? "1v1 Wordle-Style Battles � Game | Better Wordle"
+    ? "1v1 Wordle-Style Battles – Game | Better Wordle"
     : mode === "marathon"
-    ? "Marathon & Speedrun � Multi-Board Game | Better Wordle"
+    ? "Marathon & Speedrun – Multi-Board Game | Better Wordle"
     : mode === "daily"
-    ? "Daily Multi-Board Wordle-Style Game � Better Wordle"
-    : "Game � Better Wordle";
+    ? "Daily Multi-Board Wordle-Style Game – Better Wordle"
+    : "Game – Better Wordle";
 
   const pageDescription = isOneVOne
     ? "Play 1v1 Wordle-style battles in Better Wordle, challenge friends with custom board counts and speedrun mode, and see who solves multi-board puzzles faster."

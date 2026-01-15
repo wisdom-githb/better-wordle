@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, Suspense, lazy } from "react";
 import GameHeader from "./GameHeader";
 import OneVOneWaitingRoom from "./OneVOneWaitingRoom";
 import OpponentBoardView from "./OpponentBoardView";
 import GameBoard from "./GameBoard";
 import SiteHeader from "../SiteHeader";
-import AuthModal from "../AuthModal";
+
+const AuthModal = lazy(() => import("../AuthModal"));
 import { KEYBOARD_HEIGHT, formatElapsed as formatElapsedLib, scoreGuess } from "../../lib/wordle";
 import { FLIP_MS } from "../../lib/gameConstants";
 
@@ -146,10 +147,12 @@ export default function OneVOneGameView({
           </main>
         </div>
 
-        <AuthModal
-          isOpen={showAuthModal}
-          onRequestClose={() => setShowAuthModal(false)}
-        />
+        <Suspense fallback={null}>
+          <AuthModal
+            isOpen={showAuthModal}
+            onRequestClose={() => setShowAuthModal(false)}
+          />
+        </Suspense>
       </>
     );
   }

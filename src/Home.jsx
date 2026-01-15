@@ -1,18 +1,33 @@
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useMemo, useEffect, Suspense, lazy } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import "./Home.css";
-import FeedbackModal from "./components/FeedbackModal";
-import OneVOneModal from "./components/OneVOneModal";
 import Modal from "./components/Modal";
 import SiteHeader from "./components/SiteHeader";
+
+const FeedbackModal = lazy(() => import("./components/FeedbackModal"));
+const OneVOneModal = lazy(() => import("./components/OneVOneModal"));
 import { loadJSON, saveJSON, makeDailyKey, makeMarathonKey, marathonMetaKey, makeSolvedKey, removeKey } from "./lib/persist";
 
 const BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
 
-const ModeRow = React.memo(function ModeRow({ title, desc, buttonText, onClick, variant = "green", titleRight }) {
+const ModeRow = React.memo(function ModeRow({ title, desc, buttonText, onClick, variant = "green", titleRight, modeVariant = "daily" }) {
+  const handleKeyDown = (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      if (onClick) onClick();
+    }
+  };
+
   return (
-    <div className="modeRow">
+    <div
+      className={`modeRow modeRow--${modeVariant}`}
+      role="button"
+      tabIndex={0}
+      aria-label={buttonText || title}
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+    >
       <div className="modeRowText">
         <div className="modeRowTitle">
           {title}
@@ -20,13 +35,6 @@ const ModeRow = React.memo(function ModeRow({ title, desc, buttonText, onClick, 
         </div>
         <div className="modeRowDesc">{desc}</div>
       </div>
-
-      <button
-        className={`homeBtn ${variant === "gold" ? "homeBtnGold" : "homeBtnGreen"}`}
-        onClick={onClick}
-      >
-        {buttonText}
-      </button>
     </div>
   );
 });
@@ -205,18 +213,22 @@ export default function Home({
           </div>
         </Modal>
 
-        <FeedbackModal
-          isOpen={showFeedbackModal}
-          onRequestClose={handleCloseFeedback}
-        />
+        <Suspense fallback={null}>
+          <FeedbackModal
+            isOpen={showFeedbackModal}
+            onRequestClose={handleCloseFeedback}
+          />
+        </Suspense>
 
-        <OneVOneModal
-          isOpen={showOneVOneModal}
-          onRequestClose={() => setShowOneVOneModal(false)}
-          showConfigFirst={showOneVOneConfig}
-          onConfigClose={() => setShowOneVOneConfig(false)}
-          onConfigOpen={() => setShowOneVOneConfig(true)}
-        />
+        <Suspense fallback={null}>
+          <OneVOneModal
+            isOpen={showOneVOneModal}
+            onRequestClose={() => setShowOneVOneModal(false)}
+            showConfigFirst={showOneVOneConfig}
+            onConfigClose={() => setShowOneVOneConfig(false)}
+            onConfigOpen={() => setShowOneVOneConfig(true)}
+          />
+        </Suspense>
 
         <main>
           {/* DAILY */}
@@ -255,6 +267,7 @@ export default function Home({
                 buttonText="Play Daily"
                 onClick={handleDailyStandard}
                 variant="green"
+                modeVariant="daily"
                 titleRight={dailyTitleRight}
               />
 
@@ -264,6 +277,7 @@ export default function Home({
                 buttonText="Speedrun Daily"
                 onClick={handleDailySpeedrun}
                 variant="green"
+                modeVariant="daily"
                 titleRight={dailyTitleRight}
               />
 
@@ -297,6 +311,7 @@ export default function Home({
                 buttonText="Play Marathon"
                 onClick={handleMarathonStandard}
                 variant="gold"
+                modeVariant="marathon"
                 titleRight={`Stage ${marathonStandardIndexUI + 1}/${marathonLevels.length}`}
               />
 
@@ -306,6 +321,7 @@ export default function Home({
                 buttonText="Speedrun Marathon"
                 onClick={handleMarathonSpeedrun}
                 variant="gold"
+                modeVariant="marathon"
                 titleRight={`Stage ${marathonSpeedrunIndexUI + 1}/${marathonLevels.length}`}
               />
 
@@ -338,6 +354,7 @@ export default function Home({
                 buttonText="Play 1v1"
                 onClick={() => setShowOneVOneModal(true)}
                 variant="gold"
+                modeVariant="pvp"
               />
             </div>
           </section>

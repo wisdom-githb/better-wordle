@@ -19,6 +19,7 @@ import { useTimedMessage } from "../../hooks/useTimedMessage";
 import { useShare } from "../../hooks/useShare";
 import { useSinglePlayerGame } from "../../hooks/useSinglePlayerGame";
 import { useKeyboard } from "../../hooks/useKeyboard";
+import { useBoardLayout } from "../../hooks/useBoardLayout";
 import SinglePlayerGameView from "./SinglePlayerGameView";
 import "../../Game.css";
 
@@ -235,15 +236,11 @@ export default function GameSinglePlayer({
   const invalidCurrentGuess =
     currentGuess.length === WORD_LENGTH && !allowedSet.has(currentGuess);
 
-  const perBoardLetterMaps = useMemo(
-    () => boards.map((b) => buildLetterMapFromGuesses(b.guesses)),
-    [boards]
+  const { perBoardLetterMaps, focusedLetterMap, gridCols, gridRows } = useBoardLayout(
+    boards,
+    selectedBoardIndex,
+    numBoards
   );
-
-  const focusedLetterMap = useMemo(() => {
-    if (selectedBoardIndex == null) return null;
-    return perBoardLetterMaps[selectedBoardIndex];
-  }, [selectedBoardIndex, perBoardLetterMaps]);
 
   const solvedCount = useMemo(() => boards.filter((b) => b.isSolved).length, [boards]);
 
@@ -505,11 +502,8 @@ export default function GameSinglePlayer({
       ? "Stage complete."
       : `Guesses used: ${turnsUsed}/${maxTurns}${isUnlimited ? " (unlimited)" : ""}`;
 
-  const gridCols = useMemo(() => Math.ceil(Math.sqrt(numBoards)), [numBoards]);
-  const gridRows = useMemo(
-    () => Math.ceil(numBoards / gridCols),
-    [numBoards, gridCols]
-  );
+  // gridCols and gridRows are now provided by useBoardLayout so the layout
+  // logic stays consistent between single-player and 1v1.
 
   const marathonHasNext = useMemo(
     () => mode === "marathon" && marathonIndex < marathonLevels.length - 1,
@@ -828,7 +822,14 @@ export default function GameSinglePlayer({
       )
     : null;
 
-  if (isLoading && process.env.NODE_ENV !== "test") {
+  // In test environments we skip the full‑screen loading fallback so tests can
+  // render the game view immediately without depending on environment globals.
+  const isTestEnv =
+    typeof import.meta !== "undefined" &&
+    import.meta.env &&
+    (import.meta.env.MODE === "test" || import.meta.env.TEST === true);
+
+  if (isLoading && !isTestEnv) {
     return (
       <>
         <Helmet>

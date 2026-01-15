@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
@@ -54,17 +54,22 @@ const baseProps = {
 };
 
 describe('OneVOneGameView unauthenticated 1v1 gating', () => {
-  it('shows the sign-in required screen for unsigned users with correct copy and buttons', () => {
+  it('shows the sign-in required screen for unsigned users with correct copy and buttons', async () => {
     const onBack = vi.fn();
 
     render(
-      <OneVOneGameView
-        {...baseProps}
-        authUser={null}
-        authLoading={false}
-        onBack={onBack}
-      />,
+      <Suspense fallback={null}>
+        <OneVOneGameView
+          {...baseProps}
+          authUser={null}
+          authLoading={false}
+          onBack={onBack}
+        />
+      </Suspense>,
     );
+
+    // Wait for any lazy AuthModal/Suspense work to settle
+    await screen.findByText('Sign in to play 1v1 games');
 
     // Heading and message
     expect(screen.getByText('Sign in to play 1v1 games')).toBeInTheDocument();
@@ -83,19 +88,22 @@ describe('OneVOneGameView unauthenticated 1v1 gating', () => {
     expect(onBack).toHaveBeenCalled();
   });
 
-  it('opens the AuthModal when Sign In is clicked', () => {
+  it('opens the AuthModal when Sign In is clicked', async () => {
     render(
-      <OneVOneGameView
-        {...baseProps}
-        authUser={null}
-        authLoading={false}
-        onBack={vi.fn()}
-      />,
+      <Suspense fallback={null}>
+        <OneVOneGameView
+          {...baseProps}
+          authUser={null}
+          authLoading={false}
+          onBack={vi.fn()}
+        />
+      </Suspense>,
     );
 
     const signInButton = screen.getByRole('button', { name: 'Sign In' });
     fireEvent.click(signInButton);
 
-    expect(screen.getByTestId('auth-modal')).toBeInTheDocument();
+    const modal = await screen.findByTestId('auth-modal');
+    expect(modal).toBeInTheDocument();
   });
 });

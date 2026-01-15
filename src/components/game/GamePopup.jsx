@@ -237,7 +237,9 @@ export default function GamePopup({
             </div>
 
             <div style={{ marginBottom: 14, fontSize: 18, color: "#ffffff", fontWeight: "bold" }}>
-              Guesses used: {turnsUsed}/{maxTurns}
+              {speedrunEnabled
+                ? `Guesses used: ${turnsUsed}`
+                : `Guesses used: ${turnsUsed}/${maxTurns}`}
             </div>
           </>
         )}

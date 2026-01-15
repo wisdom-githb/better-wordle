@@ -1,11 +1,39 @@
 import '@testing-library/jest-dom';
 import React from 'react';
 import { vi } from 'vitest';
+import * as ReactRouterDom from 'react-router-dom';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - react-router core is used for UNSAFE_FUTURE_FLAGS in some builds.
+import * as ReactRouterCore from 'react-router';
+
+// Globally opt into React Router v7 behavior for tests to silence future-flag warnings.
+// This mirrors the `future` configuration used by BrowserRouter in `main.jsx`.
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - UNSAFE_FUTURE_FLAGS is an unstable/testing-only escape hatch.
+(ReactRouterDom as any).UNSAFE_FUTURE_FLAGS = {
+  ...(ReactRouterDom as any).UNSAFE_FUTURE_FLAGS,
+  v7_startTransition: true,
+  v7_relativeSplatPath: true,
+};
+
+// Also set on the core package when present so both entry points agree.
+try {
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  (ReactRouterCore as any).UNSAFE_FUTURE_FLAGS = {
+    ...(ReactRouterCore as any).UNSAFE_FUTURE_FLAGS,
+    v7_startTransition: true,
+    v7_relativeSplatPath: true,
+  };
+} catch {
+  // ignore if core package is not available or read-only
+}
 
 // React 18 testing-library hint
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+// Note: React Testing Library already wraps updates in act() where needed.
+// For projects using Suspense and React.lazy extensively, forcing
+// IS_REACT_ACT_ENVIRONMENT can produce noisy warnings without adding value,
+// so we intentionally leave it undefined here.
 
 // Basic DOM/window stubs that code expects
 Object.defineProperty(window, 'scrollTo', {

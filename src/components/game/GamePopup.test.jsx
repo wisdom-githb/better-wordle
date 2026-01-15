@@ -84,6 +84,8 @@ describe('GamePopup - single player', () => {
 
     expect(screen.getByText(/Total time:/)).toBeInTheDocument();
     expect(screen.getByText(/Stage time:/)).toBeInTheDocument();
+    // In speedrun modes the popup should show only the raw guesses count, without "/max"
+    expect(screen.getByText('Guesses used: 6')).toBeInTheDocument();
 
     const nextStageButton = screen.getByRole('button', { name: /Next Stage/i });
     fireEvent.click(nextStageButton);

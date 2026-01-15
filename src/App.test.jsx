@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 // For these routing smoke tests we don't care about real auth behavior,
@@ -41,29 +41,33 @@ vi.mock('./hooks/useDailyResetTimer', () => ({
 import App from './App';
 
 describe('App routing', () => {
-  it('renders Home on root path', () => {
-    render(
-      <MemoryRouter
-        initialEntries={['/']}
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-      >
-        <App />
-      </MemoryRouter>,
-    );
+  it('renders Home on root path', async () => {
+    await act(async () => {
+      render(
+        <MemoryRouter
+          initialEntries={['/']}
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
+          <App />
+        </MemoryRouter>,
+      );
+    });
 
-    expect(screen.getByRole('heading', { name: /daily/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /daily/i })).toBeInTheDocument();
   });
 
-  it('navigates unknown paths back to home', () => {
-    render(
-      <MemoryRouter
-        initialEntries={['/unknown-path']}
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-      >
-        <App />
-      </MemoryRouter>,
-    );
+  it('navigates unknown paths back to home', async () => {
+    await act(async () => {
+      render(
+        <MemoryRouter
+          initialEntries={['/unknown-path']}
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
+          <App />
+        </MemoryRouter>,
+      );
+    });
 
-    expect(screen.getByRole('heading', { name: /daily/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /daily/i })).toBeInTheDocument();
   });
 });

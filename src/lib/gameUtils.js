@@ -192,10 +192,18 @@ export function generateShareText(
 
 // Detect if the device is mobile
 export function isMobileDevice() {
-  return (
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-    (typeof window !== "undefined" && window.innerWidth <= 768 && "ontouchstart" in window)
-  );
+  const hasNavigator = typeof navigator !== "undefined" && typeof navigator.userAgent === "string";
+  const isMobileUA =
+    hasNavigator &&
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+  const hasWindow = typeof window !== "undefined";
+  const isSmallTouchViewport =
+    hasWindow &&
+    window.innerWidth <= 768 &&
+    "ontouchstart" in window;
+
+  return isMobileUA || isSmallTouchViewport;
 }
 
 // Background color for tile colors

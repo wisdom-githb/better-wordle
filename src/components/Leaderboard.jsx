@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useLeaderboard } from '../hooks/useLeaderboard';
 import { useAuth } from '../hooks/useAuth';
-import FeedbackModal from './FeedbackModal';
 import SiteHeader from './SiteHeader';
+
+const FeedbackModal = lazy(() => import('./FeedbackModal'));
 import './Leaderboard.css';
 
 function formatElapsed(ms) {
@@ -128,10 +129,12 @@ export default function Leaderboard() {
         )}
         </div>
 
-        <FeedbackModal
-          isOpen={showFeedbackModal}
-          onRequestClose={() => setShowFeedbackModal(false)}
-        />
+        <Suspense fallback={null}>
+          <FeedbackModal
+            isOpen={showFeedbackModal}
+            onRequestClose={() => setShowFeedbackModal(false)}
+          />
+        </Suspense>
       </div>
     </div>
     </>

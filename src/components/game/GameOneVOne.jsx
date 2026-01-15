@@ -9,6 +9,7 @@ import { useOneVOneController } from "../../hooks/useOneVOneController";
 import { useTimedMessage } from "../../hooks/useTimedMessage";
 import { useShare } from "../../hooks/useShare";
 import { useKeyboard } from "../../hooks/useKeyboard";
+import { useBoardLayout } from "../../hooks/useBoardLayout";
 import GameToast from "./GameToast";
 import OneVOneConfigModal from "./OneVOneConfigModal";
 import OneVOneGameView from "./OneVOneGameView";
@@ -148,18 +149,14 @@ export default function GameOneVOne() {
     maxOneVOneBoards: ONE_V_ONE_BOARD_OPTIONS.length,
   });
 
-  const perBoardLetterMaps = useMemo(
-    () => boards.map((b) => buildLetterMapFromGuesses(b.guesses)),
-    [boards]
+  const { perBoardLetterMaps, focusedLetterMap, gridCols, gridRows } = useBoardLayout(
+    boards,
+    selectedBoardIndex,
+    numBoards
   );
 
   const invalidCurrentGuess =
     currentGuess.length === WORD_LENGTH && !allowedSet.has(currentGuess);
-
-  const focusedLetterMap = useMemo(() => {
-    if (selectedBoardIndex == null) return null;
-    return perBoardLetterMaps[selectedBoardIndex];
-  }, [selectedBoardIndex, perBoardLetterMaps]);
 
   const solvedCount = useMemo(() => boards.filter((b) => b.isSolved).length, [boards]);
 
@@ -351,6 +348,9 @@ export default function GameOneVOne() {
   const popupTotalMs = 0;
   const isMarathonSpeedrun = false;
 
+  const gridCols1v1 = gridCols;
+  const gridRows1v1 = gridRows;
+
   const shareText = useMemo(() => {
     if (!boards || boards.length === 0) {
       return "Play Better Wordle!";
@@ -363,9 +363,6 @@ export default function GameOneVOne() {
   const pageTitle = "1v1 Wordle-Style Battles – Game | Better Wordle";
   const pageDescription =
     "Play 1v1 Wordle-style battles in Better Wordle, challenge friends with custom board counts and speedrun mode, and see who solves multi-board puzzles faster.";
-
-  const gridCols1v1 = Math.ceil(Math.sqrt(Math.max(numBoards, 1)));
-  const gridRows1v1 = Math.ceil(Math.max(numBoards, 1) / gridCols1v1);
 
   return (
     <>

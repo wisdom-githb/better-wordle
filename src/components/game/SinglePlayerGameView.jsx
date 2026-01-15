@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { useInRouterContext } from "react-router-dom";
 import GameHeader from "./GameHeader";
 import GameStatusBar from "./GameStatusBar";
@@ -10,9 +10,10 @@ import OutOfGuessesPopup from "./OutOfGuessesPopup";
 import GamePopup from "./GamePopup";
 import Keyboard from "../Keyboard";
 import SiteHeader from "../SiteHeader";
-import FeedbackModal from "../FeedbackModal";
 import CommentsSection from "./CommentsSection";
 import { KEYBOARD_HEIGHT } from "../../lib/wordle";
+
+const FeedbackModal = lazy(() => import("../FeedbackModal"));
 
 export default function SinglePlayerGameView({
   mode,
@@ -242,10 +243,12 @@ export default function SinglePlayerGameView({
         />
       )}
 
-      <FeedbackModal
-        isOpen={showFeedbackModal}
-        onRequestClose={() => setShowFeedbackModal(false)}
-      />
+      <Suspense fallback={null}>
+        <FeedbackModal
+          isOpen={showFeedbackModal}
+          onRequestClose={() => setShowFeedbackModal(false)}
+        />
+      </Suspense>
     </div>
   );
 }

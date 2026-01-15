@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 
@@ -123,11 +123,16 @@ import GameOneVOne from './GameOneVOne';
 
 describe('GameOneVOne partial and full guess handling on Enter', () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     latestOneVOneViewProps = null;
     latestKeyboardProps = null;
     latestUseKeyboardArgs = null;
     mockSubmitGuess.mockClear();
     mockSetTimedMessage.mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   function renderGame() {
@@ -153,6 +158,7 @@ describe('GameOneVOne partial and full guess handling on Enter', () => {
 
     act(() => {
       onVirtualKey('ENTER');
+      vi.runAllTimers();
     });
 
     expect(latestOneVOneViewProps.currentGuess).toBe('');
@@ -166,12 +172,14 @@ describe('GameOneVOne partial and full guess handling on Enter', () => {
       onVirtualKey('A');
       onVirtualKey('B');
       onVirtualKey('C');
+      vi.runAllTimers();
     });
 
     expect(latestOneVOneViewProps.currentGuess).toBe('ABC');
 
     act(() => {
       onVirtualKey('ENTER');
+      vi.runAllTimers();
     });
 
     expect(latestOneVOneViewProps.currentGuess).toBe('');
@@ -187,12 +195,14 @@ describe('GameOneVOne partial and full guess handling on Enter', () => {
       onVirtualKey('P');
       onVirtualKey('L');
       onVirtualKey('E');
+      vi.runAllTimers();
     });
 
     expect(latestOneVOneViewProps.currentGuess).toBe('APPLE');
 
     act(() => {
       onVirtualKey('ENTER');
+      vi.runAllTimers();
     });
 
     // For 1v1 games, a full 5-letter guess should call the submitGuess hook.
@@ -211,12 +221,14 @@ describe('GameOneVOne partial and full guess handling on Enter', () => {
       onVirtualKey('A');
       onVirtualKey('B');
       onVirtualKey('C');
+      vi.runAllTimers();
     });
     expect(latestOneVOneViewProps.currentGuess).toBe('ABC');
 
     mockSubmitGuess.mockClear();
     act(() => {
       onEnter();
+      vi.runAllTimers();
     });
 
     expect(latestOneVOneViewProps.currentGuess).toBe('');
@@ -229,12 +241,14 @@ describe('GameOneVOne partial and full guess handling on Enter', () => {
       onVirtualKey('P');
       onVirtualKey('L');
       onVirtualKey('E');
+      vi.runAllTimers();
     });
     expect(latestOneVOneViewProps.currentGuess).toBe('APPLE');
 
     mockSubmitGuess.mockClear();
     act(() => {
       onEnter();
+      vi.runAllTimers();
     });
 
     expect(mockSubmitGuess).toHaveBeenCalledTimes(1);
@@ -262,6 +276,7 @@ describe('GameOneVOne partial and full guess handling on Enter', () => {
       onVirtualKey('H');
       onVirtualKey('E');
       onVirtualKey('R');
+      vi.runAllTimers();
     });
 
     expect(latestOneVOneViewProps.currentGuess).toBe('OTHER');
@@ -277,6 +292,7 @@ describe('GameOneVOne partial and full guess handling on Enter', () => {
       onVirtualKey('H');
       onVirtualKey('E');
       onVirtualKey('R');
+      vi.runAllTimers();
     });
 
     expect(latestOneVOneViewProps.currentGuess).toBe('OTHER');
@@ -284,6 +300,7 @@ describe('GameOneVOne partial and full guess handling on Enter', () => {
     mockSetTimedMessage.mockClear();
     act(() => {
       onVirtualKey('ENTER');
+      vi.runAllTimers();
     });
 
     expect(mockSetTimedMessage).toHaveBeenCalledWith('Not in word list.', 5000);

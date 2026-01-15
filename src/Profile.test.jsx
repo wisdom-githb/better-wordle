@@ -130,6 +130,38 @@ describe('Profile', () => {
     expect(screen.getByText(/username cannot be empty/i)).toBeInTheDocument();
   });
 
+  it('reverts username and stays on profile when cancel is clicked', () => {
+    useAuth.mockReturnValue({
+      user: {
+        email: 'user@example.com',
+        displayName: 'Old Name',
+        emailVerified: true,
+        providerData: [{ providerId: 'password' }],
+      },
+      loading: false,
+      updateUsername: vi.fn(),
+      error: null,
+      isVerifiedUser: true,
+      resendVerificationEmail: vi.fn(),
+      linkGoogleAccount: vi.fn(),
+    });
+
+    renderWithRouter(<Profile />);
+
+    const usernameInput = screen.getByLabelText(/username/i);
+    expect(usernameInput).toHaveValue('Old Name');
+
+    fireEvent.change(usernameInput, { target: { value: 'New Name' } });
+    expect(usernameInput).toHaveValue('New Name');
+
+    const cancelButton = screen.getByRole('button', { name: /cancel/i });
+    fireEvent.click(cancelButton);
+
+    // Username should be reverted to initial value and we should not navigate home
+    expect(usernameInput).toHaveValue('Old Name');
+    expect(screen.queryByTestId('home')).not.toBeInTheDocument();
+  });
+
   it('shows resend verification button for unverified password accounts', async () => {
     const resendVerificationEmail = vi.fn().mockResolvedValue(true);
 

@@ -561,7 +561,7 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
    * Leave/delete game
    */
   const leaveGame = useCallback(async (code) => {
-    if (!gameCode) return;
+    if (!code) return;
 
     const gamePath = `onevone/${code}`;
     const gameDataRef = ref(database, gamePath);
@@ -590,7 +590,7 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
     } catch (err) {
       setError(err.message);
     }
-  }, [user, gameCode]);
+  }, [user]);
 
   return {
     gameState,

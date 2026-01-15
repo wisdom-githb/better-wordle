@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense, lazy } from "react";
 import { useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "./hooks/useAuth";
-import FeedbackModal from "./components/FeedbackModal";
 import SiteHeader from "./components/SiteHeader";
+
+const FeedbackModal = lazy(() => import("./components/FeedbackModal"));
 import "./Profile.css";
 
 export default function Profile() {
@@ -49,7 +50,8 @@ export default function Profile() {
   };
 
   const handleCancel = () => {
-    navigate("/");
+    setUsername(initialUsername);
+    setMessage("");
   };
 
   const handleResendVerification = async () => {
@@ -211,10 +213,12 @@ export default function Profile() {
           </>
         )}
 
-        <FeedbackModal
-          isOpen={showFeedbackModal}
-          onRequestClose={() => setShowFeedbackModal(false)}
-        />
+        <Suspense fallback={null}>
+          <FeedbackModal
+            isOpen={showFeedbackModal}
+            onRequestClose={() => setShowFeedbackModal(false)}
+          />
+        </Suspense>
       </div>
     </div>
     </>

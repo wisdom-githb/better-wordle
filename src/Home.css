@@ -67,8 +67,8 @@
 .panel {
   border: 1px solid #2b2b2e;
   border-radius: 14px;
-  background: linear-gradient(180deg, #1a1a1b 0%, #161617 100%);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  background: #18181b;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
   padding: 20px;
   margin-bottom: 18px;
 }
@@ -84,14 +84,16 @@
 
 .panelTitle {
   margin: 0 0 6px 0;
-  font-size: 18px;
-  letter-spacing: 0.5px;
+  font-size: 19px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #e5e7eb;
 }
 
 .panelDesc {
-  color: #d7dadc;
+  color: #9ca3af;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 .panelBody {
@@ -130,18 +132,93 @@
 /* Mode rows */
 .modeRow {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
+  justify-content: center;
+  gap: 8px;
 
   border: 1px solid #2b2b2e;
   border-radius: 12px;
-  padding: 12px 12px;
-  background: rgba(18, 18, 19, 0.55);
+  padding: 16px 14px;
+  background: #18181b;
+
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
+}
+
+.modeRow--daily {
+  /* Daily modes: soft green accent + subtle glow */
+  border-color: #22c55e;
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.3);
+  background: linear-gradient(0deg, rgba(34, 197, 94, 0.06), #18181b);
+}
+
+.modeRow--marathon {
+  /* Marathon modes: amber/yellow accent + subtle glow */
+  border-color: #eab308;
+  box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.32);
+  background: linear-gradient(0deg, rgba(234, 179, 8, 0.06), #18181b);
+}
+
+.modeRow--pvp {
+  /* 1v1: warm red accent + subtle glow */
+  border-color: #ef4444;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.32);
+  background: linear-gradient(0deg, rgba(239, 68, 68, 0.06), #18181b);
+}
+
+.modeRow:hover {
+  background: #1f1f23;
+}
+
+.modeRow:active {
+  background: #18181b;
+}
+
+.modeRow:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.4);
 }
 
 .modeRowText {
   min-width: 0;
+  width: 100%;
+  text-align: center;
+}
+
+.modeRowCta {
+  flex: 0 0 auto;
+}
+
+.modeRowCtaLabel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.modeRow--green .modeRowCtaLabel {
+  background: #6aaa64;
+  color: #ffffff;
+}
+
+.modeRow--green:hover .modeRowCtaLabel {
+  background: #5a9a54;
+}
+
+.modeRow--gold .modeRowCtaLabel {
+  background: #c9b458;
+  color: #121213;
+}
+
+.modeRow--gold:hover .modeRowCtaLabel {
+  background: #d4c267;
 }
 
 .modeRowTitle {
@@ -151,6 +228,7 @@
   color: #ffffff;
   display: flex;
   align-items: baseline;
+  justify-content: center;
   gap: 10px;
   flex-wrap: wrap;
 }
@@ -158,17 +236,18 @@
 .modeRowTitleRight {
   font-size: 12px;
   font-weight: 600;
-  color: #d7dadc;
-  border: 1px solid #3a3a3c;
-  padding: 2px 8px;
+  color: #e5e7eb;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: rgba(15, 23, 42, 0.9);
+  padding: 2px 10px;
   border-radius: 999px;
 }
 
 .modeRowDesc {
   margin-top: 4px;
-  color: #d7dadc;
-  font-size: 12px;
-  line-height: 1.35;
+  color: #9ca3af;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 /* Marathon meta */
@@ -208,8 +287,52 @@
 }
 
 .resetText {
-  color: #d7dadc;
+  color: #9ca3af;
   font-size: 12px;
+}
+
+/* Intro / footer content */
+.homeIntro {
+  margin-top: 24px;
+}
+
+.homeIntroDetails {
+  border-radius: 16px;
+  border: 1px solid #2b2b2e;
+  padding: 14px 16px 16px;
+  background:
+    linear-gradient(0deg, rgba(34, 197, 94, 0.04), rgba(234, 179, 8, 0.03)),
+    #18181b;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  color: #e5e7eb;
+}
+
+.homeIntroSummary {
+  cursor: pointer;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: #9ca3af;
+}
+
+.homeIntroSummary::-webkit-details-marker {
+  display: none;
+}
+
+.homeIntroParagraph {
+  margin-top: 10px;
+  color: #9ca3af;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.homeLink {
+  color: #22c55e;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.homeLink:hover {
+  text-decoration: underline;
 }
 
 /* HOME buttons (namespaced so Game.css can't override them) */
