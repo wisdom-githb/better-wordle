@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import Modal from "./Modal";
 
 const FriendsModal = lazy(() => import("./FriendsModal"));
+const OpenRoomsModal = lazy(() => import("./OpenRoomsModal"));
 
 export default function HamburgerMenu({ onOpenFeedback }) {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ export default function HamburgerMenu({ onOpenFeedback }) {
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
   const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [showChallengesModal, setShowChallengesModal] = useState(false);
+  const [showOpenRoomsModal, setShowOpenRoomsModal] = useState(false);
 
   return (
     <>
@@ -210,6 +212,37 @@ export default function HamburgerMenu({ onOpenFeedback }) {
                 )}
               </button>
             )}
+            {user && (
+              <button
+                onClick={() => {
+                  if (!isVerifiedUser) {
+                    alert('Verify your email or sign in with Google to browse open rooms.');
+                    setShowHamburgerMenu(false);
+                    return;
+                  }
+                  setShowOpenRoomsModal(true);
+                  setShowHamburgerMenu(false);
+                }}
+                style={{
+                  width: "100%",
+                  padding: "10px 16px",
+                  background: "transparent",
+                  border: "none",
+                  color: "#ffffff",
+                  fontSize: "13px",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                  letterSpacing: "0.3px",
+                  transition: "all 0.2s ease",
+                  borderBottom: "1px solid #3a3a3c",
+                }}
+                onMouseEnter={(e) => (e.target.style.background = "rgba(255, 255, 255, 0.1)")}
+                onMouseLeave={(e) => (e.target.style.background = "transparent")}
+              >
+                Open Rooms
+              </button>
+            )}
             <button
               onClick={() => {
                 onOpenFeedback();
@@ -255,6 +288,10 @@ export default function HamburgerMenu({ onOpenFeedback }) {
         <FriendsModal
           isOpen={showFriendsModal}
           onRequestClose={() => setShowFriendsModal(false)}
+        />
+        <OpenRoomsModal
+          isOpen={showOpenRoomsModal}
+          onRequestClose={() => setShowOpenRoomsModal(false)}
         />
       </Suspense>
 

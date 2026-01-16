@@ -264,7 +264,10 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
         </button>
       </div>
 
-      {/* 1v1 Challenge configuration modal (per-friend) */}
+      {/* 1v1 Challenge configuration modal (per-friend).
+          NOTE: This will later be replaced to route through the shared
+          Multiplayer host modal so that challenges and direct hosting use
+          the same room configuration flow. */}
       <Modal
         isOpen={isChallengeConfigOpen && !!selectedFriendForChallenge}
         onRequestClose={() => setIsChallengeConfigOpen(false)}
@@ -352,7 +355,11 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                 onClick={async () => {
                   if (!selectedFriendForChallenge || !user) return;
                   try {
-                    const code = await oneVOneHost.createGame({ speedrun: challengeSpeedrun });
+                    const code = await oneVOneHost.createGame({
+                      speedrun: challengeSpeedrun,
+                      maxPlayers: 2,
+                      isPublic: false,
+                    });
                     const ok = await sendChallenge(
                       selectedFriendForChallenge.id,
                       selectedFriendForChallenge.name,

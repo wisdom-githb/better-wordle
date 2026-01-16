@@ -35,7 +35,7 @@ describe('OneVOneModal', () => {
 
     render(<OneVOneModal isOpen onRequestClose={vi.fn()} />);
 
-    expect(screen.getByText('1v1 Mode')).toBeInTheDocument();
+    expect(screen.getByText('Multiplayer Mode')).toBeInTheDocument();
     expect(screen.getByText('You need to sign in to play 1v1 mode.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
@@ -77,7 +77,7 @@ describe('OneVOneModal', () => {
     // Host flow: clicking Host opens config modal
     fireEvent.click(screen.getByRole('button', { name: 'Host' }));
     expect(onConfigOpen).toHaveBeenCalled();
-    expect(screen.getByText('1v1 Game Configuration')).toBeInTheDocument();
+    expect(screen.getByText('Multiplayer Room Configuration')).toBeInTheDocument();
 
     // Change number of boards and enable speedrun
     const boardsSelect = screen.getByRole('combobox');
@@ -89,7 +89,9 @@ describe('OneVOneModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(onConfigClose).toHaveBeenCalled();
     expect(onRequestClose).toHaveBeenCalled();
-    expect(navigateMock).toHaveBeenCalledWith('/game?mode=1v1&host=true&speedrun=true&boards=5');
+    expect(navigateMock).toHaveBeenCalledWith(
+      '/game?mode=1v1&host=true&speedrun=true&boards=5&maxPlayers=2&public=true',
+    );
   });
 
   it('validates and joins by game code when verified', () => {

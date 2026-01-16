@@ -336,22 +336,22 @@ export default function Home({
             </div>
           </section>
 
-          {/* 1v1 MODE */}
+          {/* MULTIPLAYER MODE (formerly 1v1) */}
           <section className="panel">
             <div className="panelTop">
               <div>
-                <h2 className="panelTitle">1v1 Wordle Battles With Friends</h2>
+                <h2 className="panelTitle">Multiplayer Wordle Rooms</h2>
                 <div className="panelDesc">
-                  Challenge anyone to a 1v1 match.
+                  Host or join live rooms with friends and other players.
                 </div>
               </div>
             </div>
 
             <div className="panelBody">
               <ModeRow
-                title="1v1 Mode"
-                desc="Play against another player in real time."
-                buttonText="Play 1v1"
+                title="Multiplayer Mode"
+                desc="Create a room or join by code and play together in real time."
+                buttonText="Open Multiplayer"
                 onClick={() => setShowOneVOneModal(true)}
                 variant="gold"
                 modeVariant="pvp"

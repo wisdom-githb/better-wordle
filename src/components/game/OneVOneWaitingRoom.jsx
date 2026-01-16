@@ -4,19 +4,86 @@ export default function OneVOneWaitingRoom({
   gameCode,
   gameState,
   isHost,
+  currentUserId,
+  maxPlayers,
+  roomName,
   onReady,
   onStartGame,
   onAddFriend,
   friendRequestSent,
   onShareCode,
   onCancelChallenge,
+  onCloseRoom,
+  friends,
+  onInviteFriend,
+  onUpdateRoomName,
 }) {
-  const { hostName, guestName, hostReady, guestReady, status, friendRequestStatus } = gameState || {};
-  const currentUserReady = isHost ? hostReady : guestReady;
-  const otherPlayerReady = isHost ? guestReady : hostReady;
-  const bothReady = hostReady && guestReady;
-  const otherPlayerName = isHost ? guestName : hostName;
-  const currentUserName = isHost ? hostName : guestName;
+  const { status } = gameState || {};
+
+  const players = React.useMemo(() => {
+    if (!gameState) return [];
+    if (gameState.players && typeof gameState.players === 'object') {
+      return Object.values(gameState.players).map((p) => ({
+        id: p.id,
+        name: p.name,
+        isHost: !!p.isHost || p.id === gameState.hostId,
+        ready: !!p.ready,
+      }));
+    }
+    const list = [];
+    if (gameState.hostName || gameState.hostId) {
+      list.push({
+        id: gameState.hostId || 'host',
+        name: gameState.hostName || 'Host',
+        isHost: true,
+        ready: !!gameState.hostReady,
+      });
+    }
+    if (gameState.guestName || gameState.guestId) {
+      list.push({
+        id: gameState.guestId || 'guest',
+        name: gameState.guestName || 'Guest',
+        isHost: false,
+        ready: !!gameState.guestReady,
+      });
+    }
+    return list;
+  }, [gameState]);
+
+  const effectiveMaxPlayers = Number.isFinite(maxPlayers) ? maxPlayers : (gameState?.maxPlayers || 2);
+
+  const currentPlayer = React.useMemo(() => {
+    if (!players.length) return null;
+    if (currentUserId) {
+      const match = players.find((p) => p.id === currentUserId);
+      if (match) return match;
+    }
+    // Fallback: host vs non-host based on isHost flag
+    const hostPlayer = players.find((p) => p.isHost);
+    if (isHost && hostPlayer) return hostPlayer;
+    if (!isHost && players.length > 1) {
+      const nonHost = players.find((p) => !p.isHost) || players[0];
+      return nonHost;
+    }
+    return players[0];
+  }, [players, currentUserId, isHost]);
+
+  const currentUserReady = !!currentPlayer?.ready;
+  const allPlayersReady = players.length >= 2 && players.every((p) => p.ready);
+  const roomFull = players.length >= effectiveMaxPlayers;
+  const hasOnlyHost = players.length === 1 && players[0]?.isHost;
+  const effectiveRoomName = roomName || (gameState?.hostName ? `${gameState.hostName}'s room` : 'Room');
+  const [roomNameDraft, setRoomNameDraft] = React.useState(effectiveRoomName);
+
+  React.useEffect(() => {
+    setRoomNameDraft(effectiveRoomName);
+  }, [effectiveRoomName]);
+
+  const handleRoomNameBlur = () => {
+    if (onUpdateRoomName && isHost) {
+      onUpdateRoomName(roomNameDraft);
+    }
+  };
 
   return (
     <div style={{
@@ -36,14 +103,36 @@ export default function OneVOneWaitingRoom({
         maxWidth: '500px',
         width: '100%'
       }}>
-        <h2 style={{ margin: 0, marginBottom: '24px', fontSize: 24, fontWeight: 'bold', color: '#ffffff' }}>
-          1v1 Game
-        </h2>
+        <div style={{ margin: 0, marginBottom: '24px' }}>
+          {isHost && onUpdateRoomName ? (
+            <input
+              type="text"
+              value={roomNameDraft}
+              onChange={(e) => setRoomNameDraft(e.target.value)}
+              onBlur={handleRoomNameBlur}
+              placeholder="Room name"
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: 8,
+                border: '1px solid #3a3a3c',
+                background: '#1a1a1b',
+                color: '#ffffff',
+                fontSize: 18,
+                fontWeight: 'bold',
+              }}
+            />
+          ) : (
+            <h2 style={{ margin: 0, fontSize: 24, fontWeight: 'bold', color: '#ffffff' }}>
+              {effectiveRoomName}
+            </h2>
+          )}
+        </div>
 
-        {status === 'waiting' && !guestName && (
+        {status === 'waiting' && hasOnlyHost && (
           <div>
-            <p style={{ color: '#d7dadc', marginBottom: '20px', fontSize: 16 }}>
-              Waiting for opponent to join...
+              <p style={{ color: '#d7dadc', marginBottom: '20px', fontSize: 16 }}>
+              Waiting for players to join...
             </p>
             <div style={{
               background: '#3a3a3c',
@@ -113,59 +202,68 @@ export default function OneVOneWaitingRoom({
                 Cancel Challenge
               </button>
             )}
+
+            {isHost && onCloseRoom && (
+              <button
+                onClick={() => onCloseRoom()}
+                style={{
+                  width: '100%',
+                  marginTop: '8px',
+                  padding: '10px',
+                  borderRadius: 8,
+                  border: '1px solid #3a3a3c',
+                  background: 'transparent',
+                  color: '#ffffff',
+                  fontSize: 13,
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                }}
+              >
+                Close Room
+              </button>
+            )}
           </div>
         )}
 
-        {status === 'waiting' && guestName && (
+        {status === 'waiting' && players.length > 0 && (
           <div>
             <div style={{ marginBottom: '24px' }}>
-              <div style={{ color: '#d7dadc', fontSize: 14, marginBottom: '16px' }}>
-                Players:
+              <div style={{ color: '#d7dadc', fontSize: 14, marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                <span>Players</span>
+                <span style={{ fontSize: 12, color: '#818384' }}>
+                  {players.length}/{effectiveMaxPlayers} players
+                </span>
               </div>
               <div style={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '12px',
+                gap: '8px',
                 marginBottom: '20px'
               }}>
-                <div style={{
-                  padding: '12px',
-                  background: '#3a3a3c',
-                  borderRadius: 6,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <span style={{ color: '#ffffff', fontWeight: 'bold' }}>
-                    {currentUserName} {isHost ? '(Host)' : ''}
-                  </span>
-                  <span style={{
-                    color: currentUserReady ? '#6aaa64' : '#818384',
-                    fontSize: 12,
-                    fontWeight: 'bold'
-                  }}>
-                    {currentUserReady ? '✓ Ready' : 'Not Ready'}
-                  </span>
-                </div>
-                <div style={{
-                  padding: '12px',
-                  background: '#3a3a3c',
-                  borderRadius: 6,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <span style={{ color: '#ffffff', fontWeight: 'bold' }}>
-                    {otherPlayerName} {!isHost ? '(Host)' : ''}
-                  </span>
-                  <span style={{
-                    color: otherPlayerReady ? '#6aaa64' : '#818384',
-                    fontSize: 12,
-                    fontWeight: 'bold'
-                  }}>
-                    {otherPlayerReady ? '✓ Ready' : 'Not Ready'}
-                  </span>
-                </div>
+                {players.map((p) => (
+                  <div
+                    key={p.id || p.name}
+                    style={{
+                      padding: '10px 12px',
+                      background: '#3a3a3c',
+                      borderRadius: 6,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}
+                  >
+                    <span style={{ color: '#ffffff', fontWeight: 'bold' }}>
+                      {p.name} {p.isHost ? '(Host)' : ''}
+                    </span>
+                    <span style={{
+                      color: p.ready ? '#6aaa64' : '#818384',
+                      fontSize: 12,
+                      fontWeight: 'bold'
+                    }}>
+                      {p.ready ? '✓ Ready' : 'Not Ready'}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -189,25 +287,25 @@ export default function OneVOneWaitingRoom({
             ) : (
               <button
                 onClick={() => onReady(false)}
-                disabled={bothReady}
+                disabled={allPlayersReady}
                 style={{
                   width: '100%',
                   padding: '14px',
                   borderRadius: 8,
                   border: 'none',
-                  background: bothReady ? '#3a3a3c' : '#818384',
+                  background: allPlayersReady ? '#3a3a3c' : '#818384',
                   color: '#ffffff',
                   fontSize: 16,
                   fontWeight: 'bold',
-                  cursor: bothReady ? 'not-allowed' : 'pointer',
-                  opacity: bothReady ? 0.5 : 1
+                  cursor: allPlayersReady ? 'not-allowed' : 'pointer',
+                  opacity: allPlayersReady ? 0.5 : 1
                 }}
               >
-                {bothReady ? 'Both Ready - Starting...' : 'Not Ready'}
+                {allPlayersReady ? 'All Ready - Starting...' : 'Not Ready'}
               </button>
             )}
 
-            {bothReady && isHost && (
+            {allPlayersReady && isHost && (
               <button
                 onClick={onStartGame}
                 style={{
@@ -227,9 +325,9 @@ export default function OneVOneWaitingRoom({
               </button>
             )}
 
-            {guestName && onAddFriend && (
+            {gameState?.guestName && onAddFriend && (
               <button
-                onClick={() => !friendRequestSent && onAddFriend(otherPlayerName)}
+                onClick={() => !friendRequestSent && onAddFriend(gameState.guestName)}
                 disabled={friendRequestSent}
                 style={{
                   width: '100%',
@@ -260,8 +358,47 @@ export default function OneVOneWaitingRoom({
               >
                 {friendRequestSent
                   ? "Friend request sent"
-                  : `Add ${otherPlayerName} as Friend`}
+                  : `Add ${gameState?.guestName || 'Player'} as Friend`}
               </button>
+            )}
+
+            {Array.isArray(friends) && friends.length > 0 && onInviteFriend && (
+              <div style={{ marginTop: '24px', textAlign: 'left' }}>
+                <details>
+                  <summary style={{ cursor: 'pointer', color: '#d7dadc', fontSize: 14 }}>
+                    Invite friends{roomFull ? ' (room is full)' : ''}
+                  </summary>
+                  <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {friends.map((friend) => (
+                      <div
+                        key={friend.id}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '8px 10px',
+                          borderRadius: 6,
+                          background: '#2b2b2e',
+                          border: '1px solid #3a3a3c',
+                        }}
+                      >
+                        <span style={{ color: '#ffffff', fontSize: 14, fontWeight: 500 }}>
+                          {friend.name}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={roomFull}
+                          onClick={() => !roomFull && onInviteFriend(friend.id, friend.name)}
+                          className="homeBtn homeBtnGreen"
+                          style={{ padding: '6px 10px', fontSize: 11, borderRadius: 6, opacity: roomFull ? 0.6 : 1 }}
+                        >
+                          {roomFull ? 'Room Full' : 'Invite'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </div>
             )}
           </div>
         )}

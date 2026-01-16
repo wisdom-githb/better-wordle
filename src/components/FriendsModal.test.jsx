@@ -155,7 +155,8 @@ describe('FriendsModal', () => {
     fireEvent.click(challengeButton);
 
     await waitFor(() => {
-      expect(createGame).toHaveBeenCalledWith({ speedrun: false });
+      expect(createGame).toHaveBeenCalledTimes(1);
+      expect(createGame.mock.calls[0][0]).toMatchObject({ speedrun: false });
       expect(sendChallenge).toHaveBeenCalledWith('f1', 'Bob', '654321', 1, false);
     });
   });

@@ -15,6 +15,8 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
   const [showConfig, setShowConfig] = useState(showConfigFirst);
   const [numBoards, setNumBoards] = useState(1);
   const [isSpeedrun, setIsSpeedrun] = useState(false);
+  const [maxPlayers, setMaxPlayers] = useState(2);
+  const [isPublic, setIsPublic] = useState(true);
 
   const handleHost = useCallback(() => {
     // Show config modal first
@@ -23,14 +25,19 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
   }, [onConfigOpen]);
 
   const handleHostWithConfig = useCallback(() => {
-    // ORIGINAL BEHAVIOR: navigate with query params so Game can create
-    // the 1v1 game, generate a code, and then redirect to a URL that
-    // includes the real code. This preserves the waiting-room flow.
-    navigate(`/game?mode=1v1&host=true&speedrun=${isSpeedrun}&boards=${numBoards}`);
+    // Navigate with query params so Game can create the multiplayer room,
+    // using speedrun/board count plus room metadata. GameOneVOne will read
+    // these and pass them into useOneVOneController/useOneVOneGame.
+    const clampedMaxPlayers = Math.max(2, Math.min(16, maxPlayers || 2));
+    const isPublicFlag = isPublic ? 'true' : 'false';
+    navigate(
+      `/game?mode=1v1&host=true&speedrun=${isSpeedrun}&boards=${numBoards}` +
+        `&maxPlayers=${clampedMaxPlayers}&public=${isPublicFlag}`,
+    );
     setShowConfig(false);
     onConfigClose?.();
     onRequestClose();
-  }, [navigate, onRequestClose, isSpeedrun, numBoards, onConfigClose]);
+  }, [navigate, onRequestClose, isSpeedrun, numBoards, maxPlayers, isPublic, onConfigClose]);
 
   const handleJoin = useCallback(() => {
     if (!gameCode || gameCode.length !== 6) {
@@ -52,7 +59,7 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
         <Modal isOpen={isOpen} onRequestClose={onRequestClose}>
           <div style={{ padding: '24px' }}>
             <h2 style={{ margin: 0, marginBottom: '16px', fontSize: 20, fontWeight: 'bold', color: '#ffffff' }}>
-              1v1 Mode
+              Multiplayer Mode
             </h2>
             <div style={{ textAlign: 'center', padding: '20px 0' }}>
               <p style={{ marginBottom: '20px', color: '#d7dadc' }}>
@@ -116,7 +123,7 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
       <Modal isOpen={isOpen && !showConfig} onRequestClose={onRequestClose} disableAutoFocus>
       <div style={{ padding: '24px' }}>
         <h2 style={{ margin: 0, marginBottom: '24px', fontSize: 20, fontWeight: 'bold', color: '#ffffff' }}>
-          1v1 Mode
+          Multiplayer Mode
         </h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div>
@@ -128,7 +135,7 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
               Host
             </button>
             <p style={{ fontSize: 12, color: '#818384', marginTop: '8px', textAlign: 'center' }}>
-              Create a new game and share the code with a friend
+              Create a new room and share the code with friends.
             </p>
           </div>
 
@@ -207,7 +214,7 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
               color: '#ffffff',
             }}
           >
-            1v1 Game Configuration
+            Multiplayer Room Configuration
           </h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
@@ -256,6 +263,58 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
                 style={{ color: '#d7dadc', fontSize: 14, cursor: 'pointer', margin: 0 }}
               >
                 Speedrun Mode (Unlimited guesses, timed)
+              </label>
+            </div>
+
+            <div>
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  color: '#d7dadc',
+                  fontSize: 14,
+                }}
+              >
+                Max players in room
+              </label>
+              <input
+                type="number"
+                min={2}
+                max={16}
+                value={maxPlayers}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value, 10);
+                  if (Number.isNaN(value)) {
+                    setMaxPlayers(2);
+                  } else {
+                    setMaxPlayers(Math.max(2, Math.min(16, value)));
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  borderRadius: 6,
+                  border: '1px solid #3a3a3c',
+                  background: '#1a1a1b',
+                  color: '#ffffff',
+                  fontSize: 14,
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <input
+                type="checkbox"
+                id="onevone-config-public-room"
+                checked={isPublic}
+                onChange={(e) => setIsPublic(e.target.checked)}
+                style={{ cursor: 'pointer', width: '18px', height: '18px' }}
+              />
+              <label
+                htmlFor="onevone-config-public-room"
+                style={{ color: '#d7dadc', fontSize: 14, cursor: 'pointer', margin: 0 }}
+              >
+                Public room (show in Open Rooms list)
               </label>
             </div>
 

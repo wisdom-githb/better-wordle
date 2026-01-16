@@ -43,9 +43,20 @@ export default function OneVOneGameView({
   onChangeMode,
   friends,
   onCancelChallenge,
+  onInviteFriend,
+  onUpdateRoomName,
+  onCloseRoom,
 }) {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const gameState = oneVOneGame.gameState;
+  const playersMap = gameState && gameState.players && typeof gameState.players === "object" ? gameState.players : null;
+  const playerCount = playersMap ? Object.keys(playersMap).length : (() => {
+    if (!gameState) return 0;
+    let count = 0;
+    if (gameState.hostId) count += 1;
+    if (gameState.guestId) count += 1;
+    return count;
+  })();
 
   // If we're still resolving auth, show a simple loading state that includes the header.
   if (authLoading) {
@@ -208,23 +219,35 @@ export default function OneVOneGameView({
         ? friends.some((f) => f.id === opponentId)
         : false;
 
+    const maxPlayers = Number.isFinite(gameState.maxPlayers) ? gameState.maxPlayers : undefined;
+    const roomName = gameState.roomName || (gameState.hostName ? `${gameState.hostName}'s room` : 'Room');
+    const waitingBoards = Number.isFinite(gameState.numBoards)
+      ? gameState.numBoards
+      : Array.isArray(gameState.solutions) && gameState.solutions.length > 0
+      ? gameState.solutions.length
+      : initialNumBoards || 1;
+
     return (
       <div style={{ minHeight: "100vh", backgroundColor: "#121213", color: "#ffffff" }}>
         <SiteHeader onOpenFeedback={onOpenFeedback} />
         <GameHeader
           mode={mode}
-          numBoards={initialNumBoards || 1}
+          numBoards={waitingBoards}
           speedrunEnabled={false}
         />
         <OneVOneWaitingRoom
           gameCode={gameCode || ""}
           gameState={gameState}
           isHost={isPlayerHost}
+          currentUserId={authUser?.uid || null}
+          maxPlayers={maxPlayers}
+          roomName={roomName}
           onReady={onReady}
           onStartGame={onStartGame}
           friendRequestSent={friendRequestSent}
           onShareCode={onShareCode}
           onCancelChallenge={isPlayerHost ? onCancelChallenge : undefined}
+          onCloseRoom={isPlayerHost ? onCloseRoom : undefined}
           onAddFriend={
             !isFriendWithOpponent
               ? (opponentName) => {
@@ -233,6 +256,9 @@ export default function OneVOneGameView({
                 }
               : undefined
           }
+          friends={friends}
+          onInviteFriend={onInviteFriend}
+          onUpdateRoomName={onUpdateRoomName}
         />
       </div>
     );
@@ -311,7 +337,7 @@ export default function OneVOneGameView({
   const isSpeedrun = gameState.speedrun || false;
   const isPlayerHost = authUser && gameState.hostId === authUser.uid;
   const opponentId =
-    authUser && gameState
+    authUser && gameState && playerCount === 2
       ? authUser.uid === gameState.hostId
         ? gameState.guestId
         : gameState.hostId
@@ -330,18 +356,26 @@ export default function OneVOneGameView({
   const solutionsText = solutionList.map((w) => w.toUpperCase()).join(" · ");
   const numBoardsForHeader = solutionList.length || 1;
 
-  // Whose turn is it? Used to highlight the active board.
-  const isMyTurn =
-    !isSpeedrun &&
-    gameState.status === "playing" &&
-    gameState.currentTurn === (isPlayerHost ? "host" : "guest");
+  // 1v1 is no longer turn-based; all players can guess concurrently.
+  const useTwoPlayerLayout = false;
 
-  const myGuesses = isPlayerHost
-    ? gameState.hostGuesses || []
-    : gameState.guestGuesses || [];
-  const opponentGuesses = isPlayerHost
-    ? gameState.guestGuesses || []
-    : gameState.hostGuesses || [];
+  const isMyTurn = true;
+
+  const myGuesses = (() => {
+    if (playersMap && authUser) {
+      const me = playersMap[authUser.uid];
+      if (me && Array.isArray(me.guesses)) return me.guesses;
+    }
+    return isPlayerHost ? gameState.hostGuesses || [] : gameState.guestGuesses || [];
+  })();
+
+  const opponentGuesses = (() => {
+    if (playersMap && authUser && playerCount === 2) {
+      const others = Object.values(playersMap).filter((p) => p.id !== authUser.uid);
+      if (others[0] && Array.isArray(others[0].guesses)) return others[0].guesses;
+    }
+    return isPlayerHost ? gameState.guestGuesses || [] : gameState.hostGuesses || [];
+  })();
 
   const mySolved = gameState.solution && myGuesses.includes(gameState.solution);
   const opponentSolved = gameState.solution && opponentGuesses.includes(gameState.solution);
@@ -365,10 +399,12 @@ export default function OneVOneGameView({
   const opponentGuessCount = opponentGuesses.length;
 
   const currentTurnLabel = isSpeedrun
-    ? "Speedrun: both players guessing"
-    : gameState.currentTurn === (isPlayerHost ? "host" : "guest")
-    ? "Your turn"
-    : "Opponent's turn";
+    ? playerCount > 1
+      ? "Everyone is guessing"
+      : "Speedrun mode"
+    : playerCount > 1
+    ? "Everyone is guessing"
+    : "Standard mode";
 
   const renderSpeedrunTime = (isMine) => {
     const timeMs = isMine
@@ -691,7 +727,7 @@ export default function OneVOneGameView({
               </div>
             )}
 
-            {/* Boards: for each word, show opponent + your board side by side */}
+            {/* Boards: for all player counts, render your boards and show an opponent summary. */}
             <div
               style={{
                 display: "flex",
@@ -700,98 +736,136 @@ export default function OneVOneGameView({
                 width: "100%",
               }}
             >
-              {boards.map((board, index) => {
-                const solutionForBoard = board.solution || gameState.solution;
-                
-                // Build opponent colors for this board from opponent guesses.
-                // Once the opponent has solved THIS board (guessed this
-                // solution), we stop showing additional guesses on that
-                // board. This mirrors how we treat the local player's
-                // own boards so progress per board is frozen at solve.
-                const firstOpponentSolveIndex = opponentGuesses.indexOf(solutionForBoard);
-                const opponentLimit =
-                  firstOpponentSolveIndex === -1
-                    ? opponentGuesses.length
-                    : firstOpponentSolveIndex + 1;
+              {/* Render your boards (same layout for 1v1 and multi-player) */}
+              {boards.map((board, index) => (
+                <div
+                  key={index}
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    width: "100%",
+                  }}
+                >
+                  <div style={{ flex: "0 0 auto", width: "auto" }}>
+                    <div
+                      style={{
+                        fontSize: 14,
+                        color: "#818384",
+                        marginBottom: "8px",
+                        textAlign: "center",
+                      }}
+                    >
+                      Your Board {boards.length > 1 ? `#${index + 1}` : ""}
+                    </div>
+                    <GameBoard
+                      board={board}
+                      index={index}
+                      numBoards={boards.length}
+                      maxTurns={maxTurns}
+                      isUnlimited={isSpeedrun}
+                      currentGuess={currentGuess}
+                      invalidCurrentGuess={invalidCurrentGuess}
+                      revealId={revealId}
+                      isSelected={selectedBoardIndex === index}
+                      onToggleSelect={() =>
+                        setSelectedBoardIndex((prev) => (prev === index ? null : index))
+                      }
+                      boardRef={(el) => {
+                        boardRefs.current[index] = el;
+                      }}
+                      speedrunEnabled={isSpeedrun}
+                      isCurrentTurn={false}
+                    />
+                  </div>
+                </div>
+              ))}
 
-                const opponentColors = opponentGuesses.slice(0, opponentLimit).map((word) => {
-                  const colorStrings = scoreGuess(word, solutionForBoard);
-                  return colorStrings.map((c) =>
-                    c === "green" ? 2 : c === "yellow" ? 1 : 0
-                  );
-                });
-
-                return (
+              {/* Summary of other players' progress (including 1v1) */}
+              {playersMap && authUser && (
+                <div
+                  style={{
+                    marginTop: "8px",
+                    padding: "12px",
+                    borderRadius: 8,
+                    border: "1px solid #3a3a3c",
+                    background: "#18181a",
+                  }}
+                >
                   <div
-                    key={index}
                     style={{
-                      display: "flex",
-                      gap: "24px",
-                      justifyContent: "center",
-                      flexWrap: "wrap",
-                      width: "100%",
+                      fontSize: 13,
+                      color: "#d7dadc",
+                      marginBottom: 8,
+                      fontWeight: "bold",
                     }}
                   >
-                    {/* Player Board for this word (left) */}
-                    <div style={{ flex: "0 0 auto", width: "auto" }}>
-                      <div
-                        style={{
-                          fontSize: 14,
-                          color: "#818384",
-                          marginBottom: "8px",
-                          textAlign: "center",
-                        }}
-                      >
-                        Your Board {boards.length > 1 ? `#${index + 1}` : ""}
-                      </div>
-                      <GameBoard
-                        board={board}
-                        index={index}
-                        numBoards={boards.length}
-                        maxTurns={maxTurns}
-                        isUnlimited={isSpeedrun}
-                        currentGuess={currentGuess}
-                        invalidCurrentGuess={invalidCurrentGuess}
-                        revealId={revealId}
-                        isSelected={selectedBoardIndex === index}
-                        onToggleSelect={() =>
-                          setSelectedBoardIndex((prev) => (prev === index ? null : index))
-                        }
-                        boardRef={(el) => {
-                          boardRefs.current[index] = el;
-                        }}
-                        speedrunEnabled={isSpeedrun}
-                        isCurrentTurn={isMyTurn}
-                      />
-                    </div>
-
-                    {/* Opponent Board for this word (right) */}
-                    <div style={{ flex: "0 0 auto", width: "auto" }}>
-                      <div
-                        style={{
-                          fontSize: 14,
-                          color: "#818384",
-                          marginBottom: "8px",
-                          textAlign: "center",
-                        }}
-                      >
-                        Opponent's Board {boards.length > 1 ? `#${index + 1}` : ""}
-                      </div>
-                      <OpponentBoardView
-                        opponentColors={opponentColors}
-                        isActive={!isSpeedrun && !isMyTurn && gameState.status === "playing"}
-                        opponentGuesses={opponentGuesses}
-                        solution={solutionForBoard}
-                        maxTurns={maxTurns}
-                        playerSolved={board.isSolved}
-                        hideLetters={hideOpponentLetters}
-                        boardNumber={index + 1}
-                        isSpeedrun={isSpeedrun}
-                      />
-                    </div>
+                    Other players
                   </div>
-                );
-              })}
+                  {Object.values(playersMap)
+                    .filter((p) => p.id !== authUser.uid)
+                    .map((p) => {
+                      const guesses = Array.isArray(p.guesses) ? p.guesses : [];
+                      const totalGuesses = guesses.length;
+                      const perBoardStats = solutionList.map((solution) => {
+                        let greens = 0;
+                        let yellows = 0;
+                        guesses.forEach((word) => {
+                          const colors = scoreGuess(word, solution);
+                          colors.forEach((c) => {
+                            if (c === "green") greens += 1;
+                            else if (c === "yellow") yellows += 1;
+                          });
+                        });
+                        return { greens, yellows };
+                      });
+                      let timeLabel = null;
+                      if (isSpeedrun && typeof p.timeMs === "number") {
+                        timeLabel = formatElapsedLib(p.timeMs);
+                      }
+                      return (
+                        <div
+                          key={p.id}
+                          style={{
+                            padding: "6px 0",
+                            fontSize: 12,
+                            color: "#d7dadc",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                            }}
+                          >
+                            <span style={{ fontWeight: "bold" }}>{p.name}</span>
+                            <span>
+                              {totalGuesses} guess{totalGuesses === 1 ? "" : "es"}
+                              {timeLabel ? ` · ${timeLabel}` : ""}
+                            </span>
+                          </div>
+                          {perBoardStats.map((stat, idx) => (
+                            <div
+                              key={idx}
+                              style={{
+                                marginTop: 2,
+                                marginLeft: 4,
+                                fontSize: 11,
+                                color: "#818384",
+                              }}
+                            >
+                              Board #{idx + 1}: {stat.greens} green
+                              {stat.greens === 1 ? "" : "s"}
+                              {" · "}
+                              {stat.yellows} yellow
+                              {stat.yellows === 1 ? "" : "s"}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
             </div>
           </div>
         </main>

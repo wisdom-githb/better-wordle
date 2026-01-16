@@ -33,6 +33,7 @@ export default function GameOneVOne() {
     isVerifiedUser,
     friends,
     cancelSentChallenge,
+    sendChallenge,
     loading: authLoading,
   } = useAuth();
 
@@ -46,6 +47,8 @@ export default function GameOneVOne() {
   })();
 
   const boardsParam = searchParams.get("boards");
+  const maxPlayersParam = searchParams.get("maxPlayers");
+  const publicParam = searchParams.get("public");
 
   const gameCode = codeParam || searchParams.get("code") || null;
 
@@ -147,6 +150,8 @@ export default function GameOneVOne() {
     sendFriendRequest,
     cancelSentChallenge,
     maxOneVOneBoards: ONE_V_ONE_BOARD_OPTIONS.length,
+    maxPlayersParam,
+    publicParam,
   });
 
   const { perBoardLetterMaps, focusedLetterMap, gridCols, gridRows } = useBoardLayout(
@@ -186,12 +191,6 @@ export default function GameOneVOne() {
     if (oneVOneGame.gameState) {
       const gameState = oneVOneGame.gameState;
       if (gameState.status !== "playing") return true;
-      if (!gameState.speedrun) {
-        const isPlayerHostLocal = authUser && gameState.hostId === authUser.uid;
-        const isMyTurn =
-          gameState.currentTurn === (isPlayerHostLocal ? "host" : "guest");
-        if (!isMyTurn) return true;
-      }
     }
 
     return false;
@@ -247,15 +246,7 @@ export default function GameOneVOne() {
 
     if (oneVOneGame.gameState) {
       const gameState = oneVOneGame.gameState;
-      const isPlayerHostLocal = authUser && gameState.hostId === authUser.uid;
       const isSpeedrun = gameState.speedrun || false;
-      const isMyTurn =
-        gameState.currentTurn === (isPlayerHostLocal ? "host" : "guest");
-
-      if (!isSpeedrun && !isMyTurn) {
-        setTimedMessage("Not your turn!", 3000);
-        return;
-      }
 
       const solutionArray =
         Array.isArray(gameState.solutions) && gameState.solutions.length > 0
@@ -265,6 +256,7 @@ export default function GameOneVOne() {
           : [];
       if (solutionArray.length === 0) return;
 
+      const isPlayerHostLocal = authUser && gameState.hostId === authUser.uid;
       const myGuesses = isPlayerHostLocal
         ? gameState.hostGuesses || []
         : gameState.guestGuesses || [];
@@ -272,19 +264,7 @@ export default function GameOneVOne() {
       const myFinished = mySolvedAll || (!isSpeedrun && myGuesses.length >= maxTurns);
 
       if (myFinished) {
-        if (!isSpeedrun) {
-          try {
-            await oneVOneGame.switchTurn(gameCode);
-            setTimedMessage(
-              "You have already finished! Switching turn...",
-              2000
-            );
-          } catch (error) {
-            setTimedMessage(error.message || "Failed to switch turn", 3000);
-          }
-        } else {
-          setTimedMessage("You have already finished!", 2000);
-        }
+        setTimedMessage("You have already finished!", 2000);
         return;
       }
 
@@ -358,6 +338,49 @@ export default function GameOneVOne() {
     return "Play Better Wordle 1v1!";
   }, [boards]);
 
+  const handleUpdateRoomName = useCallback(
+    async (newName) => {
+      if (!gameCode) return;
+      try {
+        await oneVOneGame.setRoomName(gameCode, newName);
+      } catch (error) {
+        setTimedMessage(error?.message || 'Failed to update room name', 5000);
+      }
+    },
+    [gameCode, oneVOneGame, setTimedMessage],
+  );
+
+  const handleCloseRoom = useCallback(
+    async () => {
+      if (!gameCode) return;
+      try {
+        await oneVOneGame.leaveGame(gameCode);
+        navigate('/');
+      } catch (error) {
+        setTimedMessage(error?.message || 'Failed to close room', 5000);
+      }
+    },
+    [gameCode, oneVOneGame, navigate, setTimedMessage],
+  );
+
+  const handleInviteFriendToRoom = useCallback(
+    async (friendId, friendName) => {
+      if (!authUser || !gameCode) return;
+      try {
+        const gs = oneVOneGame.gameState;
+        const boardsForThisGame = Array.isArray(gs?.solutions) && gs.solutions.length > 0
+          ? gs.solutions.length
+          : numBoards || 1;
+        const speedrunFlag = !!gs?.speedrun;
+        await sendChallenge(friendId, friendName, gameCode, boardsForThisGame, speedrunFlag);
+        setTimedMessage(`Invite sent to ${friendName}`, 3000);
+      } catch (error) {
+        setTimedMessage(error?.message || 'Failed to send invite', 5000);
+      }
+    },
+    [authUser, gameCode, oneVOneGame.gameState, numBoards, sendChallenge, setTimedMessage],
+  );
+
   const { handleShare, handleShareCode } = useShare(shareText, setTimedMessage);
 
   const pageTitle = "1v1 Wordle-Style Battles – Game | Better Wordle";
@@ -423,6 +446,9 @@ export default function GameOneVOne() {
         oneVOneNowMs={oneVOneNowMs}
         onChangeMode={openOneVOneConfigFromEnd}
         friends={friends}
+        onInviteFriend={handleInviteFriendToRoom}
+        onUpdateRoomName={handleUpdateRoomName}
+        onCloseRoom={handleCloseRoom}
       />
 
       {showPopup && (

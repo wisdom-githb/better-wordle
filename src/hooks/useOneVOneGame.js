@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ref, set, onValue, off, remove, update } from 'firebase/database';
+import { ref, set, onValue, off, remove, update, get } from 'firebase/database';
 import { database } from '../config/firebase';
 import { auth } from '../config/firebase';
 
@@ -11,7 +11,11 @@ function generateGameCode() {
 }
 
 /**
- * Hook for managing 1v1 game state in Firebase Realtime Database
+ * Hook for managing 1v1/multiplayer game state in Firebase Realtime Database.
+ *
+ * This has been extended to support "rooms" with N players via a `players` map
+ * while keeping legacy host/guest fields in sync for the first two players so
+ * existing data and code paths continue to function.
  */
 export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false) {
   const [gameState, setGameState] = useState(null);
@@ -54,31 +58,51 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
     };
   }, [gameCode]);
 
-  /**
-   * Create a new game (host)
-   *
-   * `options.speedrun` (optional) can override the hook's default `speedrun` flag
-   * so callers (e.g., friend challenges) can configure per-game mode.
-   */
-  const createGame = useCallback(async (options = {}) => {
+/**
+ * Create a new game (host)
+ *
+ * `options.speedrun` (optional) can override the hook's default `speedrun` flag
+ * so callers (e.g., friend challenges) can configure per-game mode.
+ *
+ * `options.maxPlayers` and `options.isPublic` configure the room. These are
+ * stored on the game object so other clients can discover/join via an
+ * "Open Rooms" list.
+ */
+const createGame = useCallback(async (options = {}) => {
     if (!user) throw new Error('User must be signed in to host a game');
 
     const effectiveSpeedrun = Object.prototype.hasOwnProperty.call(options, 'speedrun')
       ? !!options.speedrun
       : !!speedrun;
 
+    const requestedMaxPlayers = Number.isFinite(options.maxPlayers)
+      ? options.maxPlayers
+      : 2;
+    const clampedMaxPlayers = Math.max(2, Math.min(16, requestedMaxPlayers));
+    const isPublic = options.isPublic !== false; // default public unless explicitly false
+
+    const requestedBoards = Number.isFinite(options.numBoards)
+      ? options.numBoards
+      : 1;
+    const clampedBoards = Math.max(1, Math.min(32, requestedBoards));
+
     const code = generateGameCode();
     const gamePath = `onevone/${code}`;
+
+    const hostName = user.displayName || user.email || 'Player 1';
+    const defaultRoomName = options.roomName || `${hostName}'s room`;
+
     const gameData = {
       hostId: user.uid,
-      hostName: user.displayName || user.email || 'Player 1',
+      hostName,
       hostReady: false,
       guestId: null,
       guestName: null,
       guestReady: false,
-      status: 'waiting', // waiting, ready, playing, finished
-      currentTurn: null, // 'host' or 'guest'
+      status: 'waiting', // waiting, playing, finished, cancelled
+      currentTurn: null, // 'host' or 'guest' (used only for 2-player turn-based games)
       solution: null,
+      solutions: null,
       hostGuesses: [],
       guestGuesses: [],
       hostColors: [], // Colors for each guess (for opponent to see)
@@ -89,11 +113,31 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
       guestTimeMs: null, // Time taken by guest (in speedrun mode)
       hostStartTime: null, // When host started solving (in speedrun mode)
       guestStartTime: null, // When guest started solving (in speedrun mode)
-      // Rematch handshake flags
+      // Rematch handshake flags (for first two players)
       hostRematch: false,
       guestRematch: false,
       createdAt: Date.now(),
-      startedAt: null
+      startedAt: null,
+      // Human-friendly, editable room name
+      roomName: defaultRoomName,
+      // Multiplayer room metadata
+      maxPlayers: clampedMaxPlayers,
+      isPublic,
+      numBoards: clampedBoards,
+      // Generic players map for N-player support. We keep legacy host/guest
+      // fields above in sync for the first two players.
+      players: {
+        [user.uid]: {
+          id: user.uid,
+          name: hostName,
+          isHost: true,
+          ready: false,
+          guesses: [],
+          timeMs: null,
+          startTime: null,
+          rematch: false,
+        },
+      },
     };
 
     try {
@@ -105,8 +149,12 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
     }
   }, [user, speedrun]);
 
-  /**
-   * Join an existing game
+/**
+   * Join an existing game/room.
+   *
+   * This now supports N players by using the `players` map and `maxPlayers`.
+   * We continue to mirror the first non-host player into legacy `guestId`/
+   * `guestName` for compatibility with older logic and data.
    */
   const joinGame = useCallback(async (code) => {
     if (!user) throw new Error('User must be signed in to join a game');
@@ -116,41 +164,61 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
 
     try {
       // Check if game exists
-      const snapshot = await new Promise((resolve, reject) => {
-        onValue(gameDataRef, resolve, reject, { onlyOnce: true });
-      });
+      const snapshot = await get(gameDataRef);
 
       if (!snapshot.exists()) {
         throw new Error('Game code not found');
       }
 
       const gameData = snapshot.val();
-      
-      // If user is already the host or guest, allow them to continue (game might have started)
-      if (gameData.hostId === user.uid) {
-        // User is already the host, no need to join
+
+      const players = gameData.players || {};
+      const playerIds = Object.keys(players);
+      const hostId = gameData.hostId || (playerIds.length > 0 ? playerIds[0] : null);
+      const maxPlayers = Number.isFinite(gameData.maxPlayers) ? gameData.maxPlayers : 2;
+
+      // If user is already part of the room, just continue.
+      if (players[user.uid] || gameData.hostId === user.uid || gameData.guestId === user.uid) {
         return code;
       }
 
-      if (gameData.guestId === user.uid) {
-        // User is already the guest, no need to join again
-        return code;
-      }
-
-      // If game has started and user is not part of it, don't allow joining
-      if (gameData.status !== 'waiting') {
+      // If game has started or is cancelled and user is not part of it, don't allow joining.
+      if (gameData.status && gameData.status !== 'waiting') {
         throw new Error('Game has already started');
       }
 
-      if (gameData.guestId && gameData.guestId !== user.uid) {
+      const currentCount = playerIds.length || ((gameData.hostId ? 1 : 0) + (gameData.guestId ? 1 : 0));
+      if (currentCount >= maxPlayers) {
         throw new Error('Game is full');
       }
 
-      // Join as guest (only if game is still waiting and guest slot is empty)
-      await update(gameDataRef, {
-        guestId: user.uid,
-        guestName: user.displayName || user.email || 'Player 2'
-      });
+      const displayName = user.displayName || user.email || 'Player';
+      const updatedPlayers = {
+        ...players,
+        [user.uid]: {
+          id: user.uid,
+          name: displayName,
+          isHost: user.uid === hostId,
+          ready: false,
+          guesses: [],
+          timeMs: null,
+          startTime: null,
+          rematch: false,
+        },
+      };
+
+      const updateData = {
+        players: updatedPlayers,
+      };
+
+      // For the first non-host player, also populate legacy guest fields if empty
+      if (!gameData.guestId) {
+        updateData.guestId = user.uid;
+        updateData.guestName = displayName;
+        updateData.guestReady = false;
+      }
+
+      await update(gameDataRef, updateData);
 
       return code;
     } catch (err) {
@@ -159,8 +227,10 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
     }
   }, [user]);
 
-  /**
-   * Set ready status
+/**
+   * Set ready status for the current user.
+   *
+   * Mirrors into the per-player entry and legacy host/guest ready flags.
    */
   const setReady = useCallback(async (code, ready = true) => {
     if (!user) throw new Error('User must be signed in');
@@ -169,34 +239,50 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
     const gameDataRef = ref(database, gamePath);
 
     try {
-      const snapshot = await new Promise((resolve, reject) => {
-        onValue(gameDataRef, resolve, reject, { onlyOnce: true });
-      });
+      const snapshot = await get(gameDataRef);
 
       if (!snapshot.exists()) {
         throw new Error('Game not found');
       }
 
       const gameData = snapshot.val();
+      const players = gameData.players || {};
       const isHost = gameData.hostId === user.uid;
+      const isGuest = gameData.guestId === user.uid;
+
+      const updatedPlayers = {
+        ...players,
+        [user.uid]: {
+          id: user.uid,
+          name: players[user.uid]?.name || user.displayName || user.email || 'Player',
+          isHost: isHost || players[user.uid]?.isHost || false,
+          ready,
+          guesses: players[user.uid]?.guesses || [],
+          timeMs: players[user.uid]?.timeMs ?? null,
+          startTime: players[user.uid]?.startTime ?? null,
+          rematch: players[user.uid]?.rematch || false,
+        },
+      };
+
+      const updateData = {
+        players: updatedPlayers,
+      };
 
       if (isHost) {
-        await update(gameDataRef, { hostReady: ready });
-      } else {
-        await update(gameDataRef, { guestReady: ready });
+        updateData.hostReady = ready;
+      }
+      if (isGuest) {
+        updateData.guestReady = ready;
       }
 
-      // If both players are ready, start the game
-      if (ready && gameData.hostReady && gameData.guestReady) {
-        // This will be handled separately to set solution
-      }
+      await update(gameDataRef, updateData);
     } catch (err) {
       setError(err.message);
       throw err;
     }
   }, [user]);
 
-  /**
+/**
    * Start the game with one or more solution words.
    * Also clears any previous round state (guesses, colors, winner, timers, rematch flags).
    * - `solutionsOrSolution` may be a single word (string) or an array of words.
@@ -209,9 +295,7 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
     const gameDataRef = ref(database, gamePath);
 
     try {
-      const snapshot = await new Promise((resolve, reject) => {
-        onValue(gameDataRef, resolve, reject, { onlyOnce: true });
-      });
+      const snapshot = await get(gameDataRef);
 
       if (!snapshot.exists()) {
         throw new Error('Game not found');
@@ -224,23 +308,47 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
         throw new Error('Only host can start the game');
       }
 
-      // Check both players are ready
-      if (!gameData.hostReady || !gameData.guestReady) {
-        throw new Error('Both players must be ready to start');
+      const players = gameData.players || {};
+      const playerIds = Object.keys(players);
+
+      // All players in the room must be ready before starting.
+      const allReady = playerIds.length > 0 && playerIds.every((pid) => players[pid]?.ready);
+      if (!allReady) {
+        throw new Error('All players must be ready to start');
       }
 
       // Decide whether this round is speedrun or standard. Allow an explicit
       // override via `options.speedrun` so hosts can change modes between rounds.
       const hasOverrideSpeedrun = Object.prototype.hasOwnProperty.call(options, 'speedrun');
       const isSpeedrunRound = hasOverrideSpeedrun ? !!options.speedrun : !!gameData.speedrun;
-      
-      // Randomly decide who goes first (standard only; no turns in speedrun).
-      const firstTurn = Math.random() < 0.5 ? 'host' : 'guest';
+
+      // For 2-player non-speedrun games we still randomise first turn. For
+      // multi-player or speedrun we use no explicit turn (everyone can guess).
+      const playerCount = playerIds.length || ((gameData.hostId ? 1 : 0) + (gameData.guestId ? 1 : 0));
+      const useTurnBased = !isSpeedrunRound && playerCount <= 2;
+      const firstTurn = useTurnBased ? (Math.random() < 0.5 ? 'host' : 'guest') : null;
+
       const now = Date.now();
 
       const solutionsArray = Array.isArray(solutionsOrSolution)
         ? solutionsOrSolution
         : [solutionsOrSolution];
+
+      // Reset per-player round state.
+      const resetPlayers = {};
+      playerIds.forEach((pid) => {
+        const prev = players[pid] || {};
+        resetPlayers[pid] = {
+          id: pid,
+          name: prev.name || 'Player',
+          isHost: prev.isHost || pid === gameData.hostId,
+          ready: prev.ready || false,
+          guesses: [],
+          timeMs: null,
+          startTime: isSpeedrunRound ? now : null,
+          rematch: false,
+        };
+      });
 
       await update(gameDataRef, {
         status: 'playing',
@@ -249,9 +357,9 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
         solution: solutionsArray[0],
         solutions: solutionsArray,
         speedrun: isSpeedrunRound,
-        currentTurn: isSpeedrunRound ? null : firstTurn,
+        currentTurn: useTurnBased ? firstTurn : null,
         startedAt: now,
-        // Clear previous round state
+        // Clear previous round state (legacy fields for first two players)
         hostGuesses: [],
         guestGuesses: [],
         hostColors: [],
@@ -265,6 +373,7 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
         // Clear rematch flags once new round starts
         hostRematch: false,
         guestRematch: false,
+        players: resetPlayers,
       });
     } catch (err) {
       setError(err.message);
@@ -272,8 +381,12 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
     }
   }, [user]);
 
-  /**
-   * Submit a guess
+/**
+   * Submit a guess.
+   *
+   * For 2-player non-speedrun games, this enforces turn order using the
+   * `currentTurn` field. For speedrun and/or multi-player rooms, all players
+   * may submit guesses concurrently.
    */
   const submitGuess = useCallback(async (code, guess, colors) => {
     if (!user) throw new Error('User must be signed in');
@@ -282,24 +395,23 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
     const gameDataRef = ref(database, gamePath);
 
     try {
-      const snapshot = await new Promise((resolve, reject) => {
-        onValue(gameDataRef, resolve, reject, { onlyOnce: true });
-      });
+      const snapshot = await get(gameDataRef);
 
       if (!snapshot.exists()) {
         throw new Error('Game not found');
       }
 
       const gameData = snapshot.val();
-      const isHost = gameData.hostId === user.uid;
+      const players = gameData.players || {};
+      const playerIds = Object.keys(players);
+      const playerCount = playerIds.length || ((gameData.hostId ? 1 : 0) + (gameData.guestId ? 1 : 0));
 
+      const isHost = gameData.hostId === user.uid;
+      const isGuest = gameData.guestId === user.uid;
       const isSpeedrun = gameData.speedrun || false;
-      if (!isSpeedrun) {
-        const isMyTurn = gameData.currentTurn === (isHost ? 'host' : 'guest');
-        if (!isMyTurn) {
-          throw new Error('Not your turn');
-        }
-      }
+
+      // Turn-based 1v1 has been removed; all players can guess concurrently.
+      const isTurnBased = false;
 
       const now = Date.now();
 
@@ -312,45 +424,65 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
           ? [gameData.solution]
           : [];
 
-      // Track time if finished in speedrun mode
+      // Track updates for legacy host/guest fields and the generic players map.
       const updateData = {};
-      
+
+      // Update per-player guesses in the players map first.
+      const prevPlayer = players[user.uid] || {
+        id: user.uid,
+        name: user.displayName || user.email || 'Player',
+        isHost,
+        ready: false,
+        guesses: [],
+        timeMs: null,
+        startTime: null,
+        rematch: false,
+      };
+      const newGuessesForPlayer = [...(prevPlayer.guesses || []), guess];
+      const updatedPlayers = {
+        ...players,
+        [user.uid]: {
+          ...prevPlayer,
+          guesses: newGuessesForPlayer,
+        },
+      };
+
+      // For legacy host/guest arrays we mirror from the first two players only.
       if (isHost) {
         const hostGuesses = [...(gameData.hostGuesses || []), guess];
         const hostColors = [...(gameData.hostColors || []), colors];
-        
         updateData.hostGuesses = hostGuesses;
         updateData.hostColors = hostColors;
-        if (!isSpeedrun) {
-          updateData.currentTurn = 'guest';
-        }
-        
-        if (isSpeedrun && !gameData.hostTimeMs && solutionArray.length > 0) {
-          const hostSolvedAll = solutionArray.every((sol) => hostGuesses.includes(sol));
-          if (hostSolvedAll) {
-            const startTime = gameData.hostStartTime || gameData.startedAt || now;
-            updateData.hostTimeMs = now - startTime;
-          }
-        }
-      } else {
+      } else if (isGuest) {
         const guestGuesses = [...(gameData.guestGuesses || []), guess];
         const guestColors = [...(gameData.guestColors || []), colors];
-        
         updateData.guestGuesses = guestGuesses;
         updateData.guestColors = guestColors;
-        if (!isSpeedrun) {
-          updateData.currentTurn = 'host';
-        }
-        
-        if (isSpeedrun && !gameData.guestTimeMs && solutionArray.length > 0) {
-          const guestSolvedAll = solutionArray.every((sol) => guestGuesses.includes(sol));
-          if (guestSolvedAll) {
-            const startTime = gameData.guestStartTime || gameData.startedAt || now;
-            updateData.guestTimeMs = now - startTime;
+      }
+
+      // Turn switching disabled now that 1v1 is non-turn-based.
+
+      // Track time if finished in speedrun mode (or future non-turn-based modes).
+      if (isSpeedrun && solutionArray.length > 0) {
+        const solvedAll = solutionArray.every((sol) => newGuessesForPlayer.includes(sol));
+        if (solvedAll && !prevPlayer.timeMs) {
+          const startTime = prevPlayer.startTime || gameData.startedAt || now;
+          const timeMs = now - startTime;
+          updatedPlayers[user.uid] = {
+            ...updatedPlayers[user.uid],
+            timeMs,
+          };
+
+          if (isHost && !gameData.hostTimeMs) {
+            updateData.hostTimeMs = timeMs;
+          } else if (isGuest && !gameData.guestTimeMs) {
+            updateData.guestTimeMs = timeMs;
           }
         }
       }
-      
+
+      updateData.players = updatedPlayers;
+
       await update(gameDataRef, updateData);
     } catch (err) {
       setError(err.message);
@@ -510,6 +642,26 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
   }, [user]);
 
   /**
+   * Update the room's display name.
+   */
+  const setRoomName = useCallback(async (code, roomName) => {
+    if (!user) throw new Error('User must be signed in');
+
+    const gamePath = `onevone/${code}`;
+    const gameDataRef = ref(database, gamePath);
+
+    try {
+      const trimmed = (roomName || '').toString().slice(0, 80).trim();
+      await update(gameDataRef, {
+        roomName: trimmed || null,
+      });
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }, [user]);
+
+  /**
    * Reset game back to waiting state (used if players abandon or restart lobby).
    * NOTE: Normal rematch flow should prefer rematch flags + startGame instead of this.
    */
@@ -607,5 +759,6 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
     resetGame,
     leaveGame,
     setFriendRequestStatus,
+    setRoomName,
   };
 }
