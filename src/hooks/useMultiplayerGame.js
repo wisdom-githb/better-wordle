@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ref, set, onValue, off, remove, update } from 'firebase/database';
+import { ref, set, onValue, off, remove, update, get } from 'firebase/database';
 import { database } from '../config/firebase';
 import { auth } from '../config/firebase';
 import { MULTIPLAYER_WAITING_TIMEOUT_MS } from '../lib/multiplayerConfig';
@@ -60,13 +60,17 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
     };
   }, [gameCode]);
 
-  /**
-   * Create a new game (host)
-   *
-   * `options.speedrun` (optional) can override the hook's default `speedrun` flag
-   * so callers (e.g., friend challenges) can configure per-game mode.
-   */
-  const createGame = useCallback(async (options = {}) => {
+/**
+ * Create a new game (host)
+ *
+ * `options.speedrun` (optional) can override the hook's default `speedrun` flag
+ * so callers (e.g., friend challenges) can configure per-game mode.
+ *
+ * `options.maxPlayers` and `options.isPublic` configure the room. These are
+ * stored on the game object so other clients can discover/join via an
+ * "Open Rooms" list.
+ */
+const createGame = useCallback(async (options = {}) => {
     if (!user) throw new Error('User must be signed in to host a game');
 
     const effectiveSpeedrun = Object.prototype.hasOwnProperty.call(options, 'speedrun')
@@ -94,6 +98,7 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
     const gameData = {
       hostId: user.uid,
       hostName,
+      hostName,
       hostReady: false,
       guestId: null,
       guestName: null,
@@ -112,7 +117,7 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
       guestTimeMs: null, // Time taken by guest (in speedrun mode)
       hostStartTime: null, // When host started solving (in speedrun mode)
       guestStartTime: null, // When guest started solving (in speedrun mode)
-      // Rematch handshake flags
+      // Rematch handshake flags (for first two players)
       hostRematch: false,
       guestRematch: false,
       createdAt: now,
@@ -144,8 +149,12 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
     }
   }, [user, speedrun]);
 
-  /**
-   * Join an existing game
+/**
+   * Join an existing game/room.
+   *
+   * This now supports N players by using the `players` map and `maxPlayers`.
+   * We continue to mirror the first non-host player into legacy `guestId`/
+   * `guestName` for compatibility with older logic and data.
    */
   const joinGame = useCallback(async (code) => {
     if (!user) throw new Error('User must be signed in to join a game');
@@ -155,9 +164,7 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
 
     try {
       // Check if game exists
-      const snapshot = await new Promise((resolve, reject) => {
-        onValue(gameDataRef, resolve, reject, { onlyOnce: true });
-      });
+      const snapshot = await get(gameDataRef);
 
       if (!snapshot.exists()) {
         throw new Error('Game code not found');
@@ -252,8 +259,10 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
     }
   }, [user]);
 
-  /**
-   * Set ready status
+/**
+   * Set ready status for the current user.
+   *
+   * Mirrors into the per-player entry and legacy host/guest ready flags.
    */
   const setReady = useCallback(async (code, ready = true) => {
     if (!user) throw new Error('User must be signed in');
@@ -262,15 +271,14 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
     const gameDataRef = ref(database, gamePath);
 
     try {
-      const snapshot = await new Promise((resolve, reject) => {
-        onValue(gameDataRef, resolve, reject, { onlyOnce: true });
-      });
+      const snapshot = await get(gameDataRef);
 
       if (!snapshot.exists()) {
         throw new Error('Game not found');
       }
 
       const gameData = snapshot.val();
+      const players = gameData.players || {};
       const isHost = gameData.hostId === user.uid;
       const players = gameData.players || null;
 
@@ -295,7 +303,7 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
     }
   }, [user]);
 
-  /**
+/**
    * Start the game with one or more solution words.
    * Also clears any previous round state (guesses, colors, winner, timers, rematch flags).
    * - `solutionsOrSolution` may be a single word (string) or an array of words.
@@ -308,9 +316,7 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
     const gameDataRef = ref(database, gamePath);
 
     try {
-      const snapshot = await new Promise((resolve, reject) => {
-        onValue(gameDataRef, resolve, reject, { onlyOnce: true });
-      });
+      const snapshot = await get(gameDataRef);
 
       if (!snapshot.exists()) {
         throw new Error('Game not found');
@@ -384,7 +390,7 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
         speedrun: isSpeedrunRound,
         currentTurn: firstTurn,
         startedAt: now,
-        // Clear previous round state
+        // Clear previous round state (legacy fields for first two players)
         hostGuesses: [],
         guestGuesses: [],
         hostColors: [],
@@ -411,8 +417,12 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
     }
   }, [user]);
 
-  /**
-   * Submit a guess
+/**
+   * Submit a guess.
+   *
+   * For 2-player non-speedrun games, this enforces turn order using the
+   * `currentTurn` field. For speedrun and/or multi-player rooms, all players
+   * may submit guesses concurrently.
    */
   const submitGuess = useCallback(async (code, guess, colors) => {
     if (!user) throw new Error('User must be signed in');
@@ -421,15 +431,17 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
     const gameDataRef = ref(database, gamePath);
 
     try {
-      const snapshot = await new Promise((resolve, reject) => {
-        onValue(gameDataRef, resolve, reject, { onlyOnce: true });
-      });
+      const snapshot = await get(gameDataRef);
 
       if (!snapshot.exists()) {
         throw new Error('Game not found');
       }
 
       const gameData = snapshot.val();
+      const players = gameData.players || {};
+      const playerIds = Object.keys(players);
+      const playerCount = playerIds.length || ((gameData.hostId ? 1 : 0) + (gameData.guestId ? 1 : 0));
+
       const isHost = gameData.hostId === user.uid;
       const players = gameData.players || null;
       const playerCount = players ? Object.keys(players).length : 0;
@@ -707,6 +719,26 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
 
       const updateData = isHost ? { hostRematch: true } : { guestRematch: true };
       await update(gameDataRef, updateData);
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }, [user]);
+
+  /**
+   * Update the room's display name.
+   */
+  const setRoomName = useCallback(async (code, roomName) => {
+    if (!user) throw new Error('User must be signed in');
+
+    const gamePath = `onevone/${code}`;
+    const gameDataRef = ref(database, gamePath);
+
+    try {
+      const trimmed = (roomName || '').toString().slice(0, 80).trim();
+      await update(gameDataRef, {
+        roomName: trimmed || null,
+      });
     } catch (err) {
       setError(err.message);
       throw err;

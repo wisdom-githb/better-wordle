@@ -74,6 +74,87 @@ export function useMultiplayerController({
   const [oneVOneConfigBoardsDraft, setOneVOneConfigBoardsDraft] = useState(1);
   const [oneVOneConfigSpeedrunDraft, setOneVOneConfigSpeedrunDraft] = useState(false);
 
+  // Helper: derive a stable players array from gameState (or fall back to host/guest).
+  const getPlayersArray = (gs) => {
+    if (!gs) return [];
+    if (gs.players && typeof gs.players === 'object') {
+      return Object.values(gs.players).map((p) => ({
+        id: p.id,
+        name: p.name,
+        isHost: !!p.isHost,
+        ready: !!p.ready,
+        guesses: Array.isArray(p.guesses) ? p.guesses : [],
+        timeMs: typeof p.timeMs === 'number' ? p.timeMs : null,
+        rematch: !!p.rematch,
+      }));
+    }
+
+    // Legacy fallback: synthesise players array from host/guest fields.
+    const players = [];
+    if (gs.hostId) {
+      players.push({
+        id: gs.hostId,
+        name: gs.hostName || 'Player 1',
+        isHost: true,
+        ready: !!gs.hostReady,
+        guesses: Array.isArray(gs.hostGuesses) ? gs.hostGuesses : [],
+        timeMs: typeof gs.hostTimeMs === 'number' ? gs.hostTimeMs : null,
+        rematch: !!gs.hostRematch,
+      });
+    }
+    if (gs.guestId) {
+      players.push({
+        id: gs.guestId,
+        name: gs.guestName || 'Player 2',
+        isHost: false,
+        ready: !!gs.guestReady,
+        guesses: Array.isArray(gs.guestGuesses) ? gs.guestGuesses : [],
+        timeMs: typeof gs.guestTimeMs === 'number' ? gs.guestTimeMs : null,
+        rematch: !!gs.guestRematch,
+      });
+    }
+    return players;
+  };
+
+  const getCurrentPlayerGuesses = (gs) => {
+    if (!gs || !authUser) return [];
+    if (gs.players && gs.players[authUser.uid] && Array.isArray(gs.players[authUser.uid].guesses)) {
+      return gs.players[authUser.uid].guesses;
+    }
+    // Legacy fallback.
+    if (gs.hostId === authUser.uid) return gs.hostGuesses || [];
+    if (gs.guestId === authUser.uid) return gs.guestGuesses || [];
+    return [];
+  };
+
+  const getOpponentGuesses = (gs) => {
+    if (!gs || !authUser) return [];
+    // For 2-player games, return the other player's guesses; for multi-player,
+    // callers typically handle all opponents explicitly.
+    if (gs.players && typeof gs.players === 'object') {
+      const entries = Object.values(gs.players);
+      if (entries.length === 2) {
+        const other = entries.find((p) => p.id !== authUser.uid);
+        return other && Array.isArray(other.guesses) ? other.guesses : [];
+      }
+    }
+    const isHost = gs.hostId === authUser.uid;
+    if (isHost) return gs.guestGuesses || [];
+    if (gs.guestId === authUser.uid) return gs.hostGuesses || [];
+    return [];
+  };
+
+  const getPlayerCount = (gs) => {
+    if (!gs) return 0;
+    if (gs.players && typeof gs.players === 'object') {
+      return Object.keys(gs.players).length;
+    }
+    let count = 0;
+    if (gs.hostId) count += 1;
+    if (gs.guestId) count += 1;
+    return count;
+  };
+
   // Derived friend-request state based on live gameState.
   const friendRequestSent = useMemo(() => {
     if (!isOneVOne || !oneVOneGame.gameState || !authUser) return false;
@@ -82,7 +163,7 @@ export function useMultiplayerController({
     return isPlayerHost ? !!gs.hostFriendRequestSent : !!gs.guestFriendRequestSent;
   }, [isOneVOne, oneVOneGame.gameState, authUser]);
 
-  // Track whether the LOCAL player has solved all of their boards in 1v1.
+  // Track whether the LOCAL player has solved all of their boards in 1v1 / multiplayer.
   const hasPlayerSolvedAllOneVOneBoards = useMemo(() => {
     if (!isOneVOne || !oneVOneGame.gameState || !authUser) return false;
     const gs = oneVOneGame.gameState;
@@ -223,6 +304,11 @@ export function useMultiplayerController({
     navigate,
     boardsParam,
     speedrunEnabled,
+    maxPlayersParam,
+    publicParam,
+    maxPlayersParam,
+    publicParam,
+    maxOneVOneBoards,
     setAllowedSet,
     setIsLoading,
     setTimedMessage,
@@ -367,8 +453,8 @@ export function useMultiplayerController({
       // It only applies to true 2-player games; multi-player rooms (>2) have no turns.
       if (!gameState.speedrun && status === 'playing' && solutionArray.length > 0 && authUser && !isMultiRoom) {
         const currentTurn = gameState.currentTurn;
-        const myGuesses = isPlayerHost ? hostGuesses : guestGuesses;
-        const opponentGuesses = isPlayerHost ? guestGuesses : hostGuesses;
+        const myGuesses = getCurrentPlayerGuesses(gameState);
+        const opponentGuesses = getOpponentGuesses(gameState);
 
         // Finished = all boards solved OR, in non-speedrun, ran out of guesses
         const mySolvedAll = solutionArray.every((sol) => myGuesses.includes(sol));

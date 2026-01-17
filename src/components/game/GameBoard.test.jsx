@@ -108,7 +108,7 @@ describe('GameBoard', () => {
     expect(screen.queryByText('0/6')).toBeNull();
   });
 
-  it('applies selection and current-turn borders and calls onToggleSelect on click', () => {
+  it('applies selection border and calls onToggleSelect on click (no green turn border)', () => {
     const onToggleSelect = vi.fn();
 
     const { container, rerender } = render(
@@ -135,7 +135,7 @@ describe('GameBoard', () => {
     fireEvent.click(containerDiv);
     expect(onToggleSelect).toHaveBeenCalledTimes(1);
 
-    // When not selected but isCurrentTurn, should use green border
+    // When not selected, there should be no special green border anymore
     rerender(
       <GameBoard
         board={baseBoard}
@@ -154,7 +154,7 @@ describe('GameBoard', () => {
       />
     );
 
-    expect(container.firstChild).toHaveStyle({ border: '2px solid #6aaa64' });
+    expect(container.firstChild).toHaveStyle({ border: '1px solid #3a3a3c' });
   });
 
   it('renders the correct number of TileRow children based on guesses and maxTurns', () => {

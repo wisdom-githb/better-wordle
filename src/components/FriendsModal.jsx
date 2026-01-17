@@ -331,7 +331,10 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
         </button>
       </div>
 
-      {/* 1v1 Challenge configuration modal (per-friend) */}
+      {/* 1v1 Challenge configuration modal (per-friend).
+          NOTE: This will later be replaced to route through the shared
+          Multiplayer host modal so that challenges and direct hosting use
+          the same room configuration flow. */}
       <Modal
         isOpen={isChallengeConfigOpen && !!selectedFriendForChallenge}
         onRequestClose={() => setIsChallengeConfigOpen(false)}

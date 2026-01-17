@@ -33,11 +33,8 @@ export default function GameBoard({
       onClick={onToggleSelect}
       style={{
         borderRadius: 8,
-        // Selection (yellow) should visually override current-turn (green)
         border: isSelected
           ? "2px solid #facc15"
-          : isCurrentTurn
-          ? "2px solid #6aaa64"
           : "1px solid #3a3a3c",
         padding: 8,
         background: "#1a1a1b",

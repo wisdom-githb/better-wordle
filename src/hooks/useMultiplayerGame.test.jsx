@@ -68,7 +68,9 @@ vi.mock('firebase/database', () => {
     listeners.delete(refObj.path);
   };
 
-  return { ref, set, update, remove, onValue, off, __dbData: dbData };
+  const get = async (refObj) => makeSnapshot(refObj.path);
+
+  return { ref, set, update, remove, onValue, off, get, __dbData: dbData };
 });
 
 // Auth/database config mock so the hook can read currentUser
@@ -129,6 +131,11 @@ describe('useMultiplayerGame – DB operations', () => {
       guestColors: [],
       hostRematch: false,
       guestRematch: false,
+      maxPlayers: 2,
+      isPublic: true,
+      players: {
+        'host-1': expect.objectContaining({ id: 'host-1', name: 'Host Player', isHost: true }),
+      },
     });
   });
 
@@ -178,6 +185,10 @@ describe('useMultiplayerGame – DB operations', () => {
       winner: 'host',
       hostRematch: true,
       guestRematch: true,
+      players: {
+        'host-1': { id: 'host-1', name: 'Host', isHost: true, ready: true, guesses: [] },
+        'guest-1': { id: 'guest-1', name: 'Guest', isHost: false, ready: true, guesses: [] },
+      },
     };
 
     auth.currentUser = { uid: 'host-1', displayName: 'Host' };
@@ -210,6 +221,10 @@ describe('useMultiplayerGame – DB operations', () => {
       guestReady: true,
       status: 'waiting',
       speedrun: false,
+      players: {
+        'host-1': { id: 'host-1', name: 'Host', isHost: true, ready: true, guesses: [] },
+        'guest-1': { id: 'guest-1', name: 'Guest', isHost: false, ready: true, guesses: [] },
+      },
     };
 
     auth.currentUser = { uid: 'host-1', displayName: 'Host' };
@@ -228,7 +243,7 @@ describe('useMultiplayerGame – DB operations', () => {
     expect(stored.guestStartTime).not.toBeNull();
   });
 
-  it('submitGuess (standard) appends host guesses/colors and switches turn', async () => {
+  it('submitGuess (standard) appends host guesses/colors without enforcing turn order', async () => {
     __dbData['onevone/CODE1'] = {
       hostId: 'host-1',
       guestId: 'guest-1',
@@ -253,7 +268,8 @@ describe('useMultiplayerGame – DB operations', () => {
     const stored = __dbData['onevone/CODE1'];
     expect(stored.hostGuesses).toEqual(['OTHER']);
     expect(stored.hostColors).toEqual([[0, 0, 0, 0, 0]]);
-    expect(stored.currentTurn).toBe('guest');
+    // In non-turn-based mode, submitGuess no longer mutates currentTurn.
+    expect(stored.currentTurn).toBe('host');
   });
 
   it('submitGuess (speedrun) sets per-player time only after all solutions solved', async () => {
@@ -473,6 +489,10 @@ describe('useMultiplayerGame – error paths', () => {
       guestReady: false,
       status: 'waiting',
       speedrun: false,
+      players: {
+        'host-1': { id: 'host-1', name: 'Host', isHost: true, ready: true, guesses: [] },
+        'guest-1': { id: 'guest-1', name: 'Guest', isHost: false, ready: false, guesses: [] },
+      },
     };
 
     auth.currentUser = { uid: 'host-1', displayName: 'Host' };
@@ -481,7 +501,7 @@ describe('useMultiplayerGame – error paths', () => {
 
     await act(async () => {
       await expect(hookResult.startGame('NOTREADY', 'apple')).rejects.toThrow(
-        'Both players must be ready to start',
+        'All players must be ready to start',
       );
     });
   });

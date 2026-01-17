@@ -12,10 +12,15 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => navigateMock,
 }));
 
-// Stub FriendsModal and Modal to simple shells
+// Stub FriendsModal, OpenRoomsModal and Modal to simple shells
 vi.mock('./FriendsModal', () => ({
   __esModule: true,
   default: ({ isOpen }) => (isOpen ? <div data-testid="friends-modal">FRIENDS MODAL</div> : null),
+}));
+
+vi.mock('./OpenRoomsModal', () => ({
+  __esModule: true,
+  default: ({ isOpen }) => (isOpen ? <div data-testid="open-rooms-modal">OPEN ROOMS</div> : null),
 }));
 
 vi.mock('./Modal', () => ({
@@ -61,7 +66,7 @@ describe('HamburgerMenu', () => {
     expect(onOpenFeedback).toHaveBeenCalled();
   });
 
-  it('shows Profile, Friends, Challenges, Feedback when signed in', async () => {
+  it('shows Profile, Friends, Challenges, Open Rooms, Feedback when signed in', async () => {
     const user = userEvent.setup();
 
     useAuth.mockReturnValue({
@@ -80,6 +85,7 @@ describe('HamburgerMenu', () => {
     expect(screen.getByRole('button', { name: 'Profile' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Friends' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Challenges' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open Rooms' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Feedback' })).toBeInTheDocument();
   });
 

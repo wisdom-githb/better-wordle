@@ -51,6 +51,14 @@ export default function MultiplayerGameView({
 }) {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const gameState = oneVOneGame.gameState;
+  const playersMap = gameState && gameState.players && typeof gameState.players === "object" ? gameState.players : null;
+  const playerCount = playersMap ? Object.keys(playersMap).length : (() => {
+    if (!gameState) return 0;
+    let count = 0;
+    if (gameState.hostId) count += 1;
+    if (gameState.guestId) count += 1;
+    return count;
+  })();
 
   // If we're still resolving auth, show a simple loading state that includes the header.
   if (authLoading) {
@@ -219,13 +227,16 @@ export default function MultiplayerGameView({
         <SiteHeader onOpenFeedback={onOpenFeedback} />
         <GameHeader
           mode={mode}
-          numBoards={initialNumBoards || 1}
+          numBoards={waitingBoards}
           speedrunEnabled={false}
         />
         <MultiplayerWaitingRoom
           gameCode={gameCode || ""}
           gameState={gameState}
           isHost={isPlayerHost}
+          currentUserId={authUser?.uid || null}
+          maxPlayers={maxPlayers}
+          roomName={roomName}
           onReady={onReady}
           onStartGame={onStartGame}
           friendRequestSent={friendRequestSent}
@@ -327,7 +338,7 @@ export default function MultiplayerGameView({
   const isSpeedrun = gameState.speedrun || false;
   const isPlayerHost = authUser && gameState.hostId === authUser.uid;
   const opponentId =
-    authUser && gameState
+    authUser && gameState && playerCount === 2
       ? authUser.uid === gameState.hostId
         ? gameState.guestId
         : gameState.hostId
@@ -366,18 +377,26 @@ export default function MultiplayerGameView({
   const solutionsText = solutionList.map((w) => w.toUpperCase()).join(" · ");
   const numBoardsForHeader = solutionList.length || 1;
 
-  // Whose turn is it? Used to highlight the active board.
-  const isMyTurn =
-    !isSpeedrun &&
-    gameState.status === "playing" &&
-    gameState.currentTurn === (isPlayerHost ? "host" : "guest");
+  // 1v1 is no longer turn-based; all players can guess concurrently.
+  const useTwoPlayerLayout = false;
 
-  const myGuesses = isPlayerHost
-    ? gameState.hostGuesses || []
-    : gameState.guestGuesses || [];
-  const opponentGuesses = isPlayerHost
-    ? gameState.guestGuesses || []
-    : gameState.hostGuesses || [];
+  const isMyTurn = true;
+
+  const myGuesses = (() => {
+    if (playersMap && authUser) {
+      const me = playersMap[authUser.uid];
+      if (me && Array.isArray(me.guesses)) return me.guesses;
+    }
+    return isPlayerHost ? gameState.hostGuesses || [] : gameState.guestGuesses || [];
+  })();
+
+  const opponentGuesses = (() => {
+    if (playersMap && authUser && playerCount === 2) {
+      const others = Object.values(playersMap).filter((p) => p.id !== authUser.uid);
+      if (others[0] && Array.isArray(others[0].guesses)) return others[0].guesses;
+    }
+    return isPlayerHost ? gameState.guestGuesses || [] : gameState.hostGuesses || [];
+  })();
 
   const mySolved = gameState.solution && myGuesses.includes(gameState.solution);
   const opponentSolved = gameState.solution && opponentGuesses.includes(gameState.solution);

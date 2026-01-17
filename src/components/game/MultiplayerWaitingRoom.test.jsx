@@ -21,7 +21,7 @@ describe('MultiplayerWaitingRoom', () => {
       />,
     );
 
-    expect(screen.getByText('Waiting for opponent to join...')).toBeInTheDocument();
+    expect(screen.getByText('Waiting for players to join...')).toBeInTheDocument();
     expect(screen.getByText('123456')).toBeInTheDocument();
 
     const shareButton = screen.getByRole('button', { name: 'Share Code' });
@@ -65,7 +65,7 @@ describe('MultiplayerWaitingRoom', () => {
       />,
     );
 
-    // Guest should see the host label on the other player row.
+    // Guest should see the host label on the host row.
     expect(screen.getByText('Alice (Host)')).toBeInTheDocument();
     expect(screen.getByText('Bob')).toBeInTheDocument();
   });
@@ -86,6 +86,8 @@ describe('MultiplayerWaitingRoom', () => {
           guestReady: true,
         }}
         isHost
+        currentUserId="host-id"
+        maxPlayers={2}
         onReady={onReady}
         onStartGame={onStartGame}
       />,
@@ -106,6 +108,8 @@ describe('MultiplayerWaitingRoom', () => {
           guestReady: true,
         }}
         isHost
+        currentUserId="host-id"
+        maxPlayers={2}
         onReady={onReady}
         onStartGame={onStartGame}
       />,
