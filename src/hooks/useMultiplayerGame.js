@@ -45,15 +45,29 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
     gameRef.current = dbRef;
 
     setLoading(true);
-    const unsubscribe = onValue(dbRef, (snapshot) => {
-      const data = snapshot.val();
-      setGameState(data);
-      setLoading(false);
-      setError(null);
-    }, (err) => {
-      setError(err.message);
-      setLoading(false);
-    });
+    onValue(
+      dbRef,
+      (snapshot) => {
+        const data = snapshot.val();
+
+        // If there is no game data at this code, surface a clear error so the UI
+        // can show an error screen instead of an endless "Connecting to game...".
+        if (data == null) {
+          setGameState(null);
+          setLoading(false);
+          setError('Game not found or has expired.');
+          return;
+        }
+
+        setGameState(data);
+        setLoading(false);
+        setError(null);
+      },
+      (err) => {
+        setError(err.message);
+        setLoading(false);
+      },
+    );
 
     return () => {
       off(dbRef);
@@ -81,7 +95,9 @@ const createGame = useCallback(async (options = {}) => {
       ? options.maxPlayers
       : DEFAULT_MAX_PLAYERS;
     const maxPlayers = Math.max(2, Math.min(ABSOLUTE_MAX_PLAYERS, rawMaxPlayers));
-    const isPublic = !!options.isPublic;
+    const isPublic = Object.prototype.hasOwnProperty.call(options, 'isPublic')
+      ? !!options.isPublic
+      : true;
 
     // Boards configuration for this room (used for waiting-room display and first round).
     const rawBoards = Number.isFinite(options.boards)
@@ -335,7 +351,7 @@ const createGame = useCallback(async (options = {}) => {
         const playerValues = Object.values(players);
         const allReady =
           playerValues.length > 0 &&
-          playerValues.every((p) => p && typeof p.ready === 'boolean' ? p.ready : false);
+          playerValues.every((p) => (p && typeof p.ready === 'boolean' ? p.ready : false));
         if (!allReady) {
           throw new Error('All players must be ready to start');
         }
@@ -357,19 +373,13 @@ const createGame = useCallback(async (options = {}) => {
         ? solutionsOrSolution
         : [solutionsOrSolution];
 
-      const playerCount = players ? Object.keys(players).length : 0;
-      const isMultiFreeplay = players && playerCount > 2;
+      const playersMap = players || null;
 
-      // Randomly decide who goes first only for 2-player, non-speedrun rounds.
-      const firstTurn = !isSpeedrunRound && !isMultiFreeplay
-        ? (Math.random() < 0.5 ? 'host' : 'guest')
-        : null;
-
-      let updatedPlayers = players || null;
-      if (players) {
+      let updatedPlayers = playersMap || null;
+      if (playersMap) {
         updatedPlayers = {};
-        Object.keys(players).forEach((pid) => {
-          const p = players[pid] || {};
+        Object.keys(playersMap).forEach((pid) => {
+          const p = playersMap[pid] || {};
           updatedPlayers[pid] = {
             ...p,
             guesses: [],
@@ -387,7 +397,8 @@ const createGame = useCallback(async (options = {}) => {
         solution: solutionsArray[0],
         solutions: solutionsArray,
         speedrun: isSpeedrunRound,
-        currentTurn: firstTurn,
+        // Multiplayer is now fully free-for-all: no turn order.
+        currentTurn: null,
         startedAt: now,
         // Clear previous round state (legacy fields for first two players)
         hostGuesses: [],
@@ -440,20 +451,10 @@ const createGame = useCallback(async (options = {}) => {
       const players = gameData.players || null;
       const playerCount = players
         ? Object.keys(players).length
-        : ((gameData.hostId ? 1 : 0) + (gameData.guestId ? 1 : 0));
+        : (gameData.hostId ? 1 : 0) + (gameData.guestId ? 1 : 0);
 
       const isHost = gameData.hostId === user.uid;
       const isSpeedrun = gameData.speedrun || false;
-      const isMultiFreeplay = players && playerCount > 2;
-
-      // In standard 2-player games, enforce turn order. For speedrun or
-      // multi-player (3+), everyone can guess concurrently.
-      if (!isSpeedrun && !isMultiFreeplay) {
-        const isMyTurn = gameData.currentTurn === (isHost ? 'host' : 'guest');
-        if (!isMyTurn) {
-          throw new Error('Not your turn');
-        }
-      }
 
       const now = Date.now();
 
@@ -469,11 +470,17 @@ const createGame = useCallback(async (options = {}) => {
       const updateData = {};
 
       // Helper to compute speedrun completion and timeMs for a given list of guesses.
-      const maybeSetSpeedrunTime = (currentGuesses, existingTimeMs, startTimeFieldPath, timeMsFieldPath) => {
+      const maybeSetSpeedrunTime = (
+        currentGuesses,
+        existingTimeMs,
+        startTimeFieldPath,
+        timeMsFieldPath,
+      ) => {
         if (!isSpeedrun || existingTimeMs || solutionArray.length === 0) return;
         const solvedAll = solutionArray.every((sol) => currentGuesses.includes(sol));
         if (!solvedAll) return;
-        const startTime = (startTimeFieldPath && gameData[startTimeFieldPath]) || gameData.startedAt || now;
+        const startTime =
+          (startTimeFieldPath && gameData[startTimeFieldPath]) || gameData.startedAt || now;
         const elapsed = now - startTime;
         updateData[timeMsFieldPath] = elapsed;
       };
@@ -492,9 +499,6 @@ const createGame = useCallback(async (options = {}) => {
             const hostColors = [...(gameData.hostColors || []), colors];
             updateData.hostGuesses = hostGuesses;
             updateData.hostColors = hostColors;
-            if (!isSpeedrun) {
-              updateData.currentTurn = 'guest';
-            }
             maybeSetSpeedrunTime(
               hostGuesses,
               gameData.hostTimeMs,
@@ -506,9 +510,6 @@ const createGame = useCallback(async (options = {}) => {
             const guestColors = [...(gameData.guestColors || []), colors];
             updateData.guestGuesses = guestGuesses;
             updateData.guestColors = guestColors;
-            if (!isSpeedrun) {
-              updateData.currentTurn = 'host';
-            }
             maybeSetSpeedrunTime(
               guestGuesses,
               gameData.guestTimeMs,
@@ -535,9 +536,6 @@ const createGame = useCallback(async (options = {}) => {
 
           updateData.hostGuesses = hostGuesses;
           updateData.hostColors = hostColors;
-          if (!isSpeedrun) {
-            updateData.currentTurn = 'guest';
-          }
 
           maybeSetSpeedrunTime(
             hostGuesses,
@@ -551,9 +549,6 @@ const createGame = useCallback(async (options = {}) => {
 
           updateData.guestGuesses = guestGuesses;
           updateData.guestColors = guestColors;
-          if (!isSpeedrun) {
-            updateData.currentTurn = 'host';
-          }
 
           maybeSetSpeedrunTime(
             guestGuesses,

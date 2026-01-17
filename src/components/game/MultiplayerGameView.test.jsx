@@ -107,3 +107,123 @@ describe('MultiplayerGameView unauthenticated multiplayer gating', () => {
     expect(modal).toBeInTheDocument();
   });
 });
+
+describe('MultiplayerGameView connection / error handling', () => {
+  it('shows an error screen instead of endless "Connecting to game" when hook reports an error', () => {
+    const onBack = vi.fn();
+
+    render(
+      <Suspense fallback={null}>
+        <MultiplayerGameView
+          {...baseProps}
+          authUser={{ uid: 'user-1' }}
+          authLoading={false}
+          onBack={onBack}
+          oneVOneGame={{ gameState: null, error: 'Game not found or has expired.', loading: false }}
+        />
+      </Suspense>,
+    );
+
+    expect(screen.getByText('Error: Game not found or has expired.')).toBeInTheDocument();
+    const homeButton = screen.getByRole('button', { name: 'Home' });
+    expect(homeButton).toBeInTheDocument();
+  });
+});
+
+describe('MultiplayerGameView waiting room', () => {
+  it('renders waiting room instead of connecting when gameState.status="waiting"', () => {
+    const gameState = {
+      status: 'waiting',
+      hostId: 'host-uid',
+      guestId: null,
+      hostName: 'Host',
+      createdAt: 1_000,
+      configBoards: 4,
+      maxPlayers: 5,
+      roomName: 'My Room',
+      players: {
+        'host-uid': { id: 'host-uid', name: 'Host', isHost: true, ready: true, guesses: [] },
+      },
+    };
+
+    render(
+      <Suspense fallback={null}>
+        <MultiplayerGameView
+          {...baseProps}
+          authUser={{ uid: 'host-uid' }}
+          authLoading={false}
+          onBack={vi.fn()}
+          oneVOneGame={{ gameState, error: null, loading: false }}
+          waitingNowMs={gameState.createdAt + 5_000}
+          initialNumBoards={1}
+        />
+      </Suspense>,
+    );
+
+    // The waiting room should show the "Multiplayer Room" heading and game code box,
+    // not the generic "Connecting to game..." loader.
+    expect(screen.getByText('Multiplayer Room')).toBeInTheDocument();
+    expect(screen.getByText('Game Code:')).toBeInTheDocument();
+  });
+});
+
+describe('MultiplayerGameView in active multiplayer game', () => {
+  it('shows per-user per-board room progress summary instead of opponent boards', () => {
+    const gameState = {
+      status: 'playing',
+      speedrun: false,
+      hostId: 'host-uid',
+      guestId: 'guest-uid',
+      hostName: 'Host',
+      guestName: 'Guest',
+      solutions: ['apple'],
+      hostGuesses: ['APPLE'],
+      guestGuesses: ['OTHER'],
+      createdAt: 1_000,
+      players: {
+        'host-uid': { id: 'host-uid', name: 'Host', isHost: true, ready: true, guesses: ['APPLE'] },
+        'guest-uid': { id: 'guest-uid', name: 'Guest', isHost: false, ready: true, guesses: ['OTHER'] },
+      },
+    };
+
+    render(
+      <Suspense fallback={null}>
+        <MultiplayerGameView
+          {...baseProps}
+          authUser={{ uid: 'host-uid' }}
+          authLoading={false}
+          oneVOneGame={{ gameState, error: null, loading: false }}
+          boards={[
+            {
+              solution: 'apple',
+              guesses: [],
+              isSolved: false,
+              isDead: false,
+              lastRevealId: null,
+            },
+          ]}
+          maxTurns={6}
+          waitingNowMs={gameState.createdAt + 5000}
+        />
+      </Suspense>,
+    );
+
+    // Summary header
+    expect(screen.getByText('Room progress (per board)')).toBeInTheDocument();
+
+    // Host row shows "(You)" label and correct per-board stats for a solved word.
+    expect(screen.getByText(/Host \(You\)/i)).toBeInTheDocument();
+
+    // There should be a per-board summary chip for each player.
+    const perBoardSummaries = screen.getAllByText(/Board 1: 1 guess/i);
+    expect(perBoardSummaries.length).toBeGreaterThanOrEqual(2);
+
+    // Host summary should include the full solved stats.
+    expect(screen.getByText(/Green 5/i)).toBeInTheDocument();
+    expect(screen.getByText(/Solved/i)).toBeInTheDocument();
+
+    // Guest row is also present in the summary, with different stats.
+    expect(screen.getByText('Guest')).toBeInTheDocument();
+    expect(screen.getByText(/Green 0/i)).toBeInTheDocument();
+  });
+});

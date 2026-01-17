@@ -1,6 +1,6 @@
 # better-wordle
 
-Better Wordle is an advanced Wordle-style browser game with multi-board puzzles, marathon, speedrun, and 1v1 modes.
+Better Wordle is an advanced Wordle-style browser game with multi-board puzzles, marathon, speedrun, and multiplayer modes.
 
 **Live site:** https://wisdom-githb.github.io/better-wordle/
 
@@ -116,9 +116,9 @@ The sign-in button on the homepage allows users to authenticate using Google Sig
 
 The authentication feature will work once Firebase is configured. Users can sign in to sync their game progress across devices (when you implement that feature).
 
-## Firebase Realtime Database Setup (for 1v1 Mode)
+## Firebase Realtime Database Setup (for multiplayer head-to-head mode)
 
-The 1v1 mode requires Firebase Realtime Database to sync game state between players. To set this up:
+The head-to-head multiplayer mode requires Firebase Realtime Database to sync game state between players. To set this up:
 
 1. **Create Realtime Database**:
    - In your Firebase Console, go to "Realtime Database" in the left sidebar
@@ -181,13 +181,13 @@ The 1v1 mode requires Firebase Realtime Database to sync game state between play
    ```
    - Click "Publish" to save the rules
 
-5. **Test 1v1 Mode**:
-   - Sign in with two different accounts (or use two browsers/devices)
-   - One user clicks "Host 1v1" and shares the game code
-   - The other user enters the code and clicks "Join 1v1"
+5. **Test head-to-head Multiplayer Mode**:
+- Sign in with two different accounts (or use two browsers/devices)
+- One user hosts a private multiplayer room and shares the game code
+- The other user enters the code and clicks "Join"
    - Both should see the waiting room and can click "Ready" to start
 
-**Note**: The security rules ensure that only authenticated users can access 1v1 games, and with Option 2, only the host or guest of a specific game can read/write to that game.
+**Note**: The security rules ensure that only authenticated users can access multiplayer games, and with Option 2, only the host or guest of a specific game can read/write to that game.
 
 ## Feedback Feature Setup
 

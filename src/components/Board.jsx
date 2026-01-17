@@ -12,9 +12,10 @@ function Board({
   isUnlimited,
   collapse
 }) {
-  const greenPattern = useMemo(() => getGreenPattern(board.guesses), [board.guesses]);
+  const safeGuesses = Array.isArray(board?.guesses) ? board.guesses : [];
+  const greenPattern = useMemo(() => getGreenPattern(safeGuesses), [safeGuesses]);
 
-  const guessCount = board.guesses.length;
+  const guessCount = safeGuesses.length;
 
   const hasCurrentRow =
     !board.isSolved && (isUnlimited || !board.isDead) && currentGuess != null;
@@ -23,7 +24,7 @@ function Board({
   // Collapsed mode (many boards): show only last guess + current row (if applicable).
   const rowIndices = useMemo(() => {
     if (!collapse) {
-      const rowsToShow = Math.min(guessCount + 1, Math.max(maxTurns, guessCount + 1));
+      const rowsToShow = Math.min(guessCount + 1, Math.max(maxTurns || 0, guessCount + 1));
       return Array.from({ length: rowsToShow }, (_, i) => i);
     }
 
@@ -55,17 +56,17 @@ function Board({
             ? "Solved"
             : !isUnlimited && board.isDead
             ? "Failed"
-            : `${board.guesses.length}/${maxTurns}`}
+            : `${guessCount}/${maxTurns}`}
         </span>
       </div>
 
       {rowIndices.map((rowIdx) => {
-        const row = board.guesses[rowIdx];
+        const row = safeGuesses[rowIdx];
 
         const isCurrentRow =
           !row &&
           hasCurrentRow &&
-          rowIdx === board.guesses.length;
+          rowIdx === safeGuesses.length;
 
         const isInvalidRow = isCurrentRow && invalidCurrentGuess;
 

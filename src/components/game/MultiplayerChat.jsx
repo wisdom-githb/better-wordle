@@ -12,6 +12,7 @@ export default function MultiplayerChat({ gameCode, authUser }) {
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const listRef = useRef(null);
+  const inputRef = useRef(null);
 
   const canChat = useMemo(() => {
     return !!gameCode && !!authUser;
@@ -72,6 +73,10 @@ export default function MultiplayerChat({ gameCode, authUser }) {
         createdAt: Date.now(),
       });
       setInput("");
+      // Keep focus in the chat box so keyboard input does not go to the game.
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
     } catch (err) {
       // Best-effort only; surface error via console for debugging.
       // Multiplayer gameplay should not break if chat fails.
@@ -276,6 +281,7 @@ export default function MultiplayerChat({ gameCode, authUser }) {
             }}
           >
             <input
+              ref={inputRef}
               type="text"
               placeholder={canChat ? "Type a message" : "Sign in to chat"}
               value={input}

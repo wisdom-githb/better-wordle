@@ -131,13 +131,20 @@ describe('GamePopup - single player', () => {
 describe('GamePopup - 1v1 mode', () => {
   const formatElapsed = (ms) => `${(ms / 1000).toFixed(1)}s`;
 
-  it('shows win/lose/tie labels and scores in non-speedrun 1v1', () => {
+  it('shows score summary and ranking header in non-speedrun 1v1', () => {
     const onRematch = vi.fn();
     const onChangeMode = vi.fn();
 
     const oneVOneGameState = {
       speedrun: false,
       status: 'finished',
+      hostId: 'host-1',
+      guestId: 'guest-1',
+      hostName: 'Host',
+      guestName: 'Guest',
+      hostGuesses: ['APPLE'],
+      guestGuesses: ['OTHER', 'GUESS'],
+      solution: 'APPLE',
       hostRematch: true,
       guestRematch: false,
     };
@@ -168,10 +175,12 @@ describe('GamePopup - 1v1 mode', () => {
         isPlayerHost={true}
         onRematch={onRematch}
         onChangeMode={onChangeMode}
+        currentUserId="host-1"
       />
     );
 
-    expect(screen.getByText(/You Won!/i)).toBeInTheDocument();
+    // Heading should describe placement instead of win/lose text.
+    expect(screen.getByText(/You finished 1st/i)).toBeInTheDocument();
     expect(screen.getByText(/Your Score/i)).toBeInTheDocument();
     expect(screen.getByText(/Opponent's Score/i)).toBeInTheDocument();
 

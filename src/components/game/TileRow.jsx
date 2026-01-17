@@ -14,18 +14,19 @@ export default function TileRow({
   revealId,
   isJustRevealedRow
 }) {
-  const row = board.guesses[rowIdx];
-  const guessCount = board.guesses.length;
+  const safeGuesses = Array.isArray(board?.guesses) ? board.guesses : [];
+  const row = safeGuesses[rowIdx];
+  const guessCount = safeGuesses.length;
 
   const isCurrentRow =
     !row &&
     !board.isSolved &&
     (isUnlimited || !board.isDead) &&
-    rowIdx === board.guesses.length;
+    rowIdx === safeGuesses.length;
 
   const isInvalidRow = isCurrentRow && invalidCurrentGuess;
 
-  const greenPattern = getGreenPattern(board.guesses);
+  const greenPattern = getGreenPattern(safeGuesses);
 
   // Calculate tile size based on number of boards to ensure proper fit
   const tileSize = numBoards >= 16 ? 28 : 32;

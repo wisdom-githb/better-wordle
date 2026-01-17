@@ -27,6 +27,12 @@ vi.mock('../lib/gameConstants', () => ({
   FLIP_COMPLETE_MS: 100,
 }));
 
+// useSinglePlayerGame now consults useAuth to decide whether to load/save
+// progress from Firebase. For these unit tests we always behave as a guest.
+vi.mock('./useAuth', () => ({
+  useAuth: () => ({ user: null, loading: false }),
+}));
+
 import { loadJSON } from '../lib/persist';
 import { loadWordLists } from '../lib/wordLists';
 import { selectDailyWords } from '../lib/dailyWords';

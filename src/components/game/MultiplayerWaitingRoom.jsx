@@ -151,7 +151,7 @@ export default function MultiplayerWaitingRoom({
         {status === 'waiting' && (
           <div>
             <p style={{ color: '#d7dadc', marginBottom: '12px', fontSize: 16 }}>
-              Waiting for opponent to join...
+              Waiting for players to join...
             </p>
             {expiryLabel && (
               <p

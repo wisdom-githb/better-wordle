@@ -17,15 +17,16 @@ export default function GameBoard({
   // Optional: highlight this board when it's the active turn (1v1 mode)
   isCurrentTurn = false,
 }) {
-  const guessCount = board.guesses.length;
+  const safeGuesses = Array.isArray(board?.guesses) ? board.guesses : [];
+  const guessCount = safeGuesses.length;
 
   // No extra empty row after solved
   const rowsToShow = board.isSolved
     ? guessCount
-    : Math.min(guessCount + 1, Math.max(maxTurns, guessCount + 1));
+    : Math.min(guessCount + 1, Math.max(maxTurns || 0, guessCount + 1));
 
   // Only animate the last committed guess row (the one just added)
-  const lastGuessRowIndex = board.guesses.length - 1;
+  const lastGuessRowIndex = safeGuesses.length - 1;
 
   return (
     <div
@@ -67,13 +68,13 @@ export default function GameBoard({
               ? "Solved"
               : !isUnlimited && board.isDead
               ? "Failed"
-              : `${board.guesses.length}/${maxTurns}`}
+              : `${guessCount}/${maxTurns}`}
           </span>
         )}
       </div>
 
       {Array.from({ length: rowsToShow }).map((_, rowIdx) => {
-        const row = board.guesses[rowIdx];
+        const row = safeGuesses[rowIdx];
         const isJustRevealedRow = !!row && rowIdx === lastGuessRowIndex;
 
         return (

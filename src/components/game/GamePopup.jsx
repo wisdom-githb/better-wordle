@@ -31,6 +31,7 @@ export default function GamePopup({
   allowNextStageAfterPopup = true,
   hasCommentsSection = false,
   streakLabel,
+  currentUserId,
 }) {
   const navigate = useNavigate();
   
@@ -89,25 +90,171 @@ export default function GamePopup({
           const hasExplicitScores =
             typeof myScore === "number" || typeof opponentScore === "number";
 
-          // Derive win/lose/tie from winner + player role, falling back to
-          // explicit scores when no winner flag is set.
-          let resultLabel = "It's a tie!";
-          if (winner === 'host' || winner === 'guest') {
-            const didPlayerWin = (winner === 'host' && isPlayerHost) || (winner === 'guest' && !isPlayerHost);
-            const didPlayerLose = (winner === 'host' && !isPlayerHost) || (winner === 'guest' && isPlayerHost);
-            if (didPlayerWin) resultLabel = "You Won!";
-            else if (didPlayerLose) resultLabel = "You Lost";
-          } else if (hasExplicitScores &&
-            typeof myScore === "number" &&
-            typeof opponentScore === "number"
-          ) {
-            if (myScore > opponentScore) resultLabel = "You Won!";
-            else if (myScore < opponentScore) resultLabel = "You Lost";
+          // Build a rankings table for all players in the room.
+          const playersFromState =
+            oneVOneGameState && oneVOneGameState.players &&
+            typeof oneVOneGameState.players === "object"
+              ? Object.values(oneVOneGameState.players).filter(Boolean)
+              : null;
+
+          const solutionList = oneVOneGameState && Array.isArray(oneVOneGameState.solutions) && oneVOneGameState.solutions.length > 0
+            ? oneVOneGameState.solutions
+            : oneVOneGameState && oneVOneGameState.solution
+            ? [oneVOneGameState.solution]
+            : [];
+
+          const makePlayerStats = (id, name, guesses, timeMs) => {
+            const safeGuesses = Array.isArray(guesses) ? guesses : [];
+            const guessCount = safeGuesses.length;
+
+            // Derive a reliable timeMs for this player. Prefer the explicit
+            // per-player value, but fall back to host/guest time fields
+            // when using the legacy 2-player structure.
+            let effectiveTimeMs = typeof timeMs === "number" ? timeMs : null;
+            if (effectiveTimeMs == null && oneVOneGameState) {
+              if (id && oneVOneGameState.hostId === id) {
+                effectiveTimeMs =
+                  typeof oneVOneGameState.hostTimeMs === "number"
+                    ? oneVOneGameState.hostTimeMs
+                    : null;
+              } else if (id && oneVOneGameState.guestId === id) {
+                effectiveTimeMs =
+                  typeof oneVOneGameState.guestTimeMs === "number"
+                    ? oneVOneGameState.guestTimeMs
+                    : null;
+              }
+            }
+
+            let solvedAll = false;
+            if (solutionList.length > 0) {
+              const lowerGuesses = safeGuesses.map((g) =>
+                typeof g === "string" ? g.toLowerCase() : "",
+              );
+              solvedAll = solutionList.every((sol) => {
+                const solLower = typeof sol === "string" ? sol.toLowerCase() : "";
+                return lowerGuesses.includes(solLower);
+              });
+            }
+
+            return {
+              id: id || null,
+              name: name || "Player",
+              guessCount,
+              timeMs: effectiveTimeMs,
+              solvedAll,
+            };
+          };
+
+          const players = [];
+
+          if (playersFromState && playersFromState.length > 0) {
+            playersFromState.forEach((p) => {
+              const id = p.id || null;
+              const name = p.name || "Player";
+              const guesses = p.guesses || [];
+              const timeMs = p.timeMs;
+              players.push(makePlayerStats(id, name, guesses, timeMs));
+            });
+          } else if (oneVOneGameState) {
+            const hostId = oneVOneGameState.hostId || null;
+            const guestId = oneVOneGameState.guestId || null;
+            const hostName = oneVOneGameState.hostName || (hostId ? "Host" : null);
+            const guestName = oneVOneGameState.guestName || (guestId ? "Guest" : null);
+            const hostGuesses = oneVOneGameState.hostGuesses || [];
+            const guestGuesses = oneVOneGameState.guestGuesses || [];
+
+            if (hostId || hostName) {
+              players.push(
+                makePlayerStats(hostId || "host", hostName || "Host", hostGuesses, oneVOneGameState.hostTimeMs),
+              );
+            }
+            if (guestId || guestName) {
+              players.push(
+                makePlayerStats(guestId || "guest", guestName || "Guest", guestGuesses, oneVOneGameState.guestTimeMs),
+              );
+            }
           }
 
+          const metricForPlayer = (p) => {
+            if (isSpeedrun) {
+              return typeof p.timeMs === "number" ? p.timeMs : Number.POSITIVE_INFINITY;
+            }
+            return p.guessCount;
+          };
+
+          const rankedPlayers = (() => {
+            if (!players.length) return [];
+            const sorted = [...players].sort((a, b) => {
+              const ma = metricForPlayer(a);
+              const mb = metricForPlayer(b);
+              if (ma !== mb) return ma - mb;
+              return (a.name || "").localeCompare(b.name || "");
+            });
+            const withRanks = [];
+            sorted.forEach((p, index) => {
+              if (index === 0) {
+                withRanks.push({ ...p, rank: 1 });
+              } else {
+                const prev = withRanks[index - 1];
+                const sameMetric = metricForPlayer(p) === metricForPlayer(prev);
+                withRanks.push({
+                  ...p,
+                  rank: sameMetric ? prev.rank : index + 1,
+                });
+              }
+            });
+            return withRanks;
+          })();
+
+          const toOrdinal = (n) => {
+            const v = n % 100;
+            if (v >= 11 && v <= 13) return `${n}th`;
+            switch (n % 10) {
+              case 1:
+                return `${n}st`;
+              case 2:
+                return `${n}nd`;
+              case 3:
+                return `${n}rd`;
+              default:
+                return `${n}th`;
+            }
+          };
+
+          let headingText = "Game finished";
           let titleColor = "#c9b458";
-          if (resultLabel === "You Won!") titleColor = "#6aaa64";
-          else if (resultLabel === "You Lost") titleColor = "#f06272";
+
+          if (rankedPlayers.length) {
+            const findMe = () => {
+              if (currentUserId) {
+                const byId = rankedPlayers.find((p) => p.id === currentUserId);
+                if (byId) return byId;
+              }
+              if (oneVOneGameState) {
+                const hostId = oneVOneGameState.hostId || null;
+                const guestId = oneVOneGameState.guestId || null;
+                if (isPlayerHost && hostId) {
+                  return rankedPlayers.find((p) => p.id === hostId) || null;
+                }
+                if (!isPlayerHost && guestId) {
+                  return rankedPlayers.find((p) => p.id === guestId) || null;
+                }
+              }
+              return null;
+            };
+
+            const me = findMe();
+            if (me) {
+              const sameRankCount = rankedPlayers.filter((p) => p.rank === me.rank).length;
+              const ordinal = toOrdinal(me.rank);
+              if (sameRankCount > 1) {
+                headingText = `You are tied for ${ordinal} place`;
+              } else {
+                headingText = `You finished ${ordinal}`;
+              }
+              titleColor = me.rank === 1 ? "#6aaa64" : "#c9b458";
+            }
+          }
 
           return (
           <>
@@ -121,7 +268,7 @@ export default function GamePopup({
                 color: titleColor
               }}
             >
-              {resultLabel}
+              {headingText}
             </h2>
 
             <div style={{ marginBottom: 20, fontSize: 18, color: "#d7dadc" }}>
@@ -202,6 +349,91 @@ export default function GamePopup({
                   })()}
                 </div>
               </div>
+
+              {rankedPlayers.length > 0 && (
+                <div
+                  style={{
+                    marginTop: 20,
+                    paddingTop: 12,
+                    borderTop: "1px solid #3a3a3c",
+                    textAlign: "left",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: "bold",
+                      color: "#d7dadc",
+                      marginBottom: 8,
+                    }}
+                  >
+                    Room rankings
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                      fontSize: 13,
+                    }}
+                  >
+                    {rankedPlayers.map((p) => {
+                      const isMe =
+                        (currentUserId && p.id === currentUserId) ||
+                        (!currentUserId && isPlayerHost && oneVOneGameState?.hostId === p.id) ||
+                        (!currentUserId && !isPlayerHost && oneVOneGameState?.guestId === p.id);
+
+                      const primaryStat = isSpeedrun
+                        ? p.timeMs != null
+                          ? formatElapsed(p.timeMs)
+                          : "—"
+                        : `${p.guessCount} guess${p.guessCount === 1 ? "" : "es"}`;
+
+                      const secondary = solutionList.length
+                        ? p.solvedAll
+                          ? "Solved all boards"
+                          : "Not finished"
+                        : null;
+
+                      return (
+                        <div
+                          key={p.id || p.name}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "4px 6px",
+                            borderRadius: 4,
+                            backgroundColor: isMe ? "#27272a" : "transparent",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div
+                              style={{
+                                minWidth: 36,
+                                fontWeight: "bold",
+                                color: "#d7dadc",
+                              }}
+                            >
+                              {toOrdinal(p.rank)}
+                            </div>
+                            <div style={{ color: "#ffffff" }}>
+                              {p.name || "Player"}
+                              {isMe ? " (You)" : ""}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: "right", color: "#d7dadc" }}>
+                            <div>{primaryStat}</div>
+                            {secondary && (
+                              <div style={{ fontSize: 11, color: "#9ca3af" }}>{secondary}</div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </>
           );
@@ -270,18 +502,18 @@ export default function GamePopup({
                 marginBottom: 16
               }}
             >
-              {boards.map((b, i) => (
+              {(Array.isArray(boards) ? boards : []).map((b, i) => (
                 <div
                   key={i}
                   style={{
-                    backgroundColor: b.isSolved ? "#6aaa64" : "#3a3a3c",
+                    backgroundColor: b && b.isSolved ? "#6aaa64" : "#3a3a3c",
                     color: "#ffffff",
                     padding: "8px 10px",
                     borderRadius: 8,
                     fontSize: 13
                   }}
                 >
-                  Board {i + 1}: {b.solution}
+                  Board {i + 1}: {b && b.solution ? b.solution : "?"}
                 </div>
               ))}
             </div>

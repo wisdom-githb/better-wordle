@@ -50,6 +50,24 @@ export default function GameSinglePlayer({
   const { message, setMessage, setTimedMessage, clearMessageTimer } = useTimedMessage("");
   const { user: authUser, isVerifiedUser } = useAuth();
 
+  // Best-effort helper to mirror local single-player progress into the
+  // authenticated user's Firebase profile so daily/marathon games can be
+  // resumed across devices. Guests never hit this path.
+  const persistForUser = (subPath, value) => {
+    if (!authUser) return;
+    try {
+      const userRef = ref(database, `users/${authUser.uid}/${subPath}`);
+      set(userRef, value).catch((err) => {
+        // Server persistence failures should never break gameplay.
+        // eslint-disable-next-line no-console
+        console.error("Failed to persist single-player state to server", err);
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("Failed to queue single-player state to server", err);
+    }
+  };
+
   // Load marathon meta for current speedrun/daily config.
   const marathonMeta = loadJSON(marathonMetaKey(speedrunEnabled), {
     index: 0,
@@ -216,12 +234,15 @@ export default function GameSinglePlayer({
       timestamp: Date.now(),
     };
     saveJSON(gameStateKey, gameState);
-  }, [boards, currentGuess, isUnlimited, maxTurns, speedrunEnabled, revealId, getGameStateKey]);
+    // Mirror in-progress single-player state to Firebase for signed-in users.
+    persistForUser(`singlePlayer/gameStates/${gameStateKey}`, gameState);
+  }, [boards, currentGuess, isUnlimited, maxTurns, speedrunEnabled, revealId, getGameStateKey, persistForUser]);
 
   const clearGameState = useCallback(() => {
     const gameStateKey = getGameStateKey();
     saveJSON(gameStateKey, null);
-  }, [getGameStateKey]);
+    persistForUser(`singlePlayer/gameStates/${gameStateKey}`, null);
+  }, [getGameStateKey, persistForUser]);
 
   useSinglePlayerGame({
     isOneVOne: false,
@@ -294,12 +315,15 @@ export default function GameSinglePlayer({
         newStageTimes.push({ boards: numBoards, ms });
       }
       const cumulative = newStageTimes.reduce((sum, st) => sum + st.ms, 0);
-      saveJSON(metaKey, {
+      const updatedMeta = {
         ...currentMeta,
         index: marathonIndex,
         cumulativeMs: cumulative,
         stageTimes: newStageTimes,
-      });
+      };
+      saveJSON(metaKey, updatedMeta);
+      // Mirror marathon meta so cumulative times stay consistent across devices.
+      persistForUser(`singlePlayer/meta/${metaKey}`, updatedMeta);
     }
   };
 
@@ -420,12 +444,13 @@ export default function GameSinglePlayer({
 
       const colors = board.solution ? scoreGuess(guess, board.solution) : [];
 
-      const guesses = [...board.guesses, { word: guess, colors }];
+      const prevGuesses = Array.isArray(board.guesses) ? board.guesses : [];
+      const guesses = [...prevGuesses, { word: guess, colors }];
 
       const isSolvedNow = guess === board.solution;
       const isDeadNow = !isUnlimited && !isSolvedNow && guesses.length >= maxTurns;
 
-      const hadNewGuess = guesses.length > board.guesses.length;
+      const hadNewGuess = guesses.length > prevGuesses.length;
       const lastRevealId = hadNewGuess ? nextRevealId : board.lastRevealId ?? null;
 
       return { ...board, guesses, isSolved: isSolvedNow, isDead: isDeadNow, lastRevealId };
@@ -494,6 +519,8 @@ export default function GameSinglePlayer({
         timestamp: Date.now(),
       };
       saveJSON(solvedKey, solvedState);
+      // Mirror solved snapshot so completed stages can be replayed on other devices.
+      persistForUser(`singlePlayer/solvedStates/${solvedKey}`, solvedState);
 
       const isMarathonComplete =
         mode === "marathon" && marathonIndex >= marathonLevels.length - 1;
@@ -611,7 +638,12 @@ export default function GameSinglePlayer({
   };
 
   const solutionsText = useMemo(
-    () => boards.map((b) => b.solution).filter(Boolean).map((w) => w.toUpperCase()).join(" · "),
+    () =>
+      (Array.isArray(boards) ? boards : [])
+        .map((b) => (b && typeof b.solution === "string" ? b.solution : null))
+        .filter(Boolean)
+        .map((w) => w.toUpperCase())
+        .join(" · "),
     [boards]
   );
   const turnsUsed = useMemo(() => getTurnsUsed(boards), [boards]);
@@ -652,7 +684,10 @@ export default function GameSinglePlayer({
       const newIndex = marathonIndex + 1;
       const metaKey = marathonMetaKey(speedrunEnabled);
       const meta = loadJSON(metaKey, { index: marathonIndex });
-      saveJSON(metaKey, { ...meta, index: newIndex });
+      const updatedMeta = { ...meta, index: newIndex };
+      saveJSON(metaKey, updatedMeta);
+      // Keep marathon stage index in sync across devices for signed-in users.
+      persistForUser(`singlePlayer/meta/${metaKey}`, updatedMeta);
       navigate(`/game?mode=marathon&speedrun=${speedrunEnabled}`, { replace: true });
       window.location.reload();
     }
@@ -706,6 +741,9 @@ export default function GameSinglePlayer({
       };
 
       saveJSON(solvedKey, solvedState);
+      // Mirror out-of-guesses snapshot so the same end-of-stage view appears
+      // when resuming on another device.
+      persistForUser(`singlePlayer/solvedStates/${solvedKey}`, solvedState);
     } catch (err) {
       // Best-effort only; failure to persist should not break gameplay.
       console.error("Failed to persist out-of-guesses exit state", err);

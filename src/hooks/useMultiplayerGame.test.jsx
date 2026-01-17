@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, act, cleanup } from '@testing-library/react';
+import { render, act, cleanup, waitFor } from '@testing-library/react';
 
 // In-memory Firebase Realtime Database mock
 vi.mock('firebase/database', () => {
@@ -417,6 +417,24 @@ describe('useMultiplayerGame – DB operations', () => {
       hostFriendRequestSent: false,
       guestFriendRequestSent: false,
     });
+  });
+});
+
+describe('useMultiplayerGame – subscription / connection behaviour', () => {
+  it('exposes an error when subscribing to a non-existent game code', () => {
+    auth.currentUser = {
+      uid: 'host-1',
+      displayName: 'Host Player',
+      email: 'host@example.com',
+    };
+
+    render(<HookWrapper gameCode="NOEXIST" isHost={true} speedrun={false} />);
+
+    // Our firebase/database mock calls onValue synchronously on subscribe,
+    // so the hook should immediately reflect the missing-game error.
+    expect(hookResult.gameState).toBeNull();
+    expect(hookResult.loading).toBe(false);
+    expect(hookResult.error).toBe('Game not found or has expired.');
   });
 });
 

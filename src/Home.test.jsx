@@ -28,6 +28,13 @@ vi.mock('./components/SiteHeader', () => ({
   ),
 }));
 
+// Home now consults useAuth to optionally clear remote progress as well as
+// local storage. In these tests we always behave as a guest so that no
+// Firebase calls are made.
+vi.mock('./hooks/useAuth', () => ({
+  useAuth: () => ({ user: null, isVerifiedUser: false }),
+}));
+
 vi.mock('./lib/persist', () => ({
   loadJSON: vi.fn(() => null),
   saveJSON: vi.fn(),

@@ -214,7 +214,9 @@ export default function GameMultiplayer() {
   );
 
   const invalidCurrentGuess =
-    currentGuess.length === WORD_LENGTH && !allowedSet.has(currentGuess);
+    currentGuess.length === WORD_LENGTH &&
+    allowedSet.size > 0 &&
+    !allowedSet.has(currentGuess);
 
   const solvedCount = useMemo(() => boards.filter((b) => b.isSolved).length, [boards]);
 
@@ -244,12 +246,6 @@ export default function GameMultiplayer() {
     if (oneVOneGame.gameState) {
       const gameState = oneVOneGame.gameState;
       if (gameState.status !== "playing") return true;
-      if (!gameState.speedrun) {
-        const isPlayerHostLocal = authUser && gameState.hostId === authUser.uid;
-        const isMyTurn =
-          gameState.currentTurn === (isPlayerHostLocal ? "host" : "guest");
-        if (!isMyTurn) return true;
-      }
     }
 
     return false;
@@ -259,7 +255,6 @@ export default function GameMultiplayer() {
     showPopup,
     showOutOfGuesses,
     oneVOneGame.gameState,
-    authUser,
   ]);
 
   const addLetter = (letter) => {
@@ -294,26 +289,21 @@ export default function GameMultiplayer() {
       return;
     }
 
-    // For 1v1 games, a full 5-letter guess should always go through the
-    // submitGuess hook so that validation can happen on the backend.
-    // We still surface a local "Not in word list" message when we have
-    // a dictionary, but we do not return early here.
-    if (!allowedSet.has(guess)) {
+    // For multiplayer, we still prevent obviously invalid words from being
+    // submitted when we have a local dictionary. This keeps the shared
+    // board state clean while the server remains authoritative. If the
+    // dictionary has not yet loaded (empty set), fall back to allowing the
+    // guess and let the server remain authoritative.
+    if (allowedSet.size > 0 && !allowedSet.has(guess)) {
       setTimedMessage("Not in word list.", 5000);
       setCurrentGuess("");
+      return;
     }
 
     if (oneVOneGame.gameState) {
       const gameState = oneVOneGame.gameState;
       const isPlayerHostLocal = authUser && gameState.hostId === authUser.uid;
       const isSpeedrun = gameState.speedrun || false;
-      const isMyTurn =
-        gameState.currentTurn === (isPlayerHostLocal ? "host" : "guest");
-
-      if (!isSpeedrun && !isMyTurn) {
-        setTimedMessage("Not your turn!", 3000);
-        return;
-      }
 
       const solutionArray =
         Array.isArray(gameState.solutions) && gameState.solutions.length > 0
@@ -330,19 +320,7 @@ export default function GameMultiplayer() {
       const myFinished = mySolvedAll || (!isSpeedrun && myGuesses.length >= maxTurns);
 
       if (myFinished) {
-        if (!isSpeedrun) {
-          try {
-            await oneVOneGame.switchTurn(gameCode);
-            setTimedMessage(
-              "You have already finished! Switching turn...",
-              2000
-            );
-          } catch (error) {
-            setTimedMessage(error.message || "Failed to switch turn", 3000);
-          }
-        } else {
-          setTimedMessage("You have already finished!", 2000);
-        }
+        setTimedMessage("You have already finished!", 2000);
         return;
       }
 
@@ -579,6 +557,7 @@ export default function GameMultiplayer() {
               ? oneVOneGame.gameState.hostId === authUser.uid
               : false
           }
+          currentUserId={authUser ? authUser.uid : null}
           onRematch={async () => {
             if (!gameCode) return;
             try {

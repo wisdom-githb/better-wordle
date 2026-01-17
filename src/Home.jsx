@@ -4,10 +4,13 @@ import { Helmet } from "react-helmet-async";
 import "./Home.css";
 import Modal from "./components/Modal";
 import SiteHeader from "./components/SiteHeader";
+import { useAuth } from "./hooks/useAuth";
 
 const FeedbackModal = lazy(() => import("./components/FeedbackModal"));
 const MultiplayerModal = lazy(() => import("./components/MultiplayerModal"));
 import { loadJSON, saveJSON, makeDailyKey, makeMarathonKey, marathonMetaKey, makeSolvedKey, removeKey } from "./lib/persist";
+import { database } from "./config/firebase";
+import { ref, get, update } from "firebase/database";
 
 const BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
 
@@ -52,23 +55,71 @@ export default function Home({
   const [showVerifyEmailModal, setShowVerifyEmailModal] = useState(false);
   const [verifyEmailAddress, setVerifyEmailAddress] = useState("");
 
+  const { user: authUser } = useAuth();
+
   // Track separate stage indices for standard and speedrun marathon for display.
   const [marathonStandardIndexUI, setMarathonStandardIndexUI] = useState(0);
   const [marathonSpeedrunIndexUI, setMarathonSpeedrunIndexUI] = useState(0);
 
-  // Initialize stage indices from persisted marathon meta on mount.
+  // Initialize stage indices from persisted marathon meta on mount. For
+  // signed-in users we prefer the server copy so stage numbers stay in sync
+  // across devices, falling back to local storage when offline or on error.
   useEffect(() => {
-    const standardMeta = loadJSON(marathonMetaKey(false), null);
-    const speedrunMeta = loadJSON(marathonMetaKey(true), null);
+    let isMounted = true;
 
-    const standardIndex =
-      standardMeta && typeof standardMeta.index === "number" ? standardMeta.index : 0;
-    const speedrunIndex =
-      speedrunMeta && typeof speedrunMeta.index === "number" ? speedrunMeta.index : 0;
+    const loadMetaFor = async (speedrunEnabledFlag) => {
+      const metaKey = marathonMetaKey(speedrunEnabledFlag);
+      let meta = null;
 
-    setMarathonStandardIndexUI(standardIndex);
-    setMarathonSpeedrunIndexUI(speedrunIndex);
-  }, []);
+      if (authUser) {
+        try {
+          const metaRef = ref(
+            database,
+            `users/${authUser.uid}/singlePlayer/meta/${metaKey}`,
+          );
+          const snap = await get(metaRef);
+          if (snap.exists()) {
+            meta = snap.val() || null;
+            // Mirror server meta into local storage so GameSinglePlayer can
+            // pick it up even when we navigate directly.
+            if (meta) {
+              saveJSON(metaKey, meta);
+            }
+          }
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error("Failed to load remote marathon meta for home", err);
+        }
+      }
+
+      if (!meta) {
+        meta = loadJSON(metaKey, null);
+      }
+
+      return meta;
+    };
+
+    (async () => {
+      const [standardMeta, speedrunMeta] = await Promise.all([
+        loadMetaFor(false),
+        loadMetaFor(true),
+      ]);
+
+      if (!isMounted) return;
+
+      const standardIndex =
+        standardMeta && typeof standardMeta.index === "number" ? standardMeta.index : 0;
+      const speedrunIndex =
+        speedrunMeta && typeof speedrunMeta.index === "number" ? speedrunMeta.index : 0;
+
+      setMarathonStandardIndexUI(standardIndex);
+      setMarathonSpeedrunIndexUI(speedrunIndex);
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authUser]);
   
   const marathonMaxLabel = useMemo(() => marathonLevels[marathonLevels.length - 1], [marathonLevels]);
   const currentStandardBoards = useMemo(
@@ -96,13 +147,33 @@ export default function Home({
   const handleResetDailyGuesses = useCallback(() => {
     // Clear saved in-progress and solved state for today's daily games
     // for the currently selected board count, for both standard and speedrun.
-    [false, true].forEach((speedrunEnabled) => {
-      const gameKey = makeDailyKey(dailyBoards, speedrunEnabled);
-      const solvedKey = makeSolvedKey("daily", dailyBoards, speedrunEnabled);
+    const updates = {};
+
+    [false, true].forEach((speedrunEnabledFlag) => {
+      const gameKey = makeDailyKey(dailyBoards, speedrunEnabledFlag);
+      const solvedKey = makeSolvedKey("daily", dailyBoards, speedrunEnabledFlag);
       removeKey(gameKey);
       removeKey(solvedKey);
+
+      if (authUser) {
+        updates[`users/${authUser.uid}/singlePlayer/gameStates/${gameKey}`] = null;
+        updates[`users/${authUser.uid}/singlePlayer/solvedStates/${solvedKey}`] = null;
+      }
     });
-  }, [dailyBoards]);
+
+    if (authUser && Object.keys(updates).length > 0) {
+      try {
+        const rootRef = ref(database);
+        update(rootRef, updates).catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error("Failed to clear remote daily progress", err);
+        });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("Failed to queue remote daily progress reset", err);
+      }
+    }
+  }, [dailyBoards, authUser]);
   
   const handleMarathonStandard = useCallback(() => {
     navigate(`/game/marathon`);
@@ -116,22 +187,45 @@ export default function Home({
   const handleResetMarathonGuesses = useCallback(() => {
     // Clear saved in-progress, meta, and solved state for today's marathon games
     // across all stages, for both standard and speedrun.
-    [false, true].forEach((speedrunEnabled) => {
-      const gameKey = makeMarathonKey(speedrunEnabled);
-      const metaKey = marathonMetaKey(speedrunEnabled);
+    const updates = {};
+
+    [false, true].forEach((speedrunEnabledFlag) => {
+      const gameKey = makeMarathonKey(speedrunEnabledFlag);
+      const metaKey = marathonMetaKey(speedrunEnabledFlag);
       removeKey(gameKey);
       removeKey(metaKey);
 
+      if (authUser) {
+        updates[`users/${authUser.uid}/singlePlayer/gameStates/${gameKey}`] = null;
+        updates[`users/${authUser.uid}/singlePlayer/meta/${metaKey}`] = null;
+      }
+
       marathonLevels.forEach((boards, index) => {
-        const solvedKey = makeSolvedKey("marathon", boards, speedrunEnabled, index);
+        const solvedKey = makeSolvedKey("marathon", boards, speedrunEnabledFlag, index);
         removeKey(solvedKey);
+        if (authUser) {
+          updates[`users/${authUser.uid}/singlePlayer/solvedStates/${solvedKey}`] = null;
+        }
       });
     });
+
+    if (authUser && Object.keys(updates).length > 0) {
+      try {
+        const rootRef = ref(database);
+        update(rootRef, updates).catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error("Failed to clear remote marathon progress", err);
+        });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("Failed to queue remote marathon progress reset", err);
+      }
+    }
 
     // Also reset the displayed stage indices back to the first stage.
     setMarathonStandardIndexUI(0);
     setMarathonSpeedrunIndexUI(0);
-  }, [marathonLevels]);
+  }, [marathonLevels, authUser]);
   
   const dailyTitleRight = useMemo(() => `${dailyBoards} board${dailyBoards > 1 ? "s" : ""}`, [dailyBoards]);
 

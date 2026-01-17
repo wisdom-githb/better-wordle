@@ -39,8 +39,10 @@ export function getMaxTurns(numBoards) {
 // Wordle-like scoring (greens first, then yellows)
 export function scoreGuess(guess, solution) {
   const result = Array(WORD_LENGTH).fill("grey");
-  const solArr = solution.split("");
-  const guessArr = guess.split("");
+  const safeGuess = typeof guess === "string" ? guess : "";
+  const safeSolution = typeof solution === "string" ? solution : "";
+  const solArr = safeSolution.split("");
+  const guessArr = safeGuess.split("");
   const used = Array(WORD_LENGTH).fill(false);
 
   for (let i = 0; i < WORD_LENGTH; i++) {
@@ -106,9 +108,17 @@ export function colorForMiniCell(status) {
 
 export function buildLetterMapFromGuesses(guesses) {
   const map = {};
+  // Be defensive: accept only arrays of guess objects. This protects against
+  // older or malformed saved state (including remote snapshots) where
+  // `guesses` might be null/undefined or not an array.
+  if (!Array.isArray(guesses)) {
+    return map;
+  }
+
   for (const g of guesses) {
+    if (!g || typeof g.word !== "string" || !Array.isArray(g.colors)) continue;
     const letters = g.word.split("");
-    for (let i = 0; i < letters.length; i++) {
+    for (let i = 0; i < letters.length && i < g.colors.length; i++) {
       const L = letters[i];
       const st = g.colors[i];
       map[L] = mergeStatus(map[L], st);
@@ -119,7 +129,12 @@ export function buildLetterMapFromGuesses(guesses) {
 
 export function getGreenPattern(guesses) {
   const pattern = Array(WORD_LENGTH).fill("");
+  if (!Array.isArray(guesses)) {
+    return pattern;
+  }
+
   for (const g of guesses) {
+    if (!g || typeof g.word !== "string" || !Array.isArray(g.colors)) continue;
     const letters = g.word.split("");
     for (let i = 0; i < WORD_LENGTH; i++) {
       if (g.colors[i] === "green") pattern[i] = letters[i];
@@ -130,12 +145,19 @@ export function getGreenPattern(guesses) {
 
 // Global turns used = max guess rows among boards
 export function getTurnsUsed(boards) {
-  if (!boards || boards.length === 0) return 0;
-  return Math.max(...boards.map((b) => b.guesses.length));
+  if (!Array.isArray(boards) || boards.length === 0) return 0;
+  let max = 0;
+  for (const b of boards) {
+    if (!b || !Array.isArray(b.guesses)) continue;
+    const len = b.guesses.length || 0;
+    if (len > max) max = len;
+  }
+  return max;
 }
 
 export function formatElapsed(ms) {
-  const total = Math.max(0, Math.floor(ms));
+  const base = typeof ms === "number" && Number.isFinite(ms) ? ms : 0;
+  const total = Math.max(0, Math.floor(base));
   const minutes = Math.floor(total / 60000);
   const seconds = Math.floor((total % 60000) / 1000);
   const tenths = Math.floor((total % 1000) / 100);
@@ -145,5 +167,9 @@ export function formatElapsed(ms) {
 }
 
 export function sumMs(rows) {
-  return rows.reduce((acc, r) => acc + (r.ms || 0), 0);
+  if (!Array.isArray(rows) || rows.length === 0) return 0;
+  return rows.reduce(
+    (acc, r) => acc + (typeof r?.ms === "number" && Number.isFinite(r.ms) ? r.ms : 0),
+    0,
+  );
 }

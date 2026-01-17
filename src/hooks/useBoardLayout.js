@@ -7,9 +7,10 @@ import { buildLetterMapFromGuesses } from "../lib/wordle";
  * - Computes a square-ish grid (cols/rows) for board layout.
  */
 export function useBoardLayout(boards, selectedBoardIndex, numBoards) {
+  const safeBoards = Array.isArray(boards) ? boards : [];
   const perBoardLetterMaps = useMemo(
-    () => boards.map((b) => buildLetterMapFromGuesses(b.guesses)),
-    [boards]
+    () => safeBoards.map((b) => buildLetterMapFromGuesses(Array.isArray(b?.guesses) ? b.guesses : [])),
+    [safeBoards]
   );
 
   const focusedLetterMap = useMemo(() => {
@@ -18,13 +19,13 @@ export function useBoardLayout(boards, selectedBoardIndex, numBoards) {
   }, [selectedBoardIndex, perBoardLetterMaps]);
 
   const gridCols = useMemo(
-    () => Math.ceil(Math.sqrt(Math.max(numBoards || boards.length || 1, 1))),
-    [numBoards, boards.length]
+    () => Math.ceil(Math.sqrt(Math.max(numBoards || safeBoards.length || 1, 1))),
+    [numBoards, safeBoards.length]
   );
 
   const gridRows = useMemo(
-    () => Math.ceil((numBoards || boards.length || 1) / gridCols),
-    [numBoards, boards.length, gridCols]
+    () => Math.ceil((numBoards || safeBoards.length || 1) / gridCols),
+    [numBoards, safeBoards.length, gridCols]
   );
 
   return { perBoardLetterMaps, focusedLetterMap, gridCols, gridRows };

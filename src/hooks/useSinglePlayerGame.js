@@ -4,6 +4,9 @@ import { getMaxTurns, createBoardState } from "../lib/wordle";
 import { loadWordLists } from "../lib/wordLists";
 import { selectDailyWords, getCurrentDateString } from "../lib/dailyWords";
 import { FLIP_COMPLETE_MS } from "../lib/gameConstants";
+import { useAuth } from "./useAuth";
+import { database } from "../config/firebase";
+import { ref, get } from "firebase/database";
 
 /**
  * Encapsulates single-player (non-1v1) game initialization and resume logic.
@@ -35,7 +38,13 @@ export function useSinglePlayerGame({
   setShowPopup,
   setTimedMessage,
 }) {
+  const { user: authUser, loading: authLoading } = useAuth();
+
   useEffect(() => {
+    // Defer initialization until Firebase auth has resolved so we know
+    // whether to use remote or local state.
+    if (authLoading) return;
+
     async function initGame() {
       // Skip regular init for 1v1 mode
       if (isOneVOne) return;
@@ -52,7 +61,32 @@ export function useSinglePlayerGame({
           mode === "marathon" ? marathonIndex : null,
           dateString
         );
-        const solvedState = loadJSON(solvedKey, null);
+
+        let solvedState = null;
+
+        // For signed-in users, prefer the server-stored solved snapshot so
+        // progress stays consistent across devices.
+        if (authUser) {
+          try {
+            const solvedRef = ref(
+              database,
+              `users/${authUser.uid}/singlePlayer/solvedStates/${solvedKey}`
+            );
+            const snap = await get(solvedRef);
+            if (snap.exists()) {
+              solvedState = snap.val() || null;
+            }
+          } catch (err) {
+            // Remote failures should never block local play; fall back to
+            // local storage when the server lookup fails.
+            // eslint-disable-next-line no-console
+            console.error("Failed to load remote solved state, falling back to local", err);
+          }
+        }
+
+        if (!solvedState) {
+          solvedState = loadJSON(solvedKey, null);
+        }
 
         // Only use a solved state if it matches the current configuration.
         // This prevents old/local-storage states with a different board count
@@ -155,7 +189,29 @@ export function useSinglePlayerGame({
 
         // Check if there's an incomplete game state to resume
         const gameStateKey = getGameStateKey();
-        const savedGameState = loadJSON(gameStateKey, null);
+        let savedGameState = null;
+
+        // For signed-in users, prefer any server-stored in‑progress state so
+        // they can resume daily/marathon games across devices.
+        if (authUser) {
+          try {
+            const stateRef = ref(
+              database,
+              `users/${authUser.uid}/singlePlayer/gameStates/${gameStateKey}`
+            );
+            const snap = await get(stateRef);
+            if (snap.exists()) {
+              savedGameState = snap.val() || null;
+            }
+          } catch (err) {
+            // eslint-disable-next-line no-console
+            console.error("Failed to load remote game state, falling back to local", err);
+          }
+        }
+
+        if (!savedGameState) {
+          savedGameState = loadJSON(gameStateKey, null);
+        }
 
         const savedBoardsCount =
           savedGameState && Array.isArray(savedGameState.boards)
@@ -266,5 +322,5 @@ export function useSinglePlayerGame({
 
     initGame();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOneVOne, numBoards, mode, speedrunEnabled, marathonIndex]);
+  }, [isOneVOne, numBoards, mode, speedrunEnabled, marathonIndex, authUser, authLoading]);
 }

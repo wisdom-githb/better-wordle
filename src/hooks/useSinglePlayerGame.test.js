@@ -20,6 +20,12 @@ vi.mock('../lib/gameConstants', () => ({
   FLIP_COMPLETE_MS: 100,
 }));
 
+// Ensure useSinglePlayerGame behaves as a guest during these tests so it
+// never attempts to talk to Firebase.
+vi.mock('./useAuth', () => ({
+  useAuth: () => ({ user: null, loading: false }),
+}));
+
 import { loadJSON } from '../lib/persist';
 
 describe('useSinglePlayerGame resumed completed stage behaviour', () => {

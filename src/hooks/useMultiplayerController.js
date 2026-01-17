@@ -193,14 +193,14 @@ export function useMultiplayerController({
   useEffect(() => {
     async function initOneVOne() {
       if (!isOneVOne || !authUser) {
-        // If not 1v1 mode or not authenticated, don't block loading
+        // If not multiplayer mode or not authenticated, don't block loading
         if (!isOneVOne) return;
-        // If 1v1 but not authenticated, wait for auth
+        // If multiplayer but not authenticated, wait for auth
         return;
       }
 
       if (!isVerifiedUser) {
-        setTimedMessage('You must verify your email or sign in with Google to play 1v1.', 8000);
+        setTimedMessage('You must verify your email or sign in with Google to play Multiplayer Mode.', 8000);
         return;
       }
 
@@ -305,9 +305,7 @@ export function useMultiplayerController({
     boardsParam,
     speedrunEnabled,
     maxPlayersParam,
-    publicParam,
-    maxPlayersParam,
-    publicParam,
+    isPublicParam,
     maxOneVOneBoards,
     setAllowedSet,
     setIsLoading,
@@ -446,36 +444,9 @@ export function useMultiplayerController({
         // Do not force-close showPopup here; it is controlled elsewhere.
       }
 
-      // Auto-switch turn if current player has finished (solved or exhausted guesses)
-      // BUT only while the opponent is *not* finished. Once both players are done,
-      // we stop switching turns to avoid ping-ponging currentTurn after game end.
-      // This logic is only used in non-speedrun mode; speedrun has no turns.
-      // It only applies to true 2-player games; multi-player rooms (>2) have no turns.
-      if (!gameState.speedrun && status === 'playing' && solutionArray.length > 0 && authUser && !isMultiRoom) {
-        const currentTurn = gameState.currentTurn;
-        const myGuesses = getCurrentPlayerGuesses(gameState);
-        const opponentGuesses = getOpponentGuesses(gameState);
-
-        // Finished = all boards solved OR, in non-speedrun, ran out of guesses
-        const mySolvedAll = solutionArray.every((sol) => myGuesses.includes(sol));
-        const opponentSolvedAll = solutionArray.every((sol) => opponentGuesses.includes(sol));
-
-        const myFinished = mySolvedAll || (!isSpeedrun && myGuesses.length >= maxTurns);
-        const opponentFinished = opponentSolvedAll || (!isSpeedrun && opponentGuesses.length >= maxTurns);
-
-        const isMyTurn = currentTurn === (isPlayerHost ? 'host' : 'guest');
-
-        // If it's my turn, I've finished, and opponent is *not* finished yet,
-        // automatically pass the turn. Once opponentFinished is true, we no longer
-        // auto-switch, preventing infinite turn flipping.
-        if (isMyTurn && myFinished && !opponentFinished) {
-          try {
-            await oneVOneGame.switchTurn(gameCode || '');
-          } catch (error) {
-            // Ignore errors - might already be switching
-          }
-        }
-      }
+      // Multiplayer is now fully free-for-all (no turn order). We no longer
+      // auto-switch currentTurn; instead we only care about whether players
+      // have finished solving their boards for purposes of ending the game.
 
       // Check if all required players are done (either solved or exhausted guesses)
       // Only end game if everyone is done AND game is still playing.

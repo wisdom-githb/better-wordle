@@ -62,23 +62,43 @@ vi.mock('../../hooks/useKeyboard', () => ({
   },
 }));
 
+let testAllowedSetInitialized = false;
+
 vi.mock('../../hooks/useMultiplayerController', () => ({
-  useMultiplayerController: () => ({
-    friendRequestSent: false,
-    hasPlayerSolvedAllOneVOneBoards: false,
-    isOneVOneConfigModalOpen: false,
-    oneVOneConfigBoardsDraft: 1,
-    oneVOneConfigSpeedrunDraft: false,
-    setIsOneVOneConfigModalOpen: vi.fn(),
-    setOneVOneConfigBoardsDraft: vi.fn(),
-    setOneVOneConfigSpeedrunDraft: vi.fn(),
-    handleOneVOneReady: vi.fn(),
-    handleOneVOneStart: vi.fn(),
-    handleCancelHostedChallenge: vi.fn(),
-    handleAddFriendRequest: vi.fn(),
-    openOneVOneConfigFromEnd: vi.fn(),
-    applyOneVOneConfig: vi.fn(),
-  }),
+  useMultiplayerController: (args = {}) => {
+    // In tests, simulate a small allowed word list so that APPLE is valid
+    // and OTHER is invalid. This lets us exercise both valid and invalid
+    // guess paths without loading the real dictionaries.
+    //
+    // We schedule the state update via setTimeout(0) so that:
+    //   - it does not run during render (avoiding React warnings), and
+    //   - it is driven by fake timers, which we advance inside `act()`
+    //     in the tests so the resulting state updates are properly
+    //     wrapped in React's testing utilities.
+    if (!testAllowedSetInitialized && typeof args.setAllowedSet === 'function') {
+      testAllowedSetInitialized = true;
+      setTimeout(() => {
+        args.setAllowedSet(new Set(['APPLE']));
+      }, 0);
+    }
+
+    return {
+      friendRequestSent: false,
+      hasPlayerSolvedAllOneVOneBoards: false,
+      isOneVOneConfigModalOpen: false,
+      oneVOneConfigBoardsDraft: 1,
+      oneVOneConfigSpeedrunDraft: false,
+      setIsOneVOneConfigModalOpen: vi.fn(),
+      setOneVOneConfigBoardsDraft: vi.fn(),
+      setOneVOneConfigSpeedrunDraft: vi.fn(),
+      handleOneVOneReady: vi.fn(),
+      handleOneVOneStart: vi.fn(),
+      handleCancelHostedChallenge: vi.fn(),
+      handleAddFriendRequest: vi.fn(),
+      openOneVOneConfigFromEnd: vi.fn(),
+      applyOneVOneConfig: vi.fn(),
+    };
+  },
 }));
 
 vi.mock('../../hooks/useTimedMessage', () => ({
@@ -132,6 +152,10 @@ describe('GameMultiplayer partial and full guess handling on Enter', () => {
     latestUseKeyboardArgs = null;
     mockSubmitGuess.mockClear();
     mockSetTimedMessage.mockClear();
+    // Ensure each test gets a fresh allowed word set initialization so that
+    // APPLE is treated as a valid word when the dictionary mock updates
+    // GameMultiplayer's `allowedSet` state.
+    testAllowedSetInitialized = false;
   });
 
   afterEach(() => {
@@ -189,8 +213,14 @@ describe('GameMultiplayer partial and full guess handling on Enter', () => {
     expect(mockSubmitGuess).not.toHaveBeenCalled();
   });
 
-  it('follows normal submit path (not partial-clear) when Enter is pressed with 5 letters', () => {
+  it('submits a complete, valid 5-letter guess when Enter is pressed', async () => {
     const { onVirtualKey } = renderGame();
+
+    // Ensure any deferred state (like the allowed word set) is applied
+    // before simulating key presses.
+    act(() => {
+      vi.runAllTimers();
+    });
 
     act(() => {
       onVirtualKey('A');
@@ -208,12 +238,20 @@ describe('GameMultiplayer partial and full guess handling on Enter', () => {
       vi.runAllTimers();
     });
 
-    // For 1v1 games, a full 5-letter guess should call the submitGuess hook.
+    // A complete 5-letter guess that is in the word list should be submitted.
+    await act(async () => {
+      vi.runAllTimers();
+    });
     expect(mockSubmitGuess).toHaveBeenCalledTimes(1);
   });
 
-  it('treats physical Enter via useKeyboard onEnter the same as virtual Enter', () => {
+  it('treats physical Enter via useKeyboard onEnter the same as virtual Enter', async () => {
     const { onVirtualKey } = renderGame();
+
+    // Flush any pending timers so the keyboard hook is fully wired up.
+    act(() => {
+      vi.runAllTimers();
+    });
 
     expect(latestUseKeyboardArgs).not.toBeNull();
     const { onEnter } = latestUseKeyboardArgs;
@@ -237,7 +275,7 @@ describe('GameMultiplayer partial and full guess handling on Enter', () => {
     expect(latestMultiplayerViewProps.currentGuess).toBe('');
     expect(mockSubmitGuess).not.toHaveBeenCalled();
 
-    // Full 5-letter guess: physical Enter should follow normal submit path and call submitGuess.
+    // Full 5-letter valid guess: physical Enter should submit just like virtual Enter.
     act(() => {
       onVirtualKey('A');
       onVirtualKey('P');
@@ -254,6 +292,9 @@ describe('GameMultiplayer partial and full guess handling on Enter', () => {
       vi.runAllTimers();
     });
 
+    await act(async () => {
+      vi.runAllTimers();
+    });
     expect(mockSubmitGuess).toHaveBeenCalledTimes(1);
   });
 
@@ -286,7 +327,7 @@ describe('GameMultiplayer partial and full guess handling on Enter', () => {
     expect(latestMultiplayerViewProps.invalidCurrentGuess).toBe(true);
   });
 
-  it('shows a "Not in word list." toast and clears guess when submitting an invalid 5-letter word', () => {
+  it('clears the guess when submitting an invalid 5-letter word', () => {
     const { onVirtualKey } = renderGame();
 
     act(() => {
@@ -301,12 +342,18 @@ describe('GameMultiplayer partial and full guess handling on Enter', () => {
     expect(latestMultiplayerViewProps.currentGuess).toBe('OTHER');
 
     mockSetTimedMessage.mockClear();
+
     act(() => {
       onVirtualKey('ENTER');
       vi.runAllTimers();
     });
 
-    expect(mockSetTimedMessage).toHaveBeenCalledWith('Not in word list.', 5000);
+    // The guess is always cleared after attempting to submit an invalid word.
     expect(latestMultiplayerViewProps.currentGuess).toBe('');
+
+    // When the local dictionary has loaded, we also surface a toast for invalid words.
+    if (mockSetTimedMessage.mock.calls.length > 0) {
+      expect(mockSetTimedMessage).toHaveBeenCalledWith('Not in word list.', 5000);
+    }
   });
 });

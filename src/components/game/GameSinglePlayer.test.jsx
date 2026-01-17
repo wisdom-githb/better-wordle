@@ -54,14 +54,20 @@ vi.mock('../../hooks/useShare', () => ({
   useShare: () => ({ handleShare: vi.fn() }),
 }));
 
-vi.mock('../../lib/persist', () => ({
-  loadJSON: vi.fn(() => ({ index: 0, cumulativeMs: 0, stageTimes: [] })),
-  saveJSON: vi.fn(),
-  makeSolvedKey: vi.fn(() => 'SOLVED_KEY'),
-  makeDailyKey: vi.fn(() => 'DAILY_KEY'),
-  makeMarathonKey: vi.fn(() => 'MARATHON_KEY'),
-  marathonMetaKey: vi.fn(() => 'META_KEY'),
-}));
+vi.mock('../../lib/persist', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    // Override only the pieces we need to control in these tests while keeping
+    // other helpers like loadStreak/makeStreakKey/updateStreakOnWin available.
+    loadJSON: vi.fn(() => ({ index: 0, cumulativeMs: 0, stageTimes: [] })),
+    saveJSON: vi.fn(),
+    makeSolvedKey: vi.fn(() => 'SOLVED_KEY'),
+    makeDailyKey: vi.fn(() => 'DAILY_KEY'),
+    makeMarathonKey: vi.fn(() => 'MARATHON_KEY'),
+    marathonMetaKey: vi.fn(() => 'META_KEY'),
+  };
+});
 
 vi.mock('../../hooks/useAuth', () => ({
   useAuth: () => mockUseAuth(),
