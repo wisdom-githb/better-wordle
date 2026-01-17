@@ -17,8 +17,6 @@ export default function MultiplayerModal({ isOpen, onRequestClose, showConfigFir
   const [isSpeedrun, setIsSpeedrun] = useState(false);
   const [maxPlayers, setMaxPlayers] = useState(2);
   const [isPublic, setIsPublic] = useState(true);
-  const [maxPlayers, setMaxPlayers] = useState(2);
-  const [isPublic, setIsPublic] = useState(true);
 
   const handleHost = useCallback(() => {
     // Show config modal first
@@ -36,7 +34,6 @@ export default function MultiplayerModal({ isOpen, onRequestClose, showConfigFir
     setShowConfig(false);
     onConfigClose?.();
     onRequestClose();
-  }, [navigate, onRequestClose, isSpeedrun, numBoards, maxPlayers, isPublic, onConfigClose]);
   }, [navigate, onRequestClose, isSpeedrun, numBoards, maxPlayers, isPublic, onConfigClose]);
 
   const handleJoin = useCallback(() => {
@@ -58,7 +55,6 @@ export default function MultiplayerModal({ isOpen, onRequestClose, showConfigFir
         <Modal isOpen={isOpen} onRequestClose={onRequestClose}>
           <div style={{ padding: '24px' }}>
             <h2 style={{ margin: 0, marginBottom: '16px', fontSize: 20, fontWeight: 'bold', color: '#ffffff' }}>
-              Multiplayer Mode
               Multiplayer Mode
             </h2>
             <div style={{ textAlign: 'center', padding: '20px 0' }}>
@@ -123,7 +119,6 @@ export default function MultiplayerModal({ isOpen, onRequestClose, showConfigFir
       <Modal isOpen={isOpen && !showConfig} onRequestClose={onRequestClose} disableAutoFocus>
       <div style={{ padding: '24px' }}>
         <h2 style={{ margin: 0, marginBottom: '24px', fontSize: 20, fontWeight: 'bold', color: '#ffffff' }}>
-          Multiplayer Mode
           Multiplayer Mode
         </h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>

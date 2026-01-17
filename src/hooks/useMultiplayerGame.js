@@ -278,9 +278,8 @@ const createGame = useCallback(async (options = {}) => {
       }
 
       const gameData = snapshot.val();
-      const players = gameData.players || {};
-      const isHost = gameData.hostId === user.uid;
       const players = gameData.players || null;
+      const isHost = gameData.hostId === user.uid;
 
       const updateData = {};
 
@@ -438,14 +437,12 @@ const createGame = useCallback(async (options = {}) => {
       }
 
       const gameData = snapshot.val();
-      const players = gameData.players || {};
-      const playerIds = Object.keys(players);
-      const playerCount = playerIds.length || ((gameData.hostId ? 1 : 0) + (gameData.guestId ? 1 : 0));
+      const players = gameData.players || null;
+      const playerCount = players
+        ? Object.keys(players).length
+        : ((gameData.hostId ? 1 : 0) + (gameData.guestId ? 1 : 0));
 
       const isHost = gameData.hostId === user.uid;
-      const players = gameData.players || null;
-      const playerCount = players ? Object.keys(players).length : 0;
-
       const isSpeedrun = gameData.speedrun || false;
       const isMultiFreeplay = players && playerCount > 2;
 

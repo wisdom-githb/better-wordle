@@ -348,7 +348,6 @@ export default function MultiplayerGameView({
       ? friends.some((f) => f.id === opponentId)
       : false;
 
-  const playersMap = gameState.players || null;
   const playerIds = playersMap ? Object.keys(playersMap) : [];
   const isMultiRoom = !!playersMap && playerIds.length > 2;
 

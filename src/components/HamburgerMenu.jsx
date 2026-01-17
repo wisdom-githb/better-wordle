@@ -5,7 +5,6 @@ import Modal from "./Modal";
 
 const FriendsModal = lazy(() => import("./FriendsModal"));
 const OpenRoomsModal = lazy(() => import("./OpenRoomsModal"));
-const OpenRoomsModal = lazy(() => import("./OpenRoomsModal"));
 
 export default function HamburgerMenu({ onOpenFeedback }) {
   const navigate = useNavigate();
