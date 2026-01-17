@@ -1,19 +1,21 @@
 import React, { useState, Suspense, lazy } from "react";
 import GameHeader from "./GameHeader";
-import OneVOneWaitingRoom from "./OneVOneWaitingRoom";
+import MultiplayerWaitingRoom from "./MultiplayerWaitingRoom";
 import OpponentBoardView from "./OpponentBoardView";
 import GameBoard from "./GameBoard";
 import SiteHeader from "../SiteHeader";
+import MultiplayerChat from "./MultiplayerChat";
 
 const AuthModal = lazy(() => import("../AuthModal"));
 import { KEYBOARD_HEIGHT, formatElapsed as formatElapsedLib, scoreGuess } from "../../lib/wordle";
 import { FLIP_MS } from "../../lib/gameConstants";
+import { MULTIPLAYER_WAITING_TIMEOUT_MS } from "../../lib/multiplayerConfig";
 
 /**
- * Presentation component for all 1v1-specific game views.
+ * Presentation component for all multiplayer-specific game views (formerly 1v1).
  * Handles: waiting room, error/loading states, dual boards, scores, and rematch button.
  */
-export default function OneVOneGameView({
+export default function MultiplayerGameView({
   mode,
   gameCode,
   authUser,
@@ -39,10 +41,13 @@ export default function OneVOneGameView({
   setShowFeedbackModal,
   setTimedMessage,
   oneVOneNowMs,
+  waitingNowMs,
   initialNumBoards,
   onChangeMode,
   friends,
   onCancelChallenge,
+  onInviteFriend,
+  onUpdateConfig,
 }) {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const gameState = oneVOneGame.gameState;
@@ -75,7 +80,7 @@ export default function OneVOneGameView({
     );
   }
 
-  // If the user is not signed in, show a dedicated login-required screen for 1v1.
+  // If the user is not signed in, show a dedicated login-required screen for Multiplayer Mode.
   if (!authUser) {
     return (
       <>
@@ -107,7 +112,7 @@ export default function OneVOneGameView({
                 marginBottom: 16,
               }}
             >
-              Sign in to play 1v1 games
+              Sign in to play Multiplayer Mode
             </h2>
             <p
               style={{
@@ -118,7 +123,7 @@ export default function OneVOneGameView({
                 lineHeight: 1.6,
               }}
             >
-              A Better Wordle account is required to host or join 1v1 games.
+              A Better Wordle account is required to host or join multiplayer rooms.
             </p>
             <div
               style={{
@@ -175,7 +180,7 @@ export default function OneVOneGameView({
             textAlign: "center",
           }}
         >
-          <h2 style={{ fontSize: 22, fontWeight: "bold", marginBottom: 16 }}>1v1 Challenge</h2>
+          <h2 style={{ fontSize: 22, fontWeight: "bold", marginBottom: 16 }}>Multiplayer Challenge</h2>
           <p style={{ fontSize: 16, color: "#d7dadc", marginBottom: 16 }}>
             {declinedBy} has declined the challenge.
           </p>
@@ -207,6 +212,7 @@ export default function OneVOneGameView({
       !!opponentId && Array.isArray(friends)
         ? friends.some((f) => f.id === opponentId)
         : false;
+    const createdAt = typeof gameState.createdAt === "number" ? gameState.createdAt : null;
 
     return (
       <div style={{ minHeight: "100vh", backgroundColor: "#121213", color: "#ffffff" }}>
@@ -216,7 +222,7 @@ export default function OneVOneGameView({
           numBoards={initialNumBoards || 1}
           speedrunEnabled={false}
         />
-        <OneVOneWaitingRoom
+        <MultiplayerWaitingRoom
           gameCode={gameCode || ""}
           gameState={gameState}
           isHost={isPlayerHost}
@@ -225,6 +231,11 @@ export default function OneVOneGameView({
           friendRequestSent={friendRequestSent}
           onShareCode={onShareCode}
           onCancelChallenge={isPlayerHost ? onCancelChallenge : undefined}
+          createdAt={createdAt}
+          waitingNowMs={waitingNowMs}
+          waitingTimeoutMs={MULTIPLAYER_WAITING_TIMEOUT_MS}
+          initialBoards={initialNumBoards || 1}
+          onUpdateConfig={isPlayerHost ? onUpdateConfig : undefined}
           onAddFriend={
             !isFriendWithOpponent
               ? (opponentName) => {
@@ -233,7 +244,12 @@ export default function OneVOneGameView({
                 }
               : undefined
           }
+          friends={friends}
+          authUserId={authUser ? authUser.uid : null}
+          onInviteFriend={onInviteFriend}
         />
+
+        <MultiplayerChat gameCode={gameCode || ""} authUser={authUser} />
       </div>
     );
   }
@@ -321,6 +337,26 @@ export default function OneVOneGameView({
       ? friends.some((f) => f.id === opponentId)
       : false;
 
+  const playersMap = gameState.players || null;
+  const playerIds = playersMap ? Object.keys(playersMap) : [];
+  const isMultiRoom = !!playersMap && playerIds.length > 2;
+
+  // Total room lifetime (for expiry display)
+  const createdAt = typeof gameState.createdAt === "number" ? gameState.createdAt : null;
+  let expiryLabel = null;
+  if (createdAt) {
+    const ageMs = waitingNowMs - createdAt;
+    const remainingMs = Math.max(0, MULTIPLAYER_WAITING_TIMEOUT_MS - ageMs);
+    const totalSeconds = Math.floor(remainingMs / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (minutes > 0) {
+      expiryLabel = `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
+    } else {
+      expiryLabel = `${seconds}s`;
+    }
+  }
+
   // Show all solution words in header (similar to multi-board daily)
   const solutionList = Array.isArray(gameState.solutions) && gameState.solutions.length > 0
     ? gameState.solutions
@@ -364,8 +400,10 @@ export default function OneVOneGameView({
   const myGuessCount = myGuesses.length;
   const opponentGuessCount = opponentGuesses.length;
 
-  const currentTurnLabel = isSpeedrun
-    ? "Speedrun: both players guessing"
+  const currentTurnLabel = isSpeedrun || isMultiRoom
+    ? isMultiRoom
+      ? "Multiplayer: everyone guessing"
+      : "Speedrun: both players guessing"
     : gameState.currentTurn === (isPlayerHost ? "host" : "guest")
     ? "Your turn"
     : "Opponent's turn";
@@ -452,6 +490,18 @@ export default function OneVOneGameView({
               width: "100%",
             }}
           >
+            {expiryLabel && (
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "#9ca3af",
+                  textAlign: "center",
+                  marginBottom: 4,
+                }}
+              >
+                Room expires in {expiryLabel}.
+              </div>
+            )}
             {/* Status bar: boards, guesses, timer */}
             <div
               style={{
@@ -691,49 +741,20 @@ export default function OneVOneGameView({
               </div>
             )}
 
-            {/* Boards: for each word, show opponent + your board side by side */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "24px",
-                width: "100%",
-              }}
-            >
-              {boards.map((board, index) => {
-                const solutionForBoard = board.solution || gameState.solution;
-                
-                // Build opponent colors for this board from opponent guesses.
-                // Once the opponent has solved THIS board (guessed this
-                // solution), we stop showing additional guesses on that
-                // board. This mirrors how we treat the local player's
-                // own boards so progress per board is frozen at solve.
-                const firstOpponentSolveIndex = opponentGuesses.indexOf(solutionForBoard);
-                const opponentLimit =
-                  firstOpponentSolveIndex === -1
-                    ? opponentGuesses.length
-                    : firstOpponentSolveIndex + 1;
-
-                const opponentColors = opponentGuesses.slice(0, opponentLimit).map((word) => {
-                  const colorStrings = scoreGuess(word, solutionForBoard);
-                  return colorStrings.map((c) =>
-                    c === "green" ? 2 : c === "yellow" ? 1 : 0
-                  );
-                });
-
-                return (
-                  <div
-                    key={index}
-                    style={{
-                      display: "flex",
-                      gap: "24px",
-                      justifyContent: "center",
-                      flexWrap: "wrap",
-                      width: "100%",
-                    }}
-                  >
-                    {/* Player Board for this word (left) */}
-                    <div style={{ flex: "0 0 auto", width: "auto" }}>
+            {/* Boards and opponent visibility */}
+            {isMultiRoom ? (
+              <>
+                {/* Your boards only */}
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "24px",
+                    width: "100%",
+                  }}
+                >
+                  {boards.map((board, index) => (
+                    <div key={index} style={{ width: "100%" }}>
                       <div
                         style={{
                           fontSize: 14,
@@ -761,38 +782,225 @@ export default function OneVOneGameView({
                           boardRefs.current[index] = el;
                         }}
                         speedrunEnabled={isSpeedrun}
-                        isCurrentTurn={isMyTurn}
+                        isCurrentTurn={true}
                       />
                     </div>
+                  ))}
+                </div>
 
-                    {/* Opponent Board for this word (right) */}
-                    <div style={{ flex: "0 0 auto", width: "auto" }}>
-                      <div
-                        style={{
-                          fontSize: 14,
-                          color: "#818384",
-                          marginBottom: "8px",
-                          textAlign: "center",
-                        }}
-                      >
-                        Opponent's Board {boards.length > 1 ? `#${index + 1}` : ""}
-                      </div>
-                      <OpponentBoardView
-                        opponentColors={opponentColors}
-                        isActive={!isSpeedrun && !isMyTurn && gameState.status === "playing"}
-                        opponentGuesses={opponentGuesses}
-                        solution={solutionForBoard}
-                        maxTurns={maxTurns}
-                        playerSolved={board.isSolved}
-                        hideLetters={hideOpponentLetters}
-                        boardNumber={index + 1}
-                        isSpeedrun={isSpeedrun}
-                      />
+                {/* Summaries for other players */}
+                {playersMap && playerIds.length > 1 && (
+                  <div
+                    style={{
+                      marginTop: 16,
+                      padding: "12px 12px 8px",
+                      borderRadius: 8,
+                      border: "1px solid #3a3a3c",
+                      background: "#18181a",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: "#d7dadc",
+                        marginBottom: 8,
+                        textAlign: "left",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      Other players (guesses · greens · yellows)
+                    </div>
+                    <div
+                      style={{
+                        maxHeight: 220,
+                        overflowY: "auto",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 6,
+                      }}
+                    >
+                      {playerIds
+                        .filter((pid) => pid !== (authUser ? authUser.uid : ""))
+                        .map((pid) => {
+                          const p = playersMap[pid];
+                          if (!p) return null;
+                          const guesses = p.guesses || [];
+
+                          // Aggregate green/yellow counts across all boards.
+                          let totalGreens = 0;
+                          let totalYellows = 0;
+                          guesses.forEach((word) => {
+                            solutionList.forEach((sol) => {
+                              const colors = scoreGuess(word, sol);
+                              colors.forEach((c) => {
+                                if (c === "green") totalGreens += 1;
+                                else if (c === "yellow") totalYellows += 1;
+                              });
+                            });
+                          });
+
+                          return (
+                            <div
+                              key={pid}
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                padding: "6px 8px",
+                                borderRadius: 6,
+                                background: "#202124",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  alignItems: "flex-start",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    color: "#ffffff",
+                                    fontSize: 13,
+                                    fontWeight: "bold",
+                                  }}
+                                >
+                                  {p.name || "Player"}
+                                </div>
+                                <div
+                                  style={{
+                                    color: "#818384",
+                                    fontSize: 11,
+                                  }}
+                                >
+                                  {guesses.length} guess{guesses.length === 1 ? "" : "es"}
+                                </div>
+                              </div>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: 10,
+                                  fontSize: 11,
+                                  color: "#d7dadc",
+                                }}
+                              >
+                                <span>
+                                  G: <strong>{totalGreens}</strong>
+                                </span>
+                                <span>
+                                  Y: <strong>{totalYellows}</strong>
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                )}
+              </>
+            ) : (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "24px",
+                  width: "100%",
+                }}
+              >
+                {boards.map((board, index) => {
+                  const solutionForBoard = board.solution || gameState.solution;
+                  
+                  // Build opponent colors for this board from opponent guesses.
+                  // Once the opponent has solved THIS board (guessed this
+                  // solution), we stop showing additional guesses on that
+                  // board. This mirrors how we treat the local player's
+                  // own boards so progress per board is frozen at solve.
+                  const firstOpponentSolveIndex = opponentGuesses.indexOf(solutionForBoard);
+                  const opponentLimit =
+                    firstOpponentSolveIndex === -1
+                      ? opponentGuesses.length
+                      : firstOpponentSolveIndex + 1;
+
+                  const opponentColors = opponentGuesses.slice(0, opponentLimit).map((word) => {
+                    const colorStrings = scoreGuess(word, solutionForBoard);
+                    return colorStrings.map((c) =>
+                      c === "green" ? 2 : c === "yellow" ? 1 : 0
+                    );
+                  });
+
+                  return (
+                    <div
+                      key={index}
+                      style={{
+                        display: "flex",
+                        gap: "24px",
+                        justifyContent: "center",
+                        flexWrap: "wrap",
+                        width: "100%",
+                      }}
+                    >
+                      {/* Player Board for this word (left) */}
+                      <div style={{ flex: "0 0 auto", width: "auto" }}>
+                        <div
+                          style={{
+                            fontSize: 14,
+                            color: "#818384",
+                            marginBottom: "8px",
+                            textAlign: "center",
+                          }}
+                        >
+                          Your Board {boards.length > 1 ? `#${index + 1}` : ""}
+                        </div>
+                        <GameBoard
+                          board={board}
+                          index={index}
+                          numBoards={boards.length}
+                          maxTurns={maxTurns}
+                          isUnlimited={isSpeedrun}
+                          currentGuess={currentGuess}
+                          invalidCurrentGuess={invalidCurrentGuess}
+                          revealId={revealId}
+                          isSelected={selectedBoardIndex === index}
+                          onToggleSelect={() =>
+                            setSelectedBoardIndex((prev) => (prev === index ? null : index))
+                          }
+                          boardRef={(el) => {
+                            boardRefs.current[index] = el;
+                          }}
+                          speedrunEnabled={isSpeedrun}
+                          isCurrentTurn={isMyTurn}
+                        />
+                      </div>
+
+                      {/* Opponent Board for this word (right) */}
+                      <div style={{ flex: "0 0 auto", width: "auto" }}>
+                        <div
+                          style={{
+                            fontSize: 14,
+                            color: "#818384",
+                            marginBottom: "8px",
+                            textAlign: "center",
+                          }}
+                        >
+                          Opponent's Board {boards.length > 1 ? `#${index + 1}` : ""}
+                        </div>
+                        <OpponentBoardView
+                          opponentColors={opponentColors}
+                          isActive={!isSpeedrun && !isMyTurn && gameState.status === "playing"}
+                          opponentGuesses={opponentGuesses}
+                          solution={solutionForBoard}
+                          maxTurns={maxTurns}
+                          playerSolved={board.isSolved}
+                          hideLetters={hideOpponentLetters}
+                          boardNumber={index + 1}
+                          isSpeedrun={isSpeedrun}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </main>
 
@@ -858,6 +1066,8 @@ export default function OneVOneGameView({
             </div>
           </div>
         )}
+
+        <MultiplayerChat gameCode={gameCode || ""} authUser={authUser} />
       </div>
     </>
   );

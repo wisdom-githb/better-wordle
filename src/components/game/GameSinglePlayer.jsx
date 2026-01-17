@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { loadJSON, saveJSON, makeSolvedKey, makeDailyKey, makeMarathonKey, marathonMetaKey } from "../../lib/persist";
+import { loadJSON, saveJSON, makeSolvedKey, makeDailyKey, makeMarathonKey, marathonMetaKey, makeStreakKey, loadStreak, updateStreakOnWin } from "../../lib/persist";
 import {
   WORD_LENGTH,
   scoreGuess,
@@ -15,6 +15,8 @@ import { generateShareText } from "../../lib/gameUtils";
 import { getCurrentDateString } from "../../lib/dailyWords";
 import { submitSpeedrunScore } from "../../hooks/useLeaderboard";
 import { useAuth } from "../../hooks/useAuth";
+import { database } from "../../config/firebase";
+import { ref, get, set } from "firebase/database";
 import { useTimedMessage } from "../../hooks/useTimedMessage";
 import { useShare } from "../../hooks/useShare";
 import { useSinglePlayerGame } from "../../hooks/useSinglePlayerGame";
@@ -24,6 +26,19 @@ import SinglePlayerGameView from "./SinglePlayerGameView";
 import "../../Game.css";
 
 const DEFAULT_MARATHON_LEVELS = [1, 2, 3, 4];
+
+function buildStreakLabel(mode, speedrunEnabled, streak) {
+  if (!streak) return null;
+  const current = typeof streak.current === "number" ? streak.current : 0;
+  const best = typeof streak.best === "number" ? streak.best : 0;
+
+  const modeLabel = mode === "daily" ? "Daily" : mode === "marathon" ? "Marathon" : "";
+  const variant = speedrunEnabled ? "Speedrun" : "Standard";
+  const prefix = modeLabel || "Streak";
+  const base = `${prefix} ${variant} streak`;
+
+  return `${base}: ${current} day${current === 1 ? "" : "s"} (best ${best})`;
+}
 
 export default function GameSinglePlayer({
   mode,
@@ -99,6 +114,61 @@ export default function GameSinglePlayer({
   const committedStageMsRef = useRef(0);
 
   const isMarathonSpeedrun = speedrunEnabled && mode === "marathon";
+
+  const [streakLabel, setStreakLabel] = useState(null);
+
+  // Initial streak label from local storage for fast paint / guests.
+  useEffect(() => {
+    const tracksStreak = (mode === "daily" && numBoards === 1) || mode === "marathon";
+    if (!tracksStreak) {
+      setStreakLabel(null);
+      return;
+    }
+    try {
+      const info = loadStreak(mode, speedrunEnabled);
+      setStreakLabel(buildStreakLabel(mode, speedrunEnabled, info));
+    } catch (err) {
+      console.error("Failed to load streak info", err);
+      setStreakLabel(null);
+    }
+  }, [mode, speedrunEnabled, numBoards]);
+
+  // For signed-in users, prefer the server-stored streak so it stays consistent
+  // across devices.
+  useEffect(() => {
+    const tracksStreak = (mode === "daily" && numBoards === 1) || mode === "marathon";
+    if (!tracksStreak) return;
+    if (!authUser) return;
+
+    let isMounted = true;
+    const modeKey = mode === "daily" ? "daily" : "marathon";
+    const variantKey = speedrunEnabled ? "speedrun" : "standard";
+    const remoteKey = `${modeKey}_${variantKey}`;
+
+    (async () => {
+      try {
+        const streakRef = ref(database, `users/${authUser.uid}/streaks/${remoteKey}`);
+        const snap = await get(streakRef);
+        if (!snap.exists()) return;
+        const remote = snap.val() || null;
+        if (!remote) return;
+
+        // Keep local cache in sync so offline views still show the right data.
+        const localKey = makeStreakKey(mode, speedrunEnabled);
+        saveJSON(localKey, remote);
+
+        if (isMounted) {
+          setStreakLabel(buildStreakLabel(mode, speedrunEnabled, remote));
+        }
+      } catch (err) {
+        console.error("Failed to load remote streak for game", err);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authUser, mode, speedrunEnabled, numBoards]);
 
   // Stage timer tick for speedrun modes.
   useEffect(() => {
@@ -427,6 +497,57 @@ export default function GameSinglePlayer({
 
       const isMarathonComplete =
         mode === "marathon" && marathonIndex >= marathonLevels.length - 1;
+
+      // Update streaks for supported configurations:
+      // - Daily: 1-board standard or speedrun
+      // - Marathon: standard or speedrun, but only once the full run is complete.
+      const shouldUpdateStreak =
+        (mode === "daily" && numBoards === 1) ||
+        (mode === "marathon" && isMarathonComplete);
+
+      if (shouldUpdateStreak) {
+        (async () => {
+          try {
+            const modeKey = mode === "daily" ? "daily" : "marathon";
+            const variantKey = speedrunEnabled ? "speedrun" : "standard";
+            const remoteKey = `${modeKey}_${variantKey}`;
+
+            // If a signed-in user has a server streak, hydrate local storage
+            // from it before applying the usual update logic so streaks are
+            // consistent across devices.
+            if (authUser) {
+              try {
+                const streakRef = ref(database, `users/${authUser.uid}/streaks/${remoteKey}`);
+                const snap = await get(streakRef);
+                if (snap.exists()) {
+                  const remoteExisting = snap.val() || null;
+                  if (remoteExisting) {
+                    const localKey = makeStreakKey(mode, speedrunEnabled);
+                    saveJSON(localKey, remoteExisting);
+                  }
+                }
+              } catch (inner) {
+                console.error("Failed to hydrate local streak from server", inner);
+              }
+            }
+
+            const streakInfo = updateStreakOnWin(mode, speedrunEnabled, dateString);
+
+            if (authUser) {
+              try {
+                const streakRef = ref(database, `users/${authUser.uid}/streaks/${remoteKey}`);
+                await set(streakRef, streakInfo);
+              } catch (inner) {
+                console.error("Failed to persist streak to server", inner);
+              }
+            }
+
+            setStreakLabel(buildStreakLabel(mode, speedrunEnabled, streakInfo));
+          } catch (err) {
+            console.error("Failed to update streak after win", err);
+          }
+        })();
+      }
 
       const shouldSubmit =
         speedrunEnabled && authUser && isVerifiedUser && allSolvedNow &&
@@ -902,13 +1023,14 @@ export default function GameSinglePlayer({
       handleVirtualKey={handleVirtualKey}
       allowNextStageAfterPopup={allowNextStageAfterPopup}
       showFeedbackModal={showFeedbackModal}
-      setShowFeedbackModal={setShowFeedbackModal}
-      setShowPopup={setShowPopup}
-      setShowOutOfGuesses={setShowOutOfGuesses}
-      showComments={shouldShowComments}
-      commentThreadId={commentsThreadId}
-      canShare={canShare}
-    />
+        setShowFeedbackModal={setShowFeedbackModal}
+        setShowPopup={setShowPopup}
+        setShowOutOfGuesses={setShowOutOfGuesses}
+        showComments={shouldShowComments}
+        commentThreadId={commentsThreadId}
+        canShare={canShare}
+        streakLabel={streakLabel}
+      />
     </>
   );
 }

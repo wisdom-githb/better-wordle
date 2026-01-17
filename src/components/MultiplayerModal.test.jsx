@@ -23,20 +23,20 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => navigateMock,
 }));
 
-import OneVOneModal from './OneVOneModal';
+import MultiplayerModal from './MultiplayerModal';
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('OneVOneModal', () => {
+describe('MultiplayerModal', () => {
   it('shows sign-in prompt and opens AuthModal when user is not signed in', () => {
     useAuthMock.mockReturnValue({ user: null, isVerifiedUser: false });
 
-    render(<OneVOneModal isOpen onRequestClose={vi.fn()} />);
+    render(<MultiplayerModal isOpen onRequestClose={vi.fn()} />);
 
-    expect(screen.getByText('1v1 Mode')).toBeInTheDocument();
-    expect(screen.getByText('You need to sign in to play 1v1 mode.')).toBeInTheDocument();
+    expect(screen.getByText('Multiplayer Mode')).toBeInTheDocument();
+    expect(screen.getByText('You need to sign in to play Multiplayer Mode.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
     expect(screen.getByTestId('auth-modal')).toBeInTheDocument();
@@ -46,11 +46,13 @@ describe('OneVOneModal', () => {
     const onRequestClose = vi.fn();
     useAuthMock.mockReturnValue({ user: { uid: 'u1' }, isVerifiedUser: false });
 
-    render(<OneVOneModal isOpen onRequestClose={onRequestClose} />);
+    render(<MultiplayerModal isOpen onRequestClose={onRequestClose} />);
 
     expect(screen.getByText('Verify your email')).toBeInTheDocument();
     expect(
-      screen.getByText('You must verify your email address or sign in with Google to play 1v1.'),
+      screen.getByText(
+        'You must verify your email address or sign in with Google to play Multiplayer Mode.',
+      ),
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Go to Profile' }));
@@ -66,7 +68,7 @@ describe('OneVOneModal', () => {
     useAuthMock.mockReturnValue({ user: { uid: 'u1' }, isVerifiedUser: true });
 
     render(
-      <OneVOneModal
+      <MultiplayerModal
         isOpen
         onRequestClose={onRequestClose}
         onConfigOpen={onConfigOpen}
@@ -77,10 +79,10 @@ describe('OneVOneModal', () => {
     // Host flow: clicking Host opens config modal
     fireEvent.click(screen.getByRole('button', { name: 'Host' }));
     expect(onConfigOpen).toHaveBeenCalled();
-    expect(screen.getByText('1v1 Game Configuration')).toBeInTheDocument();
+    expect(screen.getByText('Multiplayer Game Configuration')).toBeInTheDocument();
 
     // Change number of boards and enable speedrun
-    const boardsSelect = screen.getByRole('combobox');
+    const boardsSelect = screen.getByLabelText('Number of Boards');
     fireEvent.change(boardsSelect, { target: { value: '5' } });
 
     const speedrunCheckbox = screen.getByLabelText('Speedrun Mode (Unlimited guesses, timed)');
@@ -89,7 +91,9 @@ describe('OneVOneModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(onConfigClose).toHaveBeenCalled();
     expect(onRequestClose).toHaveBeenCalled();
-    expect(navigateMock).toHaveBeenCalledWith('/game?mode=1v1&host=true&speedrun=true&boards=5');
+    expect(navigateMock).toHaveBeenCalledWith(
+      '/game?mode=multiplayer&host=true&speedrun=true&boards=5&maxPlayers=2&isPublic=true',
+    );
   });
 
   it('validates and joins by game code when verified', () => {
@@ -97,7 +101,7 @@ describe('OneVOneModal', () => {
     useAuthMock.mockReturnValue({ user: { uid: 'u1' }, isVerifiedUser: true });
 
     const { getByPlaceholderText, getByRole } = render(
-      <OneVOneModal
+      <MultiplayerModal
         isOpen
         onRequestClose={onRequestClose}
       />,
@@ -117,6 +121,6 @@ describe('OneVOneModal', () => {
     expect(joinButton).not.toBeDisabled();
     fireEvent.click(joinButton);
 
-    expect(navigateMock).toHaveBeenCalledWith('/game?mode=1v1&code=123456');
+    expect(navigateMock).toHaveBeenCalledWith('/game?mode=multiplayer&code=123456');
   });
 });

@@ -8,9 +8,9 @@ vi.mock('./components/FeedbackModal', () => ({
   default: ({ isOpen }) => (isOpen ? <div data-testid="feedback-modal" /> : null),
 }));
 
-vi.mock('./components/OneVOneModal', () => ({
+vi.mock('./components/MultiplayerModal', () => ({
   __esModule: true,
-  default: ({ isOpen }) => (isOpen ? <div data-testid="onevone-modal" /> : null),
+  default: ({ isOpen }) => (isOpen ? <div data-testid="multiplayer-modal" /> : null),
 }));
 
 vi.mock('./components/Modal', () => ({

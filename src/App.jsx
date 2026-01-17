@@ -67,8 +67,8 @@ function App() {
         <Route path="/game/:mode" element={<Game marathonLevels={marathonLevelsMemo} />} />
         <Route path="/game/:mode/:boards" element={<Game marathonLevels={marathonLevelsMemo} />} />
         <Route path="/game/:mode/:boards/:variant" element={<Game marathonLevels={marathonLevelsMemo} />} />
-        <Route path="/game/1v1/:code" element={<Game marathonLevels={marathonLevelsMemo} />} />
-        <Route path="/game/1v1/:code/:variant" element={<Game marathonLevels={marathonLevelsMemo} />} />
+        <Route path="/game/multiplayer/:code" element={<Game marathonLevels={marathonLevelsMemo} />} />
+        <Route path="/game/multiplayer/:code/:variant" element={<Game marathonLevels={marathonLevelsMemo} />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/faq" element={<Faq />} />

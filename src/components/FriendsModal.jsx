@@ -1,7 +1,7 @@
 import React from "react";
 import Modal from "./Modal";
 import { useAuth } from "../hooks/useAuth";
-import { useOneVOneGame } from "../hooks/useOneVOneGame";
+import { useMultiplayerGame } from "../hooks/useMultiplayerGame";
 import { useTimedMessage } from "../hooks/useTimedMessage";
 import GameToast from "./game/GameToast";
 import { useNavigate } from "react-router-dom";
@@ -21,15 +21,20 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
     removeFriend,
     isVerifiedUser,
     sendChallenge,
+    sendFriendRequestByIdentifier,
   } = useAuth();
 
-  // Lightweight 1v1 host hook used purely to create games for challenges.
-  const oneVOneHost = useOneVOneGame(null, true, false);
+  // Lightweight multiplayer host hook used purely to create games for challenges.
+  const multiplayerHost = useMultiplayerGame(null, true, false);
 
   const [selectedFriendForChallenge, setSelectedFriendForChallenge] = React.useState(null);
   const [challengeBoards, setChallengeBoards] = React.useState(1);
   const [challengeSpeedrun, setChallengeSpeedrun] = React.useState(false);
+  const [challengeMaxPlayers, setChallengeMaxPlayers] = React.useState(2);
+  const [challengeIsPublic, setChallengeIsPublic] = React.useState(false);
   const [isChallengeConfigOpen, setIsChallengeConfigOpen] = React.useState(false);
+  const [addFriendInput, setAddFriendInput] = React.useState("");
+  const [isSendingFriendRequest, setIsSendingFriendRequest] = React.useState(false);
   if (!isVerifiedUser) {
     return (
       <Modal isOpen={isOpen} onRequestClose={onRequestClose}>
@@ -68,6 +73,26 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
     );
   }
 
+  const handleAddFriendSubmit = async (e) => {
+    e.preventDefault();
+    const value = addFriendInput.trim();
+    if (!value) {
+      setTimedMessage("Please enter an email or username.", 4000);
+      return;
+    }
+
+    try {
+      setIsSendingFriendRequest(true);
+      await sendFriendRequestByIdentifier(value);
+      setTimedMessage("Friend request sent.", 3000);
+      setAddFriendInput("");
+    } catch (err) {
+      setTimedMessage(err?.message || "Failed to send friend request.", 5000);
+    } finally {
+      setIsSendingFriendRequest(false);
+    }
+  };
+
   return (
     <Modal isOpen={isOpen} onRequestClose={onRequestClose}>
       {/* Global toast for friends/challenges actions */}
@@ -82,6 +107,48 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
         <h2 style={{ margin: "0 0 24px 0", fontSize: "24px", fontWeight: "bold" }}>
           Friends & Requests
         </h2>
+
+        {/* Add friend by email/username */}
+        <form onSubmit={handleAddFriendSubmit} style={{ marginBottom: "20px", textAlign: "left" }}>
+          <label style={{ display: "block", marginBottom: "6px", fontSize: "13px", color: "#d7dadc" }}>
+            Add friend by email or username
+          </label>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <input
+              type="text"
+              placeholder="friend@example.com or username"
+              value={addFriendInput}
+              onChange={(e) => setAddFriendInput(e.target.value)}
+              disabled={isSendingFriendRequest}
+              style={{
+                flex: 1,
+                padding: "8px 10px",
+                borderRadius: 6,
+                border: "1px solid #3a3a3c",
+                background: "#121213",
+                color: "#ffffff",
+                fontSize: 13,
+              }}
+            />
+            <button
+              type="submit"
+              disabled={isSendingFriendRequest}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 6,
+                border: "none",
+                background: "#6aaa64",
+                color: "#ffffff",
+                fontWeight: "bold",
+                fontSize: 12,
+                cursor: isSendingFriendRequest ? "not-allowed" : "pointer",
+                opacity: isSendingFriendRequest ? 0.8 : 1,
+              }}
+            >
+              {isSendingFriendRequest ? "Sending..." : "Send request"}
+            </button>
+          </div>
+        </form>
 
         {/* Friend Requests Section */}
         {friendRequests && friendRequests.length > 0 && (
@@ -240,8 +307,8 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                 fontSize: "14px",
                 marginBottom: "20px"
               }}
-            >
-              No friends yet. Send friend requests while playing 1v1 mode!
+>
+              No friends yet. Send friend requests while playing Multiplayer Mode!
             </div>
           )}
         </div>
@@ -279,7 +346,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
               color: "#ffffff",
             }}
           >
-            1v1 Game Configuration
+            Multiplayer Game Configuration
           </h2>
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             <div>
@@ -331,6 +398,75 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
               </label>
             </div>
 
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  marginTop: "12px",
+                  marginBottom: "8px",
+                  color: "#d7dadc",
+                  fontSize: 14,
+                }}
+              >
+                Max players in room
+              </label>
+              <select
+                value={challengeMaxPlayers}
+                onChange={(e) => setChallengeMaxPlayers(parseInt(e.target.value, 10) || 2)}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  borderRadius: 6,
+                  border: "1px solid #3a3a3c",
+                  background: "#1a1a1b",
+                  color: "#ffffff",
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                {[2, 3, 4, 5, 6, 7, 8].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginTop: "4px" }}>
+              <div
+                style={{
+                  display: "block",
+                  marginBottom: "6px",
+                  color: "#d7dadc",
+                  fontSize: 14,
+                }}
+              >
+                Room visibility
+              </div>
+              <div style={{ display: "flex", gap: "12px" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: 13, color: "#d7dadc" }}>
+                  <input
+                    type="radio"
+                    name="challenge-visibility"
+                    checked={challengeIsPublic}
+                    onChange={() => setChallengeIsPublic(true)}
+                    style={{ cursor: "pointer" }}
+                  />
+                  Public (show in Open Rooms)
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: 13, color: "#d7dadc" }}>
+                  <input
+                    type="radio"
+                    name="challenge-visibility"
+                    checked={!challengeIsPublic}
+                    onChange={() => setChallengeIsPublic(false)}
+                    style={{ cursor: "pointer" }}
+                  />
+                  Private (invite only)
+                </label>
+              </div>
+            </div>
+
             <div style={{ display: "flex", gap: "12px", marginTop: "12px" }}>
               <button
                 onClick={() => setIsChallengeConfigOpen(false)}
@@ -352,7 +488,13 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                 onClick={async () => {
                   if (!selectedFriendForChallenge || !user) return;
                   try {
-                    const code = await oneVOneHost.createGame({ speedrun: challengeSpeedrun });
+                    const clampedMaxPlayers = Math.max(2, Math.min(8, challengeMaxPlayers));
+                    const code = await multiplayerHost.createGame({
+                      speedrun: challengeSpeedrun,
+                      maxPlayers: clampedMaxPlayers,
+                      isPublic: challengeIsPublic,
+                      boards: challengeBoards,
+                    });
                     const ok = await sendChallenge(
                       selectedFriendForChallenge.id,
                       selectedFriendForChallenge.name,
@@ -372,9 +514,9 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
 
                     setIsChallengeConfigOpen(false);
                     onRequestClose?.();
-                    // Send challenger to the 1v1 waiting room for this challenge.
+                    // Send challenger to the multiplayer waiting room for this challenge.
                     navigate(
-                      `/game?mode=1v1&code=${code}&host=true&speedrun=${challengeSpeedrun}&boards=${challengeBoards}`,
+                      `/game?mode=multiplayer&code=${code}&host=true&speedrun=${challengeSpeedrun}&boards=${challengeBoards}`,
                     );
                   } catch (err) {
                     setTimedMessage(err?.message || "Failed to create challenge", 5000);

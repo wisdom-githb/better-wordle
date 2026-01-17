@@ -1,17 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { loadWordLists } from '../lib/wordLists';
 import { getMaxTurns, scoreGuess } from '../lib/wordle';
 import { SeededRandom } from '../lib/dailyWords';
 
 /**
- * Central controller for 1v1 mode. Encapsulates:
+ * Central controller for multiplayer mode (formerly 1v1). Encapsulates:
  * - initialisation/joining/hosting of games
  * - syncing local multi-board state from Firebase gameState
  * - winner + auto-rematch logic
  * - popup-after-flip timing
- * - 1v1-specific handlers and friend-request helpers
+ * - multiplayer-specific handlers and friend-request helpers
  */
-export function useOneVOneController({
+export function useMultiplayerController({
   // Mode / routing
   isOneVOne,
   isHost,
@@ -19,6 +19,8 @@ export function useOneVOneController({
   speedrunEnabled,
   boardsParam,
   numBoards,
+  maxPlayersParam,
+  isPublicParam,
 
   // Auth / user
   authUser,
@@ -62,6 +64,11 @@ export function useOneVOneController({
   // When null, rematches reuse the previous board count & speedrun flag.
   const [oneVOneNextConfig, setOneVOneNextConfig] = useState(null);
 
+  // Guard to ensure we only create a new room once per controller instance,
+  // even if React StrictMode or changing dependencies cause initOneVOne to
+  // run multiple times.
+  const hasHostedGameRef = useRef(false);
+
   // Host-only 1v1 configuration modal state.
   const [isOneVOneConfigModalOpen, setIsOneVOneConfigModalOpen] = useState(false);
   const [oneVOneConfigBoardsDraft, setOneVOneConfigBoardsDraft] = useState(1);
@@ -89,12 +96,19 @@ export function useOneVOneController({
 
     if (solutionArray.length === 0) return false;
 
-    const myGuesses = gs.hostId === authUser.uid ? gs.hostGuesses || [] : gs.guestGuesses || [];
+    let myGuesses = [];
+
+    // Prefer per-player guesses from the players map when available.
+    if (gs.players && gs.players[authUser.uid]) {
+      myGuesses = gs.players[authUser.uid].guesses || [];
+    } else {
+      myGuesses = gs.hostId === authUser.uid ? gs.hostGuesses || [] : gs.guestGuesses || [];
+    }
 
     return solutionArray.every((sol) => myGuesses.includes(sol));
   }, [isOneVOne, oneVOneGame.gameState, authUser]);
 
-  // 1v1 mode initialization (host/join, load word lists, guard on verification).
+  // Multiplayer mode initialization (host/join, load word lists, guard on verification).
   useEffect(() => {
     async function initOneVOne() {
       if (!isOneVOne || !authUser) {
@@ -116,12 +130,37 @@ export function useOneVOneController({
         const { ALLOWED_GUESSES } = await loadWordLists();
         setAllowedSet(new Set(ALLOWED_GUESSES));
 
-        // If host, create game
-        if (isHost && !gameCode) {
-          const code = await oneVOneGame.createGame({ speedrun: speedrunEnabled });
+        // If host, create game (but only once per controller instance).
+        if (isHost && !gameCode && !hasHostedGameRef.current) {
+          hasHostedGameRef.current = true;
+          let maxPlayersForRoom = 2;
+          if (maxPlayersParam != null) {
+            const parsed = parseInt(maxPlayersParam, 10);
+            if (Number.isFinite(parsed)) {
+              // Clamp to a small, reasonable upper bound for UI/layout.
+              maxPlayersForRoom = Math.max(2, Math.min(8, parsed));
+            }
+          }
+          const isPublicRoom = isPublicParam === 'true';
+
+          let boardsForRoom = 1;
+          if (boardsParam != null) {
+            const parsedBoards = parseInt(boardsParam, 10);
+            if (Number.isFinite(parsedBoards)) {
+              boardsForRoom = Math.max(1, Math.min(32, parsedBoards));
+            }
+          }
+
+          const code = await oneVOneGame.createGame({
+            speedrun: speedrunEnabled,
+            maxPlayers: maxPlayersForRoom,
+            isPublic: isPublicRoom,
+            boards: boardsForRoom,
+          });
           const boardsQuery = boardsParam ? `&boards=${boardsParam}` : '';
+          const roomQuery = `&maxPlayers=${maxPlayersForRoom}&isPublic=${isPublicRoom}`;
           navigate(
-            `/game?mode=1v1&code=${code}&host=true&speedrun=${speedrunEnabled}${boardsQuery}`,
+            `/game?mode=1v1&code=${code}&host=true&speedrun=${speedrunEnabled}${boardsQuery}${roomQuery}`,
             { replace: true }
           );
           setIsLoading(false);
@@ -163,8 +202,12 @@ export function useOneVOneController({
           setIsLoading(false);
         }
       } catch (error) {
-        console.error('1v1 init error:', error);
-        setTimedMessage(error.message || 'Failed to initialize 1v1 game', 5000);
+        console.error('multiplayer init error:', error);
+        // If hosting failed before we navigated into the room, allow another attempt.
+        if (isHost && !gameCode) {
+          hasHostedGameRef.current = false;
+        }
+        setTimedMessage(error.message || 'Failed to initialize multiplayer game', 5000);
         setIsLoading(false);
       }
     }
@@ -211,9 +254,15 @@ export function useOneVOneController({
         hostId,
         hostGuesses = [],
         guestGuesses = [],
+        players,
       } = gameState;
       const isPlayerHost = hostId === authUser.uid;
       const isSpeedrun = gameState.speedrun || false;
+
+      const playersMap = players || null;
+      const playerIds = playersMap ? Object.keys(playersMap) : [];
+      const playerCount = playersMap ? playerIds.length : 0;
+      const isMultiRoom = !!playersMap && playerCount > 2;
 
       // Normalize to an array of solutions for multi-board support
       const solutionArray =
@@ -241,8 +290,14 @@ export function useOneVOneController({
           setIsUnlimited(isSpeedrun);
         }
 
-        // Update boards with player's guesses (one board per solution)
-        const myGuesses = isPlayerHost ? hostGuesses : guestGuesses;
+        // Update boards with the LOCAL player's guesses (one board per solution).
+        // For true multi-player rooms (3+), derive guesses from the players map.
+        let myGuesses = [];
+        if (playersMap && playersMap[authUser.uid]) {
+          myGuesses = playersMap[authUser.uid].guesses || [];
+        } else {
+          myGuesses = isPlayerHost ? hostGuesses : guestGuesses;
+        }
 
         const newBoards = solutionArray.map((sol, idx) => {
           const prevBoard = boards[idx];
@@ -309,7 +364,8 @@ export function useOneVOneController({
       // BUT only while the opponent is *not* finished. Once both players are done,
       // we stop switching turns to avoid ping-ponging currentTurn after game end.
       // This logic is only used in non-speedrun mode; speedrun has no turns.
-      if (!gameState.speedrun && status === 'playing' && solutionArray.length > 0 && authUser) {
+      // It only applies to true 2-player games; multi-player rooms (>2) have no turns.
+      if (!gameState.speedrun && status === 'playing' && solutionArray.length > 0 && authUser && !isMultiRoom) {
         const currentTurn = gameState.currentTurn;
         const myGuesses = isPlayerHost ? hostGuesses : guestGuesses;
         const opponentGuesses = isPlayerHost ? guestGuesses : hostGuesses;
@@ -335,76 +391,95 @@ export function useOneVOneController({
         }
       }
 
-      // Check if both players are done (either solved or exhausted guesses)
-      // Only end game if both are done AND game is still playing
+      // Check if all required players are done (either solved or exhausted guesses)
+      // Only end game if everyone is done AND game is still playing.
       if (status === 'playing' && solutionArray.length > 0 && !endingGameRef.current) {
-        const myGuesses = isPlayerHost ? hostGuesses : guestGuesses;
-        const opponentGuesses = isPlayerHost ? guestGuesses : hostGuesses;
+        if (isMultiRoom && playersMap && playerIds.length > 0) {
+          // Multi-player room (3+ players): end the game when all players have
+          // either solved all boards or exhausted their guesses. We do not
+          // attempt to compute a single winner here; winner stays null.
+          const allFinished = playerIds.every((pid) => {
+            const p = playersMap[pid];
+            const guesses = (p && p.guesses) || [];
+            const solvedAll = solutionArray.every((sol) => guesses.includes(sol));
+            const exhaustedGuesses = !isSpeedrun && guesses.length >= maxTurns;
+            return solvedAll || exhaustedGuesses;
+          });
 
-        const mySolvedAll = solutionArray.every((sol) => myGuesses.includes(sol));
-        const opponentSolvedAll = solutionArray.every((sol) => opponentGuesses.includes(sol));
-
-        // A player is "finished" if they solved all boards OR (in non-speedrun mode) exhausted all guesses
-        const myFinished = mySolvedAll || (!isSpeedrun && myGuesses.length >= maxTurns);
-        const opponentFinished = opponentSolvedAll || (!isSpeedrun && opponentGuesses.length >= maxTurns);
-
-        // Only end game when BOTH players have finished across all boards
-        // This ensures that if one player solves some boards, the other can still take their turns.
-        if (myFinished && opponentFinished) {
-          // Prevent multiple calls to setWinner
-          endingGameRef.current = true;
-
-          // Determine winner
-          let winner = null;
-
-          // For winner logic, treat the "primary" solution as the first in the array, to
-          // keep existing behavior mostly intact. Game only ends once all boards are done,
-          // but winner is decided based on who did better on the first board / time.
-          const primarySolution = solutionArray[0];
-          const mySolvedPrimary = myGuesses.includes(primarySolution);
-          const opponentSolvedPrimary = opponentGuesses.includes(primarySolution);
-
-          if (isSpeedrun) {
-            // Speedrun mode: use time to determine winner
-            const myTimeMs = isPlayerHost ? (gameState.hostTimeMs || null) : (gameState.guestTimeMs || null);
-            const opponentTimeMs = isPlayerHost ? (gameState.guestTimeMs || null) : (gameState.hostTimeMs || null);
-
-            if (mySolvedPrimary && !opponentSolvedPrimary) {
-              winner = isPlayerHost ? 'host' : 'guest';
-            } else if (opponentSolvedPrimary && !mySolvedPrimary) {
-              winner = isPlayerHost ? 'guest' : 'host';
-            } else if (mySolvedPrimary && opponentSolvedPrimary && myTimeMs !== null && opponentTimeMs !== null) {
-              // Both solved - check who solved faster
-              if (myTimeMs < opponentTimeMs) {
-                winner = isPlayerHost ? 'host' : 'guest';
-              } else if (opponentTimeMs < myTimeMs) {
-                winner = isPlayerHost ? 'guest' : 'host';
-              }
-              // If same time, winner stays null (tie)
-            }
-          } else {
-            // Normal mode: use guesses on the primary board to determine winner
-            if (mySolvedPrimary && !opponentSolvedPrimary) {
-              winner = isPlayerHost ? 'host' : 'guest';
-            } else if (opponentSolvedPrimary && !mySolvedPrimary) {
-              winner = isPlayerHost ? 'guest' : 'host';
-            } else if (mySolvedPrimary && opponentSolvedPrimary) {
-              // Both solved primary board - check who solved first (fewer guesses)
-              const mySolveIndex = myGuesses.indexOf(primarySolution);
-              const opponentSolveIndex = opponentGuesses.indexOf(primarySolution);
-              if (mySolveIndex < opponentSolveIndex) {
-                winner = isPlayerHost ? 'host' : 'guest';
-              } else if (opponentSolveIndex < mySolveIndex) {
-                winner = isPlayerHost ? 'guest' : 'host';
-              }
-              // If same index, winner stays null (tie)
-            }
+          if (allFinished) {
+            endingGameRef.current = true;
+            await oneVOneGame.setWinner(gameCode || '', null);
           }
-          // If neither solved, winner stays null (both failed)
+        } else {
+          // Classic 2-player case: preserve existing winner logic.
+          const myGuesses = isPlayerHost ? hostGuesses : guestGuesses;
+          const opponentGuesses = isPlayerHost ? guestGuesses : hostGuesses;
 
-          // Set winner (this will change status to 'finished')
-          await oneVOneGame.setWinner(gameCode || '', winner);
-          // Popup will be shown when status changes to 'finished' on next update
+          const mySolvedAll = solutionArray.every((sol) => myGuesses.includes(sol));
+          const opponentSolvedAll = solutionArray.every((sol) => opponentGuesses.includes(sol));
+
+          // A player is "finished" if they solved all boards OR (in non-speedrun mode) exhausted all guesses
+          const myFinished = mySolvedAll || (!isSpeedrun && myGuesses.length >= maxTurns);
+          const opponentFinished = opponentSolvedAll || (!isSpeedrun && opponentGuesses.length >= maxTurns);
+
+          // Only end game when BOTH players have finished across all boards
+          // This ensures that if one player solves some boards, the other can still take their turns.
+          if (myFinished && opponentFinished) {
+            // Prevent multiple calls to setWinner
+            endingGameRef.current = true;
+
+            // Determine winner
+            let winner = null;
+
+            // For winner logic, treat the "primary" solution as the first in the array, to
+            // keep existing behavior mostly intact. Game only ends once all boards are done,
+            // but winner is decided based on who did better on the first board / time.
+            const primarySolution = solutionArray[0];
+            const mySolvedPrimary = myGuesses.includes(primarySolution);
+            const opponentSolvedPrimary = opponentGuesses.includes(primarySolution);
+
+            if (isSpeedrun) {
+              // Speedrun mode: use time to determine winner
+              const myTimeMs = isPlayerHost ? (gameState.hostTimeMs || null) : (gameState.guestTimeMs || null);
+              const opponentTimeMs = isPlayerHost ? (gameState.guestTimeMs || null) : (gameState.hostTimeMs || null);
+
+              if (mySolvedPrimary && !opponentSolvedPrimary) {
+                winner = isPlayerHost ? 'host' : 'guest';
+              } else if (opponentSolvedPrimary && !mySolvedPrimary) {
+                winner = isPlayerHost ? 'guest' : 'host';
+              } else if (mySolvedPrimary && opponentSolvedPrimary && myTimeMs !== null && opponentTimeMs !== null) {
+                // Both solved - check who solved faster
+                if (myTimeMs < opponentTimeMs) {
+                  winner = isPlayerHost ? 'host' : 'guest';
+                } else if (opponentTimeMs < myTimeMs) {
+                  winner = isPlayerHost ? 'guest' : 'host';
+                }
+                // If same time, winner stays null (tie)
+              }
+            } else {
+              // Normal mode: use guesses on the primary board to determine winner
+              if (mySolvedPrimary && !opponentSolvedPrimary) {
+                winner = isPlayerHost ? 'host' : 'guest';
+              } else if (opponentSolvedPrimary && !mySolvedPrimary) {
+                winner = isPlayerHost ? 'guest' : 'host';
+              } else if (mySolvedPrimary && opponentSolvedPrimary) {
+                // Both solved primary board - check who solved first (fewer guesses)
+                const mySolveIndex = myGuesses.indexOf(primarySolution);
+                const opponentSolveIndex = opponentGuesses.indexOf(primarySolution);
+                if (mySolveIndex < opponentSolveIndex) {
+                  winner = isPlayerHost ? 'host' : 'guest';
+                } else if (opponentSolveIndex < mySolveIndex) {
+                  winner = isPlayerHost ? 'guest' : 'host';
+                }
+                // If same index, winner stays null (tie)
+              }
+            }
+            // If neither solved, winner stays null (both failed)
+
+            // Set winner (this will change status to 'finished')
+            await oneVOneGame.setWinner(gameCode || '', winner);
+            // Popup will be shown when status changes to 'finished' on next update
+          }
         }
       }
     }
@@ -430,7 +505,7 @@ export function useOneVOneController({
     shouldShowPopupAfterFlipRef,
   ]);
 
-  // Host-only effect: automatically start a new 1v1 round when both players
+  // Host-only effect: automatically start a new multiplayer round when both players
   // have requested a rematch, skipping the ready screen. If the host has chosen
   // a new configuration (boards/speedrun) from the end-of-game UI, that config
   // is applied to the next round.
@@ -492,7 +567,7 @@ export function useOneVOneController({
         popupClosedRef.current = false;
         setIsLoading(false);
       } catch (err) {
-        console.error('Failed to auto-start 1v1 rematch:', err);
+        console.error('Failed to auto-start multiplayer rematch:', err);
       }
     })();
   }, [
@@ -539,11 +614,11 @@ export function useOneVOneController({
     shouldShowPopupAfterFlipRef,
   ]);
 
-  // 1v1 mode handlers
+  // Multiplayer mode handlers
   const handleOneVOneReady = useCallback(async () => {
     if (!gameCode) return;
     if (!isVerifiedUser) {
-      setTimedMessage('You must verify your email or sign in with Google to play 1v1.', 8000);
+      setTimedMessage('You must verify your email or sign in with Google to play Multiplayer Mode.', 8000);
       return;
     }
     try {
@@ -559,16 +634,21 @@ export function useOneVOneController({
   const handleOneVOneStart = useCallback(async () => {
     if (!gameCode) return;
     if (!isVerifiedUser) {
-      setTimedMessage('You must verify your email or sign in with Google to play 1v1.', 8000);
+      setTimedMessage('You must verify your email or sign in with Google to play Multiplayer Mode.', 8000);
       return;
     }
     try {
       const { ANSWER_WORDS } = await loadWordLists();
-      // For the initial 1v1 round, respect the boards count selected on the host
-      // screen (boardsParam). Fall back to the current numBoards (derived from
-      // existing boards/solutions) if no explicit boardsParam is present.
+      // For the initial 1v1 round, respect the boards count stored on the room
+      // (configBoards) when available. Fall back to the boards selected on the
+      // host screen (boardsParam), then to the current numBoards.
       let boardsForThisGame = 1;
-      if (boardsParam != null) {
+
+      const gs = oneVOneGame.gameState;
+      if (gs && Number.isFinite(gs.configBoards)) {
+        const upper = Number.isFinite(maxOneVOneBoards) ? maxOneVOneBoards : 32;
+        boardsForThisGame = Math.max(1, Math.min(upper, gs.configBoards));
+      } else if (boardsParam != null) {
         const parsed = parseInt(boardsParam, 10);
         if (Number.isFinite(parsed)) {
           const upper = Number.isFinite(maxOneVOneBoards) ? maxOneVOneBoards : 32;
@@ -694,3 +774,6 @@ export function useOneVOneController({
     applyOneVOneConfig,
   };
 }
+
+// Backwards-compatible alias for existing imports.
+export const useOneVOneController = useMultiplayerController;

@@ -14,7 +14,7 @@ vi.mock('../lib/dailyWords', () => ({
   },
 }));
 
-import { useOneVOneController } from './useOneVOneController';
+import { useMultiplayerController } from './useMultiplayerController';
 import { loadWordLists } from '../lib/wordLists';
 import * as wordleLib from '../lib/wordle';
 
@@ -69,7 +69,7 @@ function createCommonProps(overrides = {}) {
   };
 }
 
-describe('useOneVOneController', () => {
+describe('useMultiplayerController', () => {
   it('computes friendRequestSent for host and guest correctly', () => {
     const gameState = {
       hostId: 'host-uid',
@@ -80,7 +80,7 @@ describe('useOneVOneController', () => {
     const hostGame = { ...createCommonProps().oneVOneGame, gameState };
 
     const { result: hostView } = renderHook(() =>
-      useOneVOneController(
+      useMultiplayerController(
         createCommonProps({ authUser: { uid: 'host-uid' }, oneVOneGame: hostGame })
       )
     );
@@ -90,7 +90,7 @@ describe('useOneVOneController', () => {
     const guestGame = { ...hostGame, gameState };
 
     const { result: guestView } = renderHook(() =>
-      useOneVOneController(
+      useMultiplayerController(
         createCommonProps({ authUser: { uid: 'guest-uid' }, oneVOneGame: guestGame })
       )
     );
@@ -109,7 +109,7 @@ describe('useOneVOneController', () => {
     const oneVOneGame = { ...createCommonProps().oneVOneGame, gameState, setReady };
 
     const { result } = renderHook(() =>
-      useOneVOneController(
+      useMultiplayerController(
         createCommonProps({ authUser: { uid: 'host-uid' }, oneVOneGame })
       )
     );
@@ -136,7 +136,7 @@ describe('useOneVOneController', () => {
     };
 
     const { result } = renderHook(() =>
-      useOneVOneController(
+      useMultiplayerController(
         createCommonProps({
           authUser: { uid: 'host-uid' },
           oneVOneGame,
@@ -157,7 +157,7 @@ describe('useOneVOneController', () => {
     const setTimedMessage = vi.fn();
 
     const { result } = renderHook(() =>
-      useOneVOneController(
+      useMultiplayerController(
         createCommonProps({
           maxOneVOneBoards: 4,
           setTimedMessage,
@@ -183,7 +183,7 @@ describe('useOneVOneController', () => {
     };
 
     const { result } = renderHook(() =>
-      useOneVOneController(
+      useMultiplayerController(
         createCommonProps({
           oneVOneGame,
           numBoards: 2,
@@ -207,7 +207,7 @@ describe('useOneVOneController', () => {
     };
 
     const { result } = renderHook(() =>
-      useOneVOneController(
+      useMultiplayerController(
         createCommonProps({
           oneVOneGame,
           // Host selected 5 boards on the modal; numBoards is still 1 before the first round.
@@ -238,7 +238,7 @@ describe('useOneVOneController', () => {
 
     // Case 1: boardsParam larger than maxOneVOneBoards should be clamped.
     let hook = renderHook(() =>
-      useOneVOneController(
+      useMultiplayerController(
         createCommonProps({
           oneVOneGame: baseGame,
           boardsParam: '99',
@@ -260,7 +260,7 @@ describe('useOneVOneController', () => {
     startGame.mockClear();
 
     hook = renderHook(() =>
-      useOneVOneController(
+      useMultiplayerController(
         createCommonProps({
           oneVOneGame: baseGame,
           boardsParam: null,
@@ -298,7 +298,7 @@ describe('useOneVOneController', () => {
     const scoreSpy = vi.spyOn(wordleLib, 'scoreGuess');
 
     renderHook(() =>
-      useOneVOneController(
+      useMultiplayerController(
         createCommonProps({
           authUser: { uid: 'host-uid' },
           oneVOneGame,

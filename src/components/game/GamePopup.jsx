@@ -30,6 +30,7 @@ export default function GamePopup({
   canShare = true,
   allowNextStageAfterPopup = true,
   hasCommentsSection = false,
+  streakLabel,
 }) {
   const navigate = useNavigate();
   
@@ -241,6 +242,18 @@ export default function GamePopup({
                 ? `Guesses used: ${turnsUsed}`
                 : `Guesses used: ${turnsUsed}/${maxTurns}`}
             </div>
+
+            {streakLabel && (
+              <div
+                style={{
+                  marginBottom: 10,
+                  fontSize: 14,
+                  color: "#d7dadc",
+                }}
+              >
+                {streakLabel}
+              </div>
+            )}
           </>
         )}
 

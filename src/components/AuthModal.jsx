@@ -6,7 +6,8 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { signInWithGoogle, signUpWithEmail, signInWithEmail, loading } = useAuth();
+  const [info, setInfo] = useState('');
+  const { signInWithGoogle, signUpWithEmail, signInWithEmail, resetPassword, loading } = useAuth();
 
   const handleGoogleSignIn = useCallback(async () => {
     try {
@@ -21,6 +22,7 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
   const handleEmailSubmit = useCallback(async (e) => {
     e.preventDefault();
     setError('');
+    setInfo('');
 
     if (!email || !password) {
       setError('Please enter both email and password');
@@ -48,6 +50,7 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
     setEmail('');
     setPassword('');
     setError('');
+    setInfo('');
     setIsSignUp(false);
     onRequestClose();
   }, [onRequestClose]);
@@ -55,7 +58,23 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
   const handleToggleSignUp = useCallback(() => {
     setIsSignUp(prev => !prev);
     setError('');
+    setInfo('');
   }, []);
+
+  const handleForgotPassword = useCallback(async () => {
+    setError('');
+    setInfo('');
+    try {
+      if (!email) {
+        setError('Please enter your email above first.');
+        return;
+      }
+      await resetPassword(email);
+      setInfo('Password reset email sent. Please check your inbox.');
+    } catch (err) {
+      setError(err.message || 'Failed to send password reset email');
+    }
+  }, [email, resetPassword]);
 
   const handleEmailChange = useCallback((e) => setEmail(e.target.value), []);
   const handlePasswordChange = useCallback((e) => setPassword(e.target.value), []);
@@ -115,6 +134,22 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
             }}
           >
             {error}
+          </div>
+        )}
+
+        {info && (
+          <div
+            style={{
+              padding: '12px',
+              marginBottom: '16px',
+              backgroundColor: '#1f3a2b',
+              border: '1px solid #3c6e47',
+              borderRadius: '6px',
+              color: '#9ae6b4',
+              fontSize: '14px',
+            }}
+          >
+            {info}
           </div>
         )}
 
@@ -187,7 +222,7 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
             />
           </div>
 
-          <div style={{ marginBottom: '20px' }}>
+          <div style={{ marginBottom: '8px' }}>
             <input
               type="password"
               placeholder="Password"
@@ -206,6 +241,27 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
               }}
             />
           </div>
+
+          {!isSignUp && (
+            <div style={{ marginBottom: '20px', textAlign: 'right' }}>
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={loading}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#6aaa64',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  fontSize: '13px',
+                  textDecoration: 'underline',
+                  padding: 0,
+                }}
+              >
+                Forgot password?
+              </button>
+            </div>
+          )}
 
           <button
             type="submit"

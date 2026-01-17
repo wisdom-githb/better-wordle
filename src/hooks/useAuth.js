@@ -8,7 +8,9 @@ import {
   updateProfile,
   sendEmailVerification,
   linkWithPopup,
-  fetchSignInMethodsForEmail
+  fetchSignInMethodsForEmail,
+  sendPasswordResetEmail,
+  deleteUser,
 } from 'firebase/auth';
 import { auth, googleProvider, database } from '../config/firebase';
 import { ref, get, set, remove, onValue, update } from 'firebase/database';
@@ -69,6 +71,49 @@ export function useAuth() {
               console.error('Failed to assign default username:', err);
             });
         }
+
+        // Ensure a minimal profile + lookup indexes exist in the Realtime Database
+        // so we can look up users by email or username when sending friend requests.
+        (async () => {
+          try {
+            const profileRef = ref(database, `users/${authUser.uid}/profile`);
+            const email = authUser.email || null;
+            const username = authUser.displayName || null;
+            const nowIso = new Date().toISOString();
+
+            await set(profileRef, {
+              uid: authUser.uid,
+              email,
+              username,
+              updatedAt: nowIso,
+            });
+
+            if (username) {
+              const usernameKey = username.trim().toLowerCase();
+              if (usernameKey) {
+                await set(ref(database, `usernames/${usernameKey}`), {
+                  uid: authUser.uid,
+                });
+              }
+            }
+
+            if (email) {
+              const emailKey = email
+                .trim()
+                .toLowerCase()
+                // Firebase Realtime Database does not allow certain characters in keys.
+                .replace(/[.#$\[\]]/g, '_');
+              if (emailKey) {
+                await set(ref(database, `emails/${emailKey}`), {
+                  uid: authUser.uid,
+                });
+              }
+            }
+          } catch (indexErr) {
+            // Index failures should never block authentication.
+            console.error('Failed to update user profile indexes:', indexErr);
+          }
+        })();
       }
 
       if (authUser) {
@@ -253,6 +298,23 @@ export function useAuth() {
     }
   }, []);
 
+  const resetPassword = useCallback(async (email) => {
+    try {
+      setError(null);
+      setLoading(true);
+      if (!email) {
+        throw new Error('Please enter your email address to reset your password.');
+      }
+      await sendPasswordResetEmail(auth, email);
+      return true;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const signOut = useCallback(async () => {
     try {
       setError(null);
@@ -269,6 +331,44 @@ export function useAuth() {
       if (!auth.currentUser) throw new Error('No user signed in');
       await updateProfile(auth.currentUser, { displayName: newUsername });
       setUser({ ...auth.currentUser, displayName: newUsername });
+      return true;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }, []);
+
+  const deleteAccount = useCallback(async () => {
+    try {
+      setError(null);
+      if (!auth.currentUser) throw new Error('No user signed in');
+      const uid = auth.currentUser.uid;
+      const email = auth.currentUser.email || null;
+      const username = auth.currentUser.displayName || null;
+
+      // Best-effort cleanup of this user's social data and indexes.
+      try {
+        const userRef = ref(database, `users/${uid}`);
+        await remove(userRef);
+
+        if (username) {
+          const usernameKey = username.trim().toLowerCase();
+          if (usernameKey) {
+            await remove(ref(database, `usernames/${usernameKey}`));
+          }
+        }
+
+        if (email) {
+          const emailKey = email.trim().toLowerCase().replace(/[.#$\[\]]/g, '_');
+          if (emailKey) {
+            await remove(ref(database, `emails/${emailKey}`));
+          }
+        }
+      } catch (innerErr) {
+        console.error('Failed to remove user social data before account deletion:', innerErr);
+      }
+
+      await deleteUser(auth.currentUser);
       return true;
     } catch (err) {
       setError(err.message);
@@ -612,6 +712,68 @@ export function useAuth() {
     }
   }, []);
 
+  const findUserByIdentifier = useCallback(async (identifier) => {
+    const raw = (identifier || '').trim();
+    if (!raw) {
+      throw new Error('Please enter an email or username.');
+    }
+
+    const isEmail = raw.includes('@');
+    const normalized = raw.toLowerCase();
+
+    let lookupRef;
+    if (isEmail) {
+      const emailKey = normalized.replace(/[.#$\[\]]/g, '_');
+      lookupRef = ref(database, `emails/${emailKey}`);
+    } else {
+      const usernameKey = normalized;
+      lookupRef = ref(database, `usernames/${usernameKey}`);
+    }
+
+    const lookupSnap = await get(lookupRef);
+    if (!lookupSnap.exists()) {
+      return null;
+    }
+
+    const lookupVal = lookupSnap.val();
+    const uid = typeof lookupVal === 'string' ? lookupVal : lookupVal?.uid;
+    if (!uid) {
+      return null;
+    }
+
+    if (auth.currentUser && auth.currentUser.uid === uid) {
+      throw new Error('You cannot add yourself as a friend.');
+    }
+
+    const profileSnap = await get(ref(database, `users/${uid}/profile`));
+    let displayName = null;
+    let email = null;
+    if (profileSnap.exists()) {
+      const profile = profileSnap.val() || {};
+      displayName = profile.username || profile.displayName || null;
+      email = profile.email || null;
+    }
+
+    const name = displayName || email || 'Player';
+    return { uid, name };
+  }, []);
+
+  const sendFriendRequestByIdentifier = useCallback(async (identifier) => {
+    try {
+      setError(null);
+      const target = await findUserByIdentifier(identifier);
+      if (!target) {
+        throw new Error('No user found with that email or username.');
+      }
+      await sendFriendRequest(target.name, target.uid);
+      return true;
+    } catch (err) {
+      console.error('sendFriendRequestByIdentifier error:', err);
+      setError(err.message);
+      throw err;
+    }
+  }, [findUserByIdentifier, sendFriendRequest]);
+
   const isVerifiedUser = !!user && (user.emailVerified || (user.providerData || []).some(p => p.providerId === 'google.com'));
 
   const resendVerificationEmail = useCallback(async () => {
@@ -656,9 +818,12 @@ export function useAuth() {
     signInWithGoogle,
     signUpWithEmail,
     signInWithEmail,
+    resetPassword,
     signOut,
     updateUsername,
+    deleteAccount,
     sendFriendRequest,
+    sendFriendRequestByIdentifier,
     acceptFriendRequest,
     declineFriendRequest,
     removeFriend,

@@ -6,7 +6,7 @@ import Modal from "./components/Modal";
 import SiteHeader from "./components/SiteHeader";
 
 const FeedbackModal = lazy(() => import("./components/FeedbackModal"));
-const OneVOneModal = lazy(() => import("./components/OneVOneModal"));
+const MultiplayerModal = lazy(() => import("./components/MultiplayerModal"));
 import { loadJSON, saveJSON, makeDailyKey, makeMarathonKey, marathonMetaKey, makeSolvedKey, removeKey } from "./lib/persist";
 
 const BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
@@ -47,8 +47,8 @@ export default function Home({
 }) {
   const navigate = useNavigate();
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [showOneVOneModal, setShowOneVOneModal] = useState(false);
-  const [showOneVOneConfig, setShowOneVOneConfig] = useState(false);
+  const [showMultiplayerModal, setShowMultiplayerModal] = useState(false);
+  const [showMultiplayerConfig, setShowMultiplayerConfig] = useState(false);
   const [showVerifyEmailModal, setShowVerifyEmailModal] = useState(false);
   const [verifyEmailAddress, setVerifyEmailAddress] = useState("");
 
@@ -141,7 +141,7 @@ export default function Home({
         <title>Better Wordle</title>
         <meta
           name="description"
-          content="Better Wordle is a Wordle alternative with multi-board daily puzzles, marathon and speedrun modes, and 1v1 Wordle-style battles with friends."
+          content="Better Wordle is a Wordle alternative with multi-board daily puzzles, marathon and speedrun modes, and Multiplayer Mode battles with friends."
         />
       </Helmet>
       <div className="homeRoot">
@@ -193,9 +193,9 @@ export default function Home({
                 color: "#d7dadc",
                 lineHeight: 1.5,
               }}
-            >
+>
               Please open that email and click the link to verify your account.
-              Once verified, you&apos;ll be able to play 1v1 and use friends.
+              Once verified, you&apos;ll be able to play Multiplayer Mode and use friends.
               Check your Spam or Junk folder for the verification link.
             </p>
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -221,12 +221,12 @@ export default function Home({
         </Suspense>
 
         <Suspense fallback={null}>
-          <OneVOneModal
-            isOpen={showOneVOneModal}
-            onRequestClose={() => setShowOneVOneModal(false)}
-            showConfigFirst={showOneVOneConfig}
-            onConfigClose={() => setShowOneVOneConfig(false)}
-            onConfigOpen={() => setShowOneVOneConfig(true)}
+          <MultiplayerModal
+            isOpen={showMultiplayerModal}
+            onRequestClose={() => setShowMultiplayerModal(false)}
+            showConfigFirst={showMultiplayerConfig}
+            onConfigClose={() => setShowMultiplayerConfig(false)}
+            onConfigOpen={() => setShowMultiplayerConfig(true)}
           />
         </Suspense>
 
@@ -336,23 +336,23 @@ export default function Home({
             </div>
           </section>
 
-          {/* 1v1 MODE */}
+          {/* MULTIPLAYER MODE */}
           <section className="panel">
             <div className="panelTop">
               <div>
-                <h2 className="panelTitle">1v1 Wordle Battles With Friends</h2>
+                <h2 className="panelTitle">Multiplayer Wordle Battles With Friends</h2>
                 <div className="panelDesc">
-                  Challenge anyone to a 1v1 match.
+                  Host or join real-time rooms with friends and play together.
                 </div>
               </div>
             </div>
 
             <div className="panelBody">
               <ModeRow
-                title="1v1 Mode"
-                desc="Play against another player in real time."
-                buttonText="Play 1v1"
-                onClick={() => setShowOneVOneModal(true)}
+                title="Multiplayer Mode"
+                desc="Create a room, invite friends, or join by code."
+                buttonText="Play Multiplayer"
+                onClick={() => setShowMultiplayerModal(true)}
                 variant="gold"
                 modeVariant="pvp"
               />
@@ -366,7 +366,7 @@ export default function Home({
                 Click here to know more about Better Wordle.
               </summary>
               <h1 className="homeTitle">
-                Better Wordle – Advanced Multi-Board &amp; 1v1 Wordle-Style Game
+                Better Wordle – Advanced Multi-Board &amp; Multiplayer Wordle-Style Game
               </h1>
               <p className="homeIntroParagraph">
                 Better Wordle is a free, browser-based Wordle-style puzzle game that you
@@ -376,7 +376,7 @@ export default function Home({
               <p className="homeIntroParagraph">
                 Play up to 32 boards at once with daily multi-board puzzles, push
                 yourself with marathon stages and speedrun timers, and challenge
-                friends in head-to-head 1v1 Wordle-style battles. Your best speedrun
+                friends in real-time Multiplayer Mode battles. Your best speedrun
                 times can appear on the global Better Wordle leaderboard.
               </p>
               <p className="homeIntroParagraph">

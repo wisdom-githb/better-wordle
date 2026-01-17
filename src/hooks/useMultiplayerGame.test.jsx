@@ -80,12 +80,12 @@ vi.mock('../config/firebase', () => {
 
 import { __dbData } from 'firebase/database';
 import { auth } from '../config/firebase';
-import { useOneVOneGame } from './useOneVOneGame';
+import { useMultiplayerGame } from './useMultiplayerGame';
 
 let hookResult;
 
 function HookWrapper({ gameCode = null, isHost = false, speedrun = false }) {
-  hookResult = useOneVOneGame(gameCode, isHost, speedrun);
+  hookResult = useMultiplayerGame(gameCode, isHost, speedrun);
   return null;
 }
 
@@ -98,7 +98,7 @@ beforeEach(() => {
   cleanup();
 });
 
-describe('useOneVOneGame – DB operations', () => {
+describe('useMultiplayerGame – DB operations', () => {
   it('createGame writes host game and returns a 6-digit code', async () => {
     auth.currentUser = {
       uid: 'host-1',
@@ -404,7 +404,7 @@ describe('useOneVOneGame – DB operations', () => {
   });
 });
 
-describe('useOneVOneGame – error paths', () => {
+describe('useMultiplayerGame – error paths', () => {
   it('joinGame throws when game code is not found', async () => {
     auth.currentUser = {
       uid: 'guest-1',

@@ -2,9 +2,9 @@ import React, { Suspense } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
-import OneVOneGameView from './OneVOneGameView';
+import MultiplayerGameView from './MultiplayerGameView';
 
-// Stub header and auth modal so we can focus on the 1v1 auth-gating UI.
+// Stub header and auth modal so we can focus on the multiplayer auth-gating UI.
 vi.mock('../SiteHeader', () => ({
   default: () => <header data-testid="site-header" />, // eslint-disable-line react/display-name
 }));
@@ -25,7 +25,7 @@ beforeEach(() => {
 });
 
 const baseProps = {
-  mode: '1v1',
+  mode: 'multiplayer',
   gameCode: '123456',
   oneVOneGame: { gameState: null, error: null, loading: false },
   isLoading: false,
@@ -53,13 +53,13 @@ const baseProps = {
   onCancelChallenge: () => {},
 };
 
-describe('OneVOneGameView unauthenticated 1v1 gating', () => {
+describe('MultiplayerGameView unauthenticated multiplayer gating', () => {
   it('shows the sign-in required screen for unsigned users with correct copy and buttons', async () => {
     const onBack = vi.fn();
 
     render(
       <Suspense fallback={null}>
-        <OneVOneGameView
+        <MultiplayerGameView
           {...baseProps}
           authUser={null}
           authLoading={false}
@@ -69,12 +69,12 @@ describe('OneVOneGameView unauthenticated 1v1 gating', () => {
     );
 
     // Wait for any lazy AuthModal/Suspense work to settle
-    await screen.findByText('Sign in to play 1v1 games');
+    await screen.findByText('Sign in to play Multiplayer Mode');
 
     // Heading and message
-    expect(screen.getByText('Sign in to play 1v1 games')).toBeInTheDocument();
+    expect(screen.getByText('Sign in to play Multiplayer Mode')).toBeInTheDocument();
     expect(
-      screen.getByText('A Better Wordle account is required to host or join 1v1 games.'),
+      screen.getByText('A Better Wordle account is required to host or join multiplayer rooms.'),
     ).toBeInTheDocument();
 
     // Buttons
@@ -91,7 +91,7 @@ describe('OneVOneGameView unauthenticated 1v1 gating', () => {
   it('opens the AuthModal when Sign In is clicked', async () => {
     render(
       <Suspense fallback={null}>
-        <OneVOneGameView
+        <MultiplayerGameView
           {...baseProps}
           authUser={null}
           authLoading={false}

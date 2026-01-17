@@ -10,10 +10,10 @@ export default function Faq() {
   return (
     <div className="faqRoot">
       <Helmet>
-        <title>FAQ – Better Wordle Alternative & 1v1 Wordle-Style Game</title>
+        <title>FAQ – Better Wordle Alternative & Multiplayer Wordle-Style Game</title>
         <meta
           name="description"
-          content="Learn what Better Wordle is, how multi-board daily puzzles, marathon and speedrun modes, and 1v1 Wordle-style battles with friends work."
+          content="Learn what Better Wordle is, how multi-board daily puzzles, marathon and speedrun modes, and Multiplayer Mode battles with friends work."
         />
       </Helmet>
 
@@ -26,8 +26,8 @@ export default function Faq() {
             <p className="faqIntro">
               Better Wordle is a browser-based Wordle alternative with advanced
               modes like multi-board daily puzzles, marathon and speedrun
-              challenges, and real-time 1v1 battles with friends. This page
-              answers common questions about how it works.
+              challenges, and real-time Multiplayer Mode battles with friends.
+              This page answers common questions about how it works.
             </p>
           </header>
 
@@ -39,8 +39,8 @@ export default function Faq() {
               Better Wordle is an advanced Wordle-style puzzle game that you play
               in your browser. It keeps the familiar letter-colour feedback you
               know from classic Wordle, but adds multi-board puzzles, marathon
-              progressions, speedrun timers, a global leaderboard and 1v1
-              Wordle-style battles.
+              progressions, speedrun timers, a global leaderboard and
+              multiplayer Wordle-style battles.
             </p>
           </section>
 
@@ -81,22 +81,21 @@ export default function Faq() {
             </p>
           </section>
 
-          <section className="faqSection" aria-labelledby="faq-1v1">
-            <h2 id="faq-1v1" className="faqSectionTitle">
-              How do I play 1v1 Wordle-style battles with friends?
+          <section className="faqSection" aria-labelledby="faq-multiplayer">
+            <h2 id="faq-multiplayer" className="faqSectionTitle">
+              How do I play Multiplayer Mode battles with friends?
             </h2>
             <p className="faqParagraph">
-              The 1v1 mode lets you challenge a friend to solve the same
-              Wordle-style puzzles at the same time. One player hosts a 1v1
-              game, shares the code, and both players join. You can choose the
+              Multiplayer Mode lets you challenge friends to solve the same
+              Wordle-style puzzles at the same time. One player hosts a multiplayer
+              room, shares the code, and everyone joins. You can choose the
               number of boards to play and whether to use standard or speedrun
               rules.
             </p>
             <p className="faqParagraph">
-              To start 1v1, open the home page and use the 1v1 section or go
-              directly to the 1v1 game screen. Once both players are ready,
-              Better Wordle tracks your guesses and times so you can see who
-              solved the boards faster.
+              To start Multiplayer Mode, open the home page and use the Multiplayer
+              section. Once everyone is ready, Better Wordle tracks your guesses and
+              times so you can see who solved the boards faster.
             </p>
           </section>
 
@@ -109,7 +108,7 @@ export default function Faq() {
               guesses. Better Wordle is designed as a Wordle alternative for
               players who want more challenge and variety: multi-board games,
               marathon progressions, speedrun timers, a competitive leaderboard
-              and 1v1 friend battles.
+              and Multiplayer Mode friend battles.
             </p>
             <p className="faqParagraph">
               The letter feedback rules and five-letter word format will feel

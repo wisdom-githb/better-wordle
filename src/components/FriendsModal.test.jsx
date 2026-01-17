@@ -6,8 +6,8 @@ vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
 }));
 
-vi.mock('../hooks/useOneVOneGame', () => ({
-  useOneVOneGame: vi.fn(),
+vi.mock('../hooks/useMultiplayerGame', () => ({
+  useMultiplayerGame: vi.fn(),
 }));
 
 vi.mock('../hooks/useTimedMessage', () => ({
@@ -32,7 +32,7 @@ vi.mock('react-router-dom', () => ({
 }));
 
 import { useAuth } from '../hooks/useAuth';
-import { useOneVOneGame } from '../hooks/useOneVOneGame';
+import { useMultiplayerGame } from '../hooks/useMultiplayerGame';
 import FriendsModal from './FriendsModal';
 import { within } from '@testing-library/react';
 
@@ -104,7 +104,7 @@ describe('FriendsModal', () => {
       sendChallenge: vi.fn().mockResolvedValue(true),
     });
 
-    useOneVOneGame.mockReturnValue({
+    useMultiplayerGame.mockReturnValue({
       createGame: vi.fn().mockResolvedValue('123456'),
     });
 
@@ -115,7 +115,7 @@ describe('FriendsModal', () => {
 
     // Open challenge config modal
     fireEvent.click(screen.getByRole('button', { name: /challenge/i }));
-    expect(screen.getByText(/1v1 game configuration/i)).toBeInTheDocument();
+    expect(screen.getByText(/multiplayer game configuration/i)).toBeInTheDocument();
 
     // Remove friend
     fireEvent.click(screen.getByRole('button', { name: /remove/i }));
@@ -138,7 +138,7 @@ describe('FriendsModal', () => {
       sendChallenge,
     });
 
-    useOneVOneGame.mockReturnValue({
+    useMultiplayerGame.mockReturnValue({
       createGame,
     });
 
@@ -155,7 +155,12 @@ describe('FriendsModal', () => {
     fireEvent.click(challengeButton);
 
     await waitFor(() => {
-      expect(createGame).toHaveBeenCalledWith({ speedrun: false });
+      expect(createGame).toHaveBeenCalledWith({
+        speedrun: false,
+        maxPlayers: 2,
+        isPublic: false,
+        boards: 1,
+      });
       expect(sendChallenge).toHaveBeenCalledWith('f1', 'Bob', '654321', 1, false);
     });
   });

@@ -6,7 +6,7 @@ import Modal from './Modal';
 
 const BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
 
-export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst = false, onConfigClose, onConfigOpen }) {
+export default function MultiplayerModal({ isOpen, onRequestClose, showConfigFirst = false, onConfigClose, onConfigOpen }) {
   const navigate = useNavigate();
   const { user, isVerifiedUser } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -15,6 +15,8 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
   const [showConfig, setShowConfig] = useState(showConfigFirst);
   const [numBoards, setNumBoards] = useState(1);
   const [isSpeedrun, setIsSpeedrun] = useState(false);
+  const [maxPlayers, setMaxPlayers] = useState(2);
+  const [isPublic, setIsPublic] = useState(true);
 
   const handleHost = useCallback(() => {
     // Show config modal first
@@ -23,14 +25,16 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
   }, [onConfigOpen]);
 
   const handleHostWithConfig = useCallback(() => {
-    // ORIGINAL BEHAVIOR: navigate with query params so Game can create
-    // the 1v1 game, generate a code, and then redirect to a URL that
-    // includes the real code. This preserves the waiting-room flow.
-    navigate(`/game?mode=1v1&host=true&speedrun=${isSpeedrun}&boards=${numBoards}`);
+    // Navigate with query params so Game can create the multiplayer room,
+    // then redirect into the waiting room with the real game code.
+    const clampedMaxPlayers = Math.max(2, Math.min(8, maxPlayers));
+    navigate(
+      `/game?mode=multiplayer&host=true&speedrun=${isSpeedrun}&boards=${numBoards}&maxPlayers=${clampedMaxPlayers}&isPublic=${isPublic}`
+    );
     setShowConfig(false);
     onConfigClose?.();
     onRequestClose();
-  }, [navigate, onRequestClose, isSpeedrun, numBoards, onConfigClose]);
+  }, [navigate, onRequestClose, isSpeedrun, numBoards, maxPlayers, isPublic, onConfigClose]);
 
   const handleJoin = useCallback(() => {
     if (!gameCode || gameCode.length !== 6) {
@@ -38,9 +42,8 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
       return;
     }
 
-    // ORIGINAL BEHAVIOR: navigate with query params so Game can join
-    // the existing 1v1 game via ?code=...
-    navigate(`/game?mode=1v1&code=${gameCode}`);
+    // Navigate with query params so Game can join the existing multiplayer game via ?code=...
+    navigate(`/game?mode=multiplayer&code=${gameCode}`);
     onRequestClose();
   }, [gameCode, navigate, onRequestClose]);
 
@@ -52,11 +55,11 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
         <Modal isOpen={isOpen} onRequestClose={onRequestClose}>
           <div style={{ padding: '24px' }}>
             <h2 style={{ margin: 0, marginBottom: '16px', fontSize: 20, fontWeight: 'bold', color: '#ffffff' }}>
-              1v1 Mode
+              Multiplayer Mode
             </h2>
             <div style={{ textAlign: 'center', padding: '20px 0' }}>
               <p style={{ marginBottom: '20px', color: '#d7dadc' }}>
-                You need to sign in to play 1v1 mode.
+                You need to sign in to play Multiplayer Mode.
               </p>
               <button
                 onClick={() => setShowAuthModal(true)}
@@ -85,7 +88,7 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
             Verify your email
           </h2>
           <p style={{ marginBottom: '20px', color: '#d7dadc', fontSize: 14 }}>
-            You must verify your email address or sign in with Google to play 1v1.
+            You must verify your email address or sign in with Google to play Multiplayer Mode.
           </p>
           <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
             <button
@@ -116,7 +119,7 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
       <Modal isOpen={isOpen && !showConfig} onRequestClose={onRequestClose} disableAutoFocus>
       <div style={{ padding: '24px' }}>
         <h2 style={{ margin: 0, marginBottom: '24px', fontSize: 20, fontWeight: 'bold', color: '#ffffff' }}>
-          1v1 Mode
+          Multiplayer Mode
         </h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div>
@@ -207,11 +210,12 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
               color: '#ffffff',
             }}
           >
-            1v1 Game Configuration
+            Multiplayer Game Configuration
           </h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
               <label
+                htmlFor="multiplayer-host-boards"
                 style={{
                   display: 'block',
                   marginBottom: '8px',
@@ -222,6 +226,7 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
                 Number of Boards
               </label>
               <select
+                id="multiplayer-host-boards"
                 value={numBoards}
                 onChange={(e) => setNumBoards(parseInt(e.target.value, 10))}
                 style={{
@@ -246,17 +251,86 @@ export default function OneVOneModal({ isOpen, onRequestClose, showConfigFirst =
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <input
                 type="checkbox"
-                id="onevone-config-speedrun-host"
+                id="multiplayer-config-speedrun-host"
                 checked={isSpeedrun}
                 onChange={(e) => setIsSpeedrun(e.target.checked)}
                 style={{ cursor: 'pointer', width: '18px', height: '18px' }}
               />
               <label
-                htmlFor="onevone-config-speedrun-host"
+                htmlFor="multiplayer-config-speedrun-host"
                 style={{ color: '#d7dadc', fontSize: 14, cursor: 'pointer', margin: 0 }}
               >
                 Speedrun Mode (Unlimited guesses, timed)
               </label>
+            </div>
+
+            <div>
+              <label
+                style={{
+                  display: 'block',
+                  marginTop: '12px',
+                  marginBottom: '8px',
+                  color: '#d7dadc',
+                  fontSize: 14,
+                }}
+              >
+                Max players in room
+              </label>
+              <select
+                value={maxPlayers}
+                onChange={(e) => setMaxPlayers(parseInt(e.target.value, 10) || 2)}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  borderRadius: 6,
+                  border: '1px solid #3a3a3c',
+                  background: '#1a1a1b',
+                  color: '#ffffff',
+                  fontSize: 14,
+                  cursor: 'pointer',
+                }}
+              >
+                {[2, 3, 4, 5, 6, 7, 8].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginTop: '4px' }}>
+              <div
+                style={{
+                  display: 'block',
+                  marginBottom: '6px',
+                  color: '#d7dadc',
+                  fontSize: 14,
+                }}
+              >
+                Room visibility
+              </div>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 13, color: '#d7dadc' }}>
+                  <input
+                    type="radio"
+                    name="multiplayer-visibility"
+                    checked={isPublic}
+                    onChange={() => setIsPublic(true)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  Public (show in Open Rooms)
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 13, color: '#d7dadc' }}>
+                  <input
+                    type="radio"
+                    name="multiplayer-visibility"
+                    checked={!isPublic}
+                    onChange={() => setIsPublic(false)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  Private (invite only)
+                </label>
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>

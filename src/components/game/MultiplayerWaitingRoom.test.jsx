@@ -2,18 +2,18 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
-import OneVOneWaitingRoom from './OneVOneWaitingRoom';
+import MultiplayerWaitingRoom from './MultiplayerWaitingRoom';
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('OneVOneWaitingRoom', () => {
+describe('MultiplayerWaitingRoom', () => {
   it('shows game code and Share Code button when waiting for opponent and host', () => {
     const onShareCode = vi.fn();
 
     render(
-      <OneVOneWaitingRoom
+      <MultiplayerWaitingRoom
         gameCode="123456"
         gameState={{ status: 'waiting', hostName: 'Host', guestName: null }}
         isHost
@@ -31,7 +31,7 @@ describe('OneVOneWaitingRoom', () => {
 
   it('renders player rows with correct ready badges when guest has joined (host view)', () => {
     render(
-      <OneVOneWaitingRoom
+      <MultiplayerWaitingRoom
         gameCode="123456"
         gameState={{
           status: 'waiting',
@@ -52,7 +52,7 @@ describe('OneVOneWaitingRoom', () => {
 
   it('shows the host label from the guest perspective as well', () => {
     render(
-      <OneVOneWaitingRoom
+      <MultiplayerWaitingRoom
         gameCode="123456"
         gameState={{
           status: 'waiting',
@@ -76,7 +76,7 @@ describe('OneVOneWaitingRoom', () => {
 
     // First render: current user not ready, should show Ready button
     const { rerender } = render(
-      <OneVOneWaitingRoom
+      <MultiplayerWaitingRoom
         gameCode="123456"
         gameState={{
           status: 'waiting',
@@ -96,7 +96,7 @@ describe('OneVOneWaitingRoom', () => {
 
     // Second render: both players ready; Not Ready disabled and Start Game visible for host
     rerender(
-      <OneVOneWaitingRoom
+      <MultiplayerWaitingRoom
         gameCode="123456"
         gameState={{
           status: 'waiting',
@@ -111,7 +111,7 @@ describe('OneVOneWaitingRoom', () => {
       />,
     );
 
-    const notReadyButton = screen.getByRole('button', { name: 'Both Ready - Starting...' });
+    const notReadyButton = screen.getByRole('button', { name: 'All Ready - Starting...' });
     expect(notReadyButton).toBeDisabled();
 
     const startButton = screen.getByRole('button', { name: 'Start Game' });
@@ -124,7 +124,7 @@ describe('OneVOneWaitingRoom', () => {
 
     // friendRequestSent = false -> button enabled, label "Add {name} as Friend"
     const { rerender } = render(
-      <OneVOneWaitingRoom
+      <MultiplayerWaitingRoom
         gameCode="123456"
         gameState={{
           status: 'waiting',
@@ -145,7 +145,7 @@ describe('OneVOneWaitingRoom', () => {
 
     // friendRequestSent = true -> button disabled and text "Friend request sent"
     rerender(
-      <OneVOneWaitingRoom
+      <MultiplayerWaitingRoom
         gameCode="123456"
         gameState={{
           status: 'waiting',

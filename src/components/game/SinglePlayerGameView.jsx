@@ -65,6 +65,7 @@ export default function SinglePlayerGameView({
   showComments,
   commentThreadId,
   canShare,
+  streakLabel,
 }) {
   const inRouter = useInRouterContext();
 
@@ -126,6 +127,19 @@ export default function SinglePlayerGameView({
             turnsUsed={turnsUsed}
             maxTurns={maxTurns}
           />
+
+          {streakLabel && (
+            <div
+              style={{
+                marginTop: 8,
+                marginBottom: 8,
+                fontSize: 13,
+                color: "#d7dadc",
+              }}
+            >
+              {streakLabel}
+            </div>
+          )}
 
           <GameToast message={message} />
 
@@ -240,6 +254,7 @@ export default function SinglePlayerGameView({
           canShare={canShare}
           allowNextStageAfterPopup={allowNextStageAfterPopup}
           hasCommentsSection={showComments}
+          streakLabel={streakLabel}
         />
       )}
 

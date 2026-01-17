@@ -3,13 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "./hooks/useAuth";
 import SiteHeader from "./components/SiteHeader";
+import { loadStreak } from "./lib/persist";
+import { database } from "./config/firebase";
+import { ref, get } from "firebase/database";
 
 const FeedbackModal = lazy(() => import("./components/FeedbackModal"));
 import "./Profile.css";
 
 export default function Profile() {
   const navigate = useNavigate();
-  const { user, loading, updateUsername, error, isVerifiedUser, resendVerificationEmail, linkGoogleAccount } = useAuth();
+  const { user, loading, updateUsername, deleteAccount, error, isVerifiedUser, resendVerificationEmail, linkGoogleAccount } = useAuth();
   const [username, setUsername] = useState("");
   const [initialUsername, setInitialUsername] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -17,6 +20,8 @@ export default function Profile() {
   const [message, setMessage] = useState("");
   const [linkingGoogle, setLinkingGoogle] = useState(false);
   const [sendingVerification, setSendingVerification] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [streaks, setStreaks] = useState(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -29,6 +34,53 @@ export default function Profile() {
       setInitialUsername(name);
     }
   }, [user, loading, navigate]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadProfileStreaks() {
+      try {
+        // Always have a local fallback for guests / offline usage.
+        const local = {
+          dailyStandard: loadStreak("daily", false),
+          dailySpeedrun: loadStreak("daily", true),
+          marathonStandard: loadStreak("marathon", false),
+          marathonSpeedrun: loadStreak("marathon", true),
+        };
+
+        if (!user) {
+          if (isMounted) setStreaks(local);
+          return;
+        }
+
+        const streaksRef = ref(database, `users/${user.uid}/streaks`);
+        const snap = await get(streaksRef);
+        if (!snap.exists()) {
+          if (isMounted) setStreaks(local);
+          return;
+        }
+
+        const remote = snap.val() || {};
+        const merged = {
+          dailyStandard: remote.daily_standard || local.dailyStandard,
+          dailySpeedrun: remote.daily_speedrun || local.dailySpeedrun,
+          marathonStandard: remote.marathon_standard || local.marathonStandard,
+          marathonSpeedrun: remote.marathon_speedrun || local.marathonSpeedrun,
+        };
+
+        if (isMounted) setStreaks(merged);
+      } catch (err) {
+        console.error("Failed to load streaks in profile", err);
+        if (isMounted) setStreaks(null);
+      }
+    }
+
+    loadProfileStreaks();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   const handleSave = async () => {
     if (!username.trim()) {
@@ -86,13 +138,33 @@ export default function Profile() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    const confirmed = window.confirm(
+      'Are you sure you want to delete your account? This will remove your friends and challenges and you will lose access to your synced progress.'
+    );
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    setMessage("");
+    try {
+      await deleteAccount();
+      setMessage('Your account has been deleted.');
+      navigate('/');
+    } catch (err) {
+      setMessage(`Error: ${err.message}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <>
       <Helmet>
         <title>Profile & Friends – Better Wordle</title>
         <meta
           name="description"
-          content="Manage your Better Wordle profile, username, account security and linked Google account so your Wordle-style progress and 1v1 games stay in sync."
+          content="Manage your Better Wordle profile, username, account security and linked Google account so your Wordle-style progress and Multiplayer Mode games stay in sync."
         />
       </Helmet>
       <div className="profileRoot">
@@ -164,6 +236,51 @@ export default function Profile() {
                   )}
                 </div>
 
+                {streaks && (
+                  <div className="profileSection" style={{ marginTop: "24px" }}>
+                    <h2>Game streaks</h2>
+                    <div className="profileField">
+                      <label style={{ fontSize: 12, color: "#9ca3af" }}>
+                        Streaks are tied to your account and sync across devices once you're signed in.
+                      </label>
+                    </div>
+
+                    <div className="streakGrid">
+                      <div className="streakCard">
+                        <div className="streakLabel">Daily Standard</div>
+                        <div className="streakCurrent">
+                          {streaks.dailyStandard.current} day{streaks.dailyStandard.current === 1 ? "" : "s"}
+                        </div>
+                        <div className="streakBest">Best: {streaks.dailyStandard.best}</div>
+                      </div>
+
+                      <div className="streakCard">
+                        <div className="streakLabel">Daily Speedrun</div>
+                        <div className="streakCurrent">
+                          {streaks.dailySpeedrun.current} day{streaks.dailySpeedrun.current === 1 ? "" : "s"}
+                        </div>
+                        <div className="streakBest">Best: {streaks.dailySpeedrun.best}</div>
+                      </div>
+
+                      <div className="streakCard">
+                        <div className="streakLabel">Marathon Standard</div>
+                        <div className="streakCurrent">
+                          {streaks.marathonStandard.current} day{streaks.marathonStandard.current === 1 ? "" : "s"}
+                        </div>
+                        <div className="streakBest">Best: {streaks.marathonStandard.best}</div>
+                      </div>
+
+                      <div className="streakCard">
+                        <div className="streakLabel">Marathon Speedrun</div>
+                        <div className="streakCurrent">
+                          {streaks.marathonSpeedrun.current} day{streaks.marathonSpeedrun.current === 1 ? "" : "s"}
+                        </div>
+                        <div className="streakBest">Best: {streaks.marathonSpeedrun.best}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="profileSection" style={{ marginTop: '24px' }}>
                   <h2>Account Security</h2>
 
@@ -207,6 +324,33 @@ export default function Profile() {
                       <div className="profileValue">Linked</div>
                     </div>
                   )}
+                </div>
+
+                <div className="profileSection" style={{ marginTop: '24px' }}>
+                  <h2>Danger zone</h2>
+                    <div className="profileField">
+                      <label>Delete account</label>
+                      <div className="profileValue" style={{ marginBottom: '8px', fontSize: '13px', color: '#d7dadc' }}>
+                        This will permanently delete your Better Wordle account and associated friends/challenge data from Better Wordle. You'll need to create a new account to sign in again.
+                      </div>
+                    <button
+                      onClick={handleDeleteAccount}
+                      disabled={isDeleting}
+                      style={{
+                        padding: '10px 16px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: '#8b3a3a',
+                        color: '#ffffff',
+                        fontWeight: 'bold',
+                        fontSize: '13px',
+                        cursor: isDeleting ? 'not-allowed' : 'pointer',
+                        opacity: isDeleting ? 0.8 : 1,
+                      }}
+                    >
+                      {isDeleting ? 'Deleting account...' : 'Delete account'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

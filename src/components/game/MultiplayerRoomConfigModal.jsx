@@ -1,7 +1,7 @@
 import React from "react";
 import Modal from "../Modal";
 
-export default function OneVOneConfigModal({
+export default function MultiplayerRoomConfigModal({
   isOpen,
   onRequestClose,
   boardOptions,
@@ -23,7 +23,7 @@ export default function OneVOneConfigModal({
             color: "#ffffff",
           }}
         >
-          1v1 Game Configuration
+          Multiplayer Room Configuration
         </h2>
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div>
@@ -62,13 +62,13 @@ export default function OneVOneConfigModal({
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <input
               type="checkbox"
-              id="onevone-speedrun-config-checkbox"
+              id="multiplayer-speedrun-config-checkbox"
               checked={speedrunDraft}
               onChange={(e) => onChangeSpeedrunDraft(e.target.checked)}
               style={{ cursor: "pointer", width: "18px", height: "18px" }}
             />
             <label
-              htmlFor="onevone-speedrun-config-checkbox"
+              htmlFor="multiplayer-speedrun-config-checkbox"
               style={{ color: "#d7dadc", fontSize: 14, cursor: "pointer", margin: 0 }}
             >
               Speedrun Mode (Unlimited guesses, timed)

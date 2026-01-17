@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import Modal from "./Modal";
 
 const FriendsModal = lazy(() => import("./FriendsModal"));
+const OpenRoomsModal = lazy(() => import("./OpenRoomsModal"));
 
 export default function HamburgerMenu({ onOpenFeedback }) {
   const navigate = useNavigate();
@@ -20,6 +21,8 @@ export default function HamburgerMenu({ onOpenFeedback }) {
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
   const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [showChallengesModal, setShowChallengesModal] = useState(false);
+  const [showOpenRoomsModal, setShowOpenRoomsModal] = useState(false);
+  const [showAllRoomsModal, setShowAllRoomsModal] = useState(false);
 
   return (
     <>
@@ -210,6 +213,59 @@ export default function HamburgerMenu({ onOpenFeedback }) {
                 )}
               </button>
             )}
+            {user && (
+              <button
+                onClick={() => {
+                  setShowOpenRoomsModal(true);
+                  setShowHamburgerMenu(false);
+                }}
+                style={{
+                  width: "100%",
+                  padding: "10px 16px",
+                  background: "transparent",
+                  border: "none",
+                  color: "#ffffff",
+                  fontSize: "13px",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                  letterSpacing: "0.3px",
+                  transition: "all 0.2s ease",
+                  borderBottom: "1px solid #3a3a3c",
+                }}
+                onMouseEnter={(e) => (e.target.style.background = "rgba(255, 255, 255, 0.1)")}
+                onMouseLeave={(e) => (e.target.style.background = "transparent")}
+              >
+                Open Rooms
+              </button>
+            )}
+
+            {user && user.email === "abhijeetsridhar14@gmail.com" && (
+              <button
+                onClick={() => {
+                  setShowAllRoomsModal(true);
+                  setShowHamburgerMenu(false);
+                }}
+                style={{
+                  width: "100%",
+                  padding: "10px 16px",
+                  background: "transparent",
+                  border: "none",
+                  color: "#ffffff",
+                  fontSize: "13px",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                  letterSpacing: "0.3px",
+                  transition: "all 0.2s ease",
+                  borderBottom: "1px solid #3a3a3c",
+                }}
+                onMouseEnter={(e) => (e.target.style.background = "rgba(255, 255, 255, 0.1)")}
+                onMouseLeave={(e) => (e.target.style.background = "transparent")}
+              >
+                View all rooms
+              </button>
+            )}
             <button
               onClick={() => {
                 onOpenFeedback();
@@ -255,6 +311,22 @@ export default function HamburgerMenu({ onOpenFeedback }) {
         <FriendsModal
           isOpen={showFriendsModal}
           onRequestClose={() => setShowFriendsModal(false)}
+        />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <OpenRoomsModal
+          isOpen={showOpenRoomsModal}
+          onRequestClose={() => setShowOpenRoomsModal(false)}
+        />
+      </Suspense>
+
+      {/* Admin-only: view all rooms (public + private) with close controls */}
+      <Suspense fallback={null}>
+        <OpenRoomsModal
+          isOpen={showAllRoomsModal}
+          onRequestClose={() => setShowAllRoomsModal(false)}
+          adminMode
         />
       </Suspense>
 
@@ -434,11 +506,11 @@ export default function HamburgerMenu({ onOpenFeedback }) {
                             try {
                               const data = await acceptChallenge(ch.id);
                               setShowChallengesModal(false);
-                              // Navigate into the waiting room as the guest.
+                              // Navigate into the multiplayer waiting room as the guest.
                               const boards = data.boards || 1;
                               const speedrun = !!data.speedrun;
                               navigate(
-                                `/game?mode=1v1&code=${data.gameCode}&speedrun=${speedrun}&boards=${boards}`,
+                                `/game?mode=multiplayer&code=${data.gameCode}&speedrun=${speedrun}&boards=${boards}`,
                               );
                             } catch (err) {
                               // eslint-disable-next-line no-alert

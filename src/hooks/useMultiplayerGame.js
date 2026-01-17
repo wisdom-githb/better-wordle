@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { ref, set, onValue, off, remove, update } from 'firebase/database';
 import { database } from '../config/firebase';
 import { auth } from '../config/firebase';
+import { MULTIPLAYER_WAITING_TIMEOUT_MS } from '../lib/multiplayerConfig';
 
 /**
  * Generate a random 6-digit game code
@@ -10,10 +11,15 @@ function generateGameCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+// Multiplayer limits for 1v1 rooms generalized to N players.
+const DEFAULT_MAX_PLAYERS = 2;
+const ABSOLUTE_MAX_PLAYERS = 8;
+
 /**
- * Hook for managing 1v1 game state in Firebase Realtime Database
+ * Hook for managing multiplayer game state in Firebase Realtime Database
+ * (backed by the legacy `onevone` Firebase path for now).
  */
-export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false) {
+export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = false) {
   const [gameState, setGameState] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -67,18 +73,35 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
       ? !!options.speedrun
       : !!speedrun;
 
+    const rawMaxPlayers = Number.isFinite(options.maxPlayers)
+      ? options.maxPlayers
+      : DEFAULT_MAX_PLAYERS;
+    const maxPlayers = Math.max(2, Math.min(ABSOLUTE_MAX_PLAYERS, rawMaxPlayers));
+    const isPublic = !!options.isPublic;
+
+    // Boards configuration for this room (used for waiting-room display and first round).
+    const rawBoards = Number.isFinite(options.boards)
+      ? options.boards
+      : 1;
+    const configBoards = Math.max(1, Math.min(32, rawBoards));
+
     const code = generateGameCode();
     const gamePath = `onevone/${code}`;
+
+    const hostName = user.displayName || user.email || 'Player 1';
+    const now = Date.now();
+
     const gameData = {
       hostId: user.uid,
-      hostName: user.displayName || user.email || 'Player 1',
+      hostName,
       hostReady: false,
       guestId: null,
       guestName: null,
       guestReady: false,
       status: 'waiting', // waiting, ready, playing, finished
-      currentTurn: null, // 'host' or 'guest'
+      currentTurn: null, // 'host' or 'guest' (null for speedrun or >2 players)
       solution: null,
+      // Legacy 2-player guesses (kept for backwards compatibility)
       hostGuesses: [],
       guestGuesses: [],
       hostColors: [], // Colors for each guess (for opponent to see)
@@ -92,8 +115,24 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
       // Rematch handshake flags
       hostRematch: false,
       guestRematch: false,
-      createdAt: Date.now(),
-      startedAt: null
+      createdAt: now,
+      startedAt: null,
+      // Multiplayer room settings
+      maxPlayers,
+      isPublic,
+      configBoards,
+      players: {
+        [user.uid]: {
+          id: user.uid,
+          name: hostName,
+          isHost: true,
+          ready: false,
+          joinedAt: now,
+          guesses: [],
+          timeMs: null,
+          startTime: null,
+        },
+      },
     };
 
     try {
@@ -125,31 +164,85 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
       }
 
       const gameData = snapshot.val();
-      
-      // If user is already the host or guest, allow them to continue (game might have started)
-      if (gameData.hostId === user.uid) {
-        // User is already the host, no need to join
+
+      // If user is already part of the room (host/guest or in players map), allow them to continue.
+      if (gameData.hostId === user.uid || gameData.guestId === user.uid) {
+        return code;
+      }
+      if (gameData.players && gameData.players[user.uid]) {
         return code;
       }
 
-      if (gameData.guestId === user.uid) {
-        // User is already the guest, no need to join again
-        return code;
+      const status = gameData.status || 'waiting';
+      const players = gameData.players || null;
+      const rawMaxPlayers = Number.isFinite(gameData.maxPlayers)
+        ? gameData.maxPlayers
+        : DEFAULT_MAX_PLAYERS;
+      const maxPlayers = Math.max(2, Math.min(ABSOLUTE_MAX_PLAYERS, rawMaxPlayers));
+      const createdAt = typeof gameData.createdAt === 'number' ? gameData.createdAt : null;
+
+      // Expire stale rooms (waiting or playing) after the total lifetime window.
+      if (createdAt && Date.now() - createdAt > MULTIPLAYER_WAITING_TIMEOUT_MS) {
+        try {
+          await remove(gameDataRef);
+        } catch (e) {
+          // best-effort cleanup; ignore errors
+        }
+        throw new Error('Game code has expired');
       }
 
-      // If game has started and user is not part of it, don't allow joining
-      if (gameData.status !== 'waiting') {
+      const isMultiRoom = !!players && Object.keys(players).length > 2;
+
+      // For classic 2-player 1v1, do not allow joining games that have already started.
+      if (!isMultiRoom && status !== 'waiting') {
         throw new Error('Game has already started');
       }
 
+      // New-style multiplayer room using players map.
+      if (players) {
+        const activeIds = Object.keys(players);
+        if (activeIds.length >= maxPlayers) {
+          throw new Error('Game is full');
+        }
+
+        const now = Date.now();
+        const displayName = user.displayName || user.email || 'Player';
+
+        const updateData = {
+          players: {
+            ...players,
+            [user.uid]: {
+              id: user.uid,
+              name: displayName,
+              isHost: false,
+              ready: false,
+              joinedAt: now,
+              guesses: [],
+              timeMs: null,
+              startTime: null,
+            },
+          },
+        };
+
+        // For 2-player games, keep legacy guest fields in sync for backwards compatibility.
+        if (!gameData.guestId) {
+          updateData.guestId = user.uid;
+          updateData.guestName = displayName;
+          updateData.guestReady = false;
+        }
+
+        await update(gameDataRef, updateData);
+        return code;
+      }
+
+      // Legacy 2-player game without players map.
       if (gameData.guestId && gameData.guestId !== user.uid) {
         throw new Error('Game is full');
       }
 
-      // Join as guest (only if game is still waiting and guest slot is empty)
       await update(gameDataRef, {
         guestId: user.uid,
-        guestName: user.displayName || user.email || 'Player 2'
+        guestName: user.displayName || user.email || 'Player 2',
       });
 
       return code;
@@ -179,17 +272,23 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
 
       const gameData = snapshot.val();
       const isHost = gameData.hostId === user.uid;
+      const players = gameData.players || null;
 
+      const updateData = {};
+
+      // Update per-player ready flag when using the players map.
+      if (players && players[user.uid]) {
+        updateData[`players/${user.uid}/ready`] = ready;
+      }
+
+      // Keep legacy 2-player ready fields in sync.
       if (isHost) {
-        await update(gameDataRef, { hostReady: ready });
-      } else {
-        await update(gameDataRef, { guestReady: ready });
+        updateData.hostReady = ready;
+      } else if (gameData.guestId === user.uid) {
+        updateData.guestReady = ready;
       }
 
-      // If both players are ready, start the game
-      if (ready && gameData.hostReady && gameData.guestReady) {
-        // This will be handled separately to set solution
-      }
+      await update(gameDataRef, updateData);
     } catch (err) {
       setError(err.message);
       throw err;
@@ -224,32 +323,66 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
         throw new Error('Only host can start the game');
       }
 
-      // Check both players are ready
-      if (!gameData.hostReady || !gameData.guestReady) {
-        throw new Error('Both players must be ready to start');
+      const players = gameData.players || null;
+
+      // If we have a players map, require all players to be ready.
+      if (players) {
+        const playerValues = Object.values(players);
+        const allReady =
+          playerValues.length > 0 &&
+          playerValues.every((p) => p && typeof p.ready === 'boolean' ? p.ready : false);
+        if (!allReady) {
+          throw new Error('All players must be ready to start');
+        }
+      } else {
+        // Legacy 2-player ready check.
+        if (!gameData.hostReady || !gameData.guestReady) {
+          throw new Error('Both players must be ready to start');
+        }
       }
 
       // Decide whether this round is speedrun or standard. Allow an explicit
       // override via `options.speedrun` so hosts can change modes between rounds.
       const hasOverrideSpeedrun = Object.prototype.hasOwnProperty.call(options, 'speedrun');
       const isSpeedrunRound = hasOverrideSpeedrun ? !!options.speedrun : !!gameData.speedrun;
-      
-      // Randomly decide who goes first (standard only; no turns in speedrun).
-      const firstTurn = Math.random() < 0.5 ? 'host' : 'guest';
+
       const now = Date.now();
 
       const solutionsArray = Array.isArray(solutionsOrSolution)
         ? solutionsOrSolution
         : [solutionsOrSolution];
 
-      await update(gameDataRef, {
+      const playerCount = players ? Object.keys(players).length : 0;
+      const isMultiFreeplay = players && playerCount > 2;
+
+      // Randomly decide who goes first only for 2-player, non-speedrun rounds.
+      const firstTurn = !isSpeedrunRound && !isMultiFreeplay
+        ? (Math.random() < 0.5 ? 'host' : 'guest')
+        : null;
+
+      let updatedPlayers = players || null;
+      if (players) {
+        updatedPlayers = {};
+        Object.keys(players).forEach((pid) => {
+          const p = players[pid] || {};
+          updatedPlayers[pid] = {
+            ...p,
+            guesses: [],
+            timeMs: null,
+            startTime: isSpeedrunRound ? now : null,
+            // keep existing ready flag as-is so lobby state is preserved in history
+          };
+        });
+      }
+
+      const updatePayload = {
         status: 'playing',
         // Keep single `solution` field for backwards compatibility, but
         // also store full `solutions` array for multi-board support.
         solution: solutionsArray[0],
         solutions: solutionsArray,
         speedrun: isSpeedrunRound,
-        currentTurn: isSpeedrunRound ? null : firstTurn,
+        currentTurn: firstTurn,
         startedAt: now,
         // Clear previous round state
         hostGuesses: [],
@@ -265,7 +398,13 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
         // Clear rematch flags once new round starts
         hostRematch: false,
         guestRematch: false,
-      });
+      };
+
+      if (updatedPlayers) {
+        updatePayload.players = updatedPlayers;
+      }
+
+      await update(gameDataRef, updatePayload);
     } catch (err) {
       setError(err.message);
       throw err;
@@ -292,9 +431,15 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
 
       const gameData = snapshot.val();
       const isHost = gameData.hostId === user.uid;
+      const players = gameData.players || null;
+      const playerCount = players ? Object.keys(players).length : 0;
 
       const isSpeedrun = gameData.speedrun || false;
-      if (!isSpeedrun) {
+      const isMultiFreeplay = players && playerCount > 2;
+
+      // In standard 2-player games, enforce turn order. For speedrun or
+      // multi-player (3+), everyone can guess concurrently.
+      if (!isSpeedrun && !isMultiFreeplay) {
         const isMyTurn = gameData.currentTurn === (isHost ? 'host' : 'guest');
         if (!isMyTurn) {
           throw new Error('Not your turn');
@@ -312,45 +457,104 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
           ? [gameData.solution]
           : [];
 
-      // Track time if finished in speedrun mode
       const updateData = {};
-      
-      if (isHost) {
-        const hostGuesses = [...(gameData.hostGuesses || []), guess];
-        const hostColors = [...(gameData.hostColors || []), colors];
-        
-        updateData.hostGuesses = hostGuesses;
-        updateData.hostColors = hostColors;
-        if (!isSpeedrun) {
-          updateData.currentTurn = 'guest';
-        }
-        
-        if (isSpeedrun && !gameData.hostTimeMs && solutionArray.length > 0) {
-          const hostSolvedAll = solutionArray.every((sol) => hostGuesses.includes(sol));
-          if (hostSolvedAll) {
-            const startTime = gameData.hostStartTime || gameData.startedAt || now;
-            updateData.hostTimeMs = now - startTime;
+
+      // Helper to compute speedrun completion and timeMs for a given list of guesses.
+      const maybeSetSpeedrunTime = (currentGuesses, existingTimeMs, startTimeFieldPath, timeMsFieldPath) => {
+        if (!isSpeedrun || existingTimeMs || solutionArray.length === 0) return;
+        const solvedAll = solutionArray.every((sol) => currentGuesses.includes(sol));
+        if (!solvedAll) return;
+        const startTime = (startTimeFieldPath && gameData[startTimeFieldPath]) || gameData.startedAt || now;
+        const elapsed = now - startTime;
+        updateData[timeMsFieldPath] = elapsed;
+      };
+
+      // Update per-player guesses when using the players map.
+      if (players && players[user.uid]) {
+        const playerRecord = players[user.uid];
+        const newGuesses = [...(playerRecord.guesses || []), guess];
+        updateData[`players/${user.uid}/guesses`] = newGuesses;
+
+        // Also keep legacy 2-player host/guest arrays in sync when there are
+        // exactly 2 players, so existing UI continues to work.
+        if (playerCount <= 2) {
+          if (isHost) {
+            const hostGuesses = [...(gameData.hostGuesses || []), guess];
+            const hostColors = [...(gameData.hostColors || []), colors];
+            updateData.hostGuesses = hostGuesses;
+            updateData.hostColors = hostColors;
+            if (!isSpeedrun) {
+              updateData.currentTurn = 'guest';
+            }
+            maybeSetSpeedrunTime(
+              hostGuesses,
+              gameData.hostTimeMs,
+              'hostStartTime',
+              'hostTimeMs',
+            );
+          } else {
+            const guestGuesses = [...(gameData.guestGuesses || []), guess];
+            const guestColors = [...(gameData.guestColors || []), colors];
+            updateData.guestGuesses = guestGuesses;
+            updateData.guestColors = guestColors;
+            if (!isSpeedrun) {
+              updateData.currentTurn = 'host';
+            }
+            maybeSetSpeedrunTime(
+              guestGuesses,
+              gameData.guestTimeMs,
+              'guestStartTime',
+              'guestTimeMs',
+            );
+          }
+        } else {
+          // Multi-player speedrun timing: track timeMs per player.
+          if (isSpeedrun && solutionArray.length > 0 && !playerRecord.timeMs) {
+            const solvedAll = solutionArray.every((sol) => newGuesses.includes(sol));
+            if (solvedAll) {
+              const startTime = playerRecord.startTime || gameData.startedAt || now;
+              const elapsed = now - startTime;
+              updateData[`players/${user.uid}/timeMs`] = elapsed;
+            }
           }
         }
       } else {
-        const guestGuesses = [...(gameData.guestGuesses || []), guess];
-        const guestColors = [...(gameData.guestColors || []), colors];
-        
-        updateData.guestGuesses = guestGuesses;
-        updateData.guestColors = guestColors;
-        if (!isSpeedrun) {
-          updateData.currentTurn = 'host';
-        }
-        
-        if (isSpeedrun && !gameData.guestTimeMs && solutionArray.length > 0) {
-          const guestSolvedAll = solutionArray.every((sol) => guestGuesses.includes(sol));
-          if (guestSolvedAll) {
-            const startTime = gameData.guestStartTime || gameData.startedAt || now;
-            updateData.guestTimeMs = now - startTime;
+        // Legacy 2-player game without players map.
+        if (isHost) {
+          const hostGuesses = [...(gameData.hostGuesses || []), guess];
+          const hostColors = [...(gameData.hostColors || []), colors];
+
+          updateData.hostGuesses = hostGuesses;
+          updateData.hostColors = hostColors;
+          if (!isSpeedrun) {
+            updateData.currentTurn = 'guest';
           }
+
+          maybeSetSpeedrunTime(
+            hostGuesses,
+            gameData.hostTimeMs,
+            'hostStartTime',
+            'hostTimeMs',
+          );
+        } else {
+          const guestGuesses = [...(gameData.guestGuesses || []), guess];
+          const guestColors = [...(gameData.guestColors || []), colors];
+
+          updateData.guestGuesses = guestGuesses;
+          updateData.guestColors = guestColors;
+          if (!isSpeedrun) {
+            updateData.currentTurn = 'host';
+          }
+
+          maybeSetSpeedrunTime(
+            guestGuesses,
+            gameData.guestTimeMs,
+            'guestStartTime',
+            'guestTimeMs',
+          );
         }
       }
-      
+
       await update(gameDataRef, updateData);
     } catch (err) {
       setError(err.message);
@@ -425,7 +629,7 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
   }, [user]);
 
 /**
-   * Update friendRequestStatus for this 1v1 game (e.g. 'pending', 'declined').
+   * Update friendRequestStatus for this multiplayer game (e.g. 'pending', 'declined').
    * We also track who initiated the request in `friendRequestFrom` so that only
    * that player sees their button disabled.
    */
@@ -529,9 +733,24 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
       }
 
       const gameData = snapshot.val();
-      
-      // Reset game state but keep players, game code, speedrun flag, and clear rematch flags
-      await update(gameDataRef, {
+      const players = gameData.players || null;
+
+      let updatedPlayers = players || null;
+      if (players) {
+        updatedPlayers = {};
+        Object.keys(players).forEach((pid) => {
+          const p = players[pid] || {};
+          updatedPlayers[pid] = {
+            ...p,
+            ready: false,
+            guesses: [],
+            timeMs: null,
+            startTime: null,
+          };
+        });
+      }
+
+      const updatePayload = {
         status: 'waiting',
         hostReady: false,
         guestReady: false,
@@ -550,7 +769,13 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
         hostRematch: false,
         guestRematch: false,
         // Keep speedrun flag
-      });
+      };
+
+      if (updatedPlayers) {
+        updatePayload.players = updatedPlayers;
+      }
+
+      await update(gameDataRef, updatePayload);
     } catch (err) {
       setError(err.message);
       throw err;
@@ -567,8 +792,6 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
     const gameDataRef = ref(database, gamePath);
 
     try {
-      // If user is host, delete the game
-      // If user is guest, just remove guest info
       if (user) {
         const snapshot = await new Promise((resolve, reject) => {
           onValue(gameDataRef, resolve, reject, { onlyOnce: true });
@@ -576,19 +799,120 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
 
         if (snapshot.exists()) {
           const gameData = snapshot.val();
-          if (gameData.hostId === user.uid) {
+          const isHost = gameData.hostId === user.uid;
+          const players = gameData.players || null;
+
+          if (isHost) {
+            // If the host leaves, delete the room entirely (current behavior).
             await remove(gameDataRef);
-          } else if (gameData.guestId === user.uid) {
-            await update(gameDataRef, {
-              guestId: null,
-              guestName: null,
-              guestReady: false
-            });
+            return;
+          }
+
+          const updatePayload = {};
+
+          // Legacy guest handling.
+          if (gameData.guestId === user.uid) {
+            updatePayload.guestId = null;
+            updatePayload.guestName = null;
+            updatePayload.guestReady = false;
+          }
+
+          // Remove from players map for multiplayer rooms.
+          if (players && players[user.uid]) {
+            const updatedPlayers = { ...players };
+            delete updatedPlayers[user.uid];
+            updatePayload.players = updatedPlayers;
+          }
+
+          if (Object.keys(updatePayload).length > 0) {
+            await update(gameDataRef, updatePayload);
           }
         }
       }
     } catch (err) {
       setError(err.message);
+    }
+  }, [user]);
+
+  /**
+   * Hard-expire a room by deleting it entirely when its lifetime elapses.
+   */
+  const expireGame = useCallback(async (code) => {
+    if (!code) return;
+    const gamePath = `onevone/${code}`;
+    const gameDataRef = ref(database, gamePath);
+    try {
+      await remove(gameDataRef);
+    } catch (err) {
+      setError(err.message);
+    }
+  }, []);
+
+  /**
+   * Update room configuration while in the waiting room.
+   * Only the host can call this, and only while status === 'waiting'.
+   */
+  const updateConfig = useCallback(async (code, config = {}) => {
+    if (!user) throw new Error('User must be signed in');
+
+    const gamePath = `onevone/${code}`;
+    const gameDataRef = ref(database, gamePath);
+
+    try {
+      const snapshot = await new Promise((resolve, reject) => {
+        onValue(gameDataRef, resolve, reject, { onlyOnce: true });
+      });
+
+      if (!snapshot.exists()) {
+        throw new Error('Game not found');
+      }
+
+      const gameData = snapshot.val();
+      if (gameData.hostId !== user.uid) {
+        throw new Error('Only the host can update room settings');
+      }
+      if (gameData.status !== 'waiting') {
+        throw new Error('Settings can only be changed before the game starts');
+      }
+
+      const players = gameData.players || null;
+      const playerCount = players ? Object.keys(players).length : 1;
+
+      const updatePayload = {};
+
+      if (Object.prototype.hasOwnProperty.call(config, 'boards')) {
+        let rawBoards = parseInt(config.boards, 10);
+        if (!Number.isFinite(rawBoards)) rawBoards = 1;
+        rawBoards = Math.max(1, Math.min(32, rawBoards));
+        updatePayload.configBoards = rawBoards;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(config, 'speedrun')) {
+        updatePayload.speedrun = !!config.speedrun;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(config, 'maxPlayers')) {
+        let rawMax = parseInt(config.maxPlayers, 10);
+        if (!Number.isFinite(rawMax)) rawMax = DEFAULT_MAX_PLAYERS;
+        rawMax = Math.max(2, Math.min(ABSOLUTE_MAX_PLAYERS, rawMax));
+        if (rawMax < playerCount) {
+          throw new Error('Max players cannot be less than current players in room');
+        }
+        updatePayload.maxPlayers = rawMax;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(config, 'isPublic')) {
+        updatePayload.isPublic = !!config.isPublic;
+      }
+
+      if (Object.keys(updatePayload).length === 0) {
+        return;
+      }
+
+      await update(gameDataRef, updatePayload);
+    } catch (err) {
+      setError(err.message);
+      throw err;
     }
   }, [user]);
 
@@ -603,9 +927,14 @@ export function useOneVOneGame(gameCode = null, isHost = false, speedrun = false
     submitGuess,
     switchTurn,
     setWinner,
+    setFriendRequestStatus,
     requestRematch,
     resetGame,
     leaveGame,
-    setFriendRequestStatus,
+    expireGame,
+    updateConfig,
   };
 }
+
+// Backwards-compatible alias for existing imports.
+export const useOneVOneGame = useMultiplayerGame;

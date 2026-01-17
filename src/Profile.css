@@ -132,6 +132,41 @@
   border-radius: 10px;
 }
 
+/* Streaks section */
+.streakGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.streakCard {
+  background: radial-gradient(circle at top left, #272729, #18181a);
+  border-radius: 12px;
+  border: 1px solid #2b2b2e;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.streakLabel {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #9ca3af;
+}
+
+.streakCurrent {
+  font-size: 20px;
+  font-weight: 700;
+  color: #facc15;
+}
+
+.streakBest {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
 @media (max-width: 768px) {
   .profileRoot {
     padding: 16px;

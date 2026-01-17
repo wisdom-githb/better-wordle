@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { isMobileDevice } from "../lib/gameUtils";
 
-function buildOneVOneShareText(code) {
+function buildMultiplayerShareText(code) {
   let roomUrl = "";
 
   try {
@@ -11,21 +11,21 @@ function buildOneVOneShareText(code) {
       const idx = pathname.indexOf(GAME_PATH);
       const basePath = idx !== -1 ? pathname.slice(0, idx) : "";
       const fullPath = `${basePath}${GAME_PATH}`;
-      roomUrl = `${origin}${fullPath}?mode=1v1&code=${code}`;
+      roomUrl = `${origin}${fullPath}?mode=multiplayer&code=${code}`;
     }
   } catch (e) {
     // Ignore and fall back to relative URL below
   }
 
   if (!roomUrl) {
-    roomUrl = `/game?mode=1v1&code=${code}`;
+    roomUrl = `/game?mode=multiplayer&code=${code}`;
   }
 
-  return `Join my Better Wordle 1v1 game\nLink: ${roomUrl}\nRoom code: ${code}`;
+  return `Join my Better Wordle multiplayer game\nLink: ${roomUrl}\nRoom code: ${code}`;
 }
 
 /**
- * Hook for sharing game results and 1v1 game codes.
+ * Hook for sharing game results and multiplayer game codes.
  */
 export function useShare(shareText, setTimedMessage) {
   const handleShare = useCallback(async () => {
@@ -94,7 +94,7 @@ export function useShare(shareText, setTimedMessage) {
   const handleShareCode = useCallback(
     async (code) => {
       const isMobile = isMobileDevice();
-      const text = buildOneVOneShareText(code);
+      const text = buildMultiplayerShareText(code);
 
       try {
         // Mobile: Use native share API
