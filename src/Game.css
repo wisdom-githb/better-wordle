@@ -366,3 +366,77 @@
   transform: rotateX(180deg);
 }
 
+/* Utility classes for common patterns */
+.loadingContainer {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #121213;
+  color: #ffffff;
+}
+
+.centerFlex {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Common flex layouts */
+.flexRow {
+  display: flex;
+  flex-direction: row;
+}
+
+.flexColumn {
+  display: flex;
+  flex-direction: column;
+}
+
+.flexGap4 {
+  gap: 4px;
+}
+
+.flexGap6 {
+  gap: 6px;
+}
+
+.flexGap8 {
+  gap: 8px;
+}
+
+.flexGap10 {
+  gap: 10px;
+}
+
+.flexGap12 {
+  gap: 12px;
+}
+
+.flexGap16 {
+  gap: 16px;
+}
+
+.flexGap20 {
+  gap: 20px;
+}
+
+.flexWrap {
+  flex-wrap: wrap;
+}
+
+.itemsCenter {
+  align-items: center;
+}
+
+.justifyEnd {
+  justify-content: flex-end;
+}
+
+.justifyStart {
+  justify-content: flex-start;
+}
+
+.justifyCenter {
+  justify-content: center;
+}

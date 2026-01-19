@@ -302,7 +302,6 @@ export default function GameMultiplayer() {
 
     if (oneVOneGame.gameState) {
       const gameState = oneVOneGame.gameState;
-      const isPlayerHostLocal = authUser && gameState.hostId === authUser.uid;
       const isSpeedrun = gameState.speedrun || false;
 
       const solutionArray =
@@ -313,9 +312,10 @@ export default function GameMultiplayer() {
           : [];
       if (solutionArray.length === 0) return;
 
-      const myGuesses = isPlayerHostLocal
-        ? gameState.hostGuesses || []
-        : gameState.guestGuesses || [];
+      // Get current player's guesses from the players map
+      const players = gameState.players || {};
+      const myPlayer = authUser && players[authUser.uid];
+      const myGuesses = (myPlayer && myPlayer.guesses) || [];
       const mySolvedAll = solutionArray.every((sol) => myGuesses.includes(sol));
       const myFinished = mySolvedAll || (!isSpeedrun && myGuesses.length >= maxTurns);
 
@@ -558,6 +558,8 @@ export default function GameMultiplayer() {
               : false
           }
           currentUserId={authUser ? authUser.uid : null}
+          onAddFriend={handleAddFriendRequest}
+          friendRequestSent={friendRequestSent}
           onRematch={async () => {
             if (!gameCode) return;
             try {

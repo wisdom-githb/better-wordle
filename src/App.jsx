@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, Suspense, lazy } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Home from "./Home";
+import "./Game.css"; // For utility classes like loadingContainer
 const Game = lazy(() => import("./Game"));
 const Profile = lazy(() => import("./Profile"));
 const Leaderboard = lazy(() => import("./components/Leaderboard"));
@@ -35,7 +36,7 @@ function App() {
   const marathonLevelsMemo = useMemo(() => MARATHON_LEVELS, []);
 
   return (
-    <Suspense fallback={<div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#121213", color: "#ffffff" }}>Loading…</div>}>
+    <Suspense fallback={<div className="loadingContainer">Loading…</div>}>
       <Routes>
         <Route 
           path="/" 

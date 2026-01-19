@@ -51,13 +51,7 @@ export default function MultiplayerGameView({
   const [showAuthModal, setShowAuthModal] = useState(false);
   const gameState = oneVOneGame.gameState;
   const playersMap = gameState && gameState.players && typeof gameState.players === "object" ? gameState.players : null;
-  const playerCount = playersMap ? Object.keys(playersMap).length : (() => {
-    if (!gameState) return 0;
-    let count = 0;
-    if (gameState.hostId) count += 1;
-    if (gameState.guestId) count += 1;
-    return count;
-  })();
+  const playerCount = playersMap ? Object.keys(playersMap).length : 0;
 
   // If we're still resolving auth, show a simple loading state that includes the header.
   if (authLoading) {
@@ -346,17 +340,16 @@ export default function MultiplayerGameView({
   }
 
   const isSpeedrun = gameState.speedrun || false;
-  const isPlayerHost = authUser && gameState.hostId === authUser.uid;
-  const opponentId =
-    authUser && gameState && playerCount === 2
-      ? authUser.uid === gameState.hostId
-        ? gameState.guestId
-        : gameState.hostId
-      : null;
-  const isFriendWithOpponent =
-    !!opponentId && Array.isArray(friends)
-      ? friends.some((f) => f.id === opponentId)
-      : false;
+  
+  // Determine if current player is host
+  const isPlayerHost = authUser && playersMap && playersMap[authUser.uid]
+    ? playersMap[authUser.uid].isHost
+    : false;
+  
+  // For multiplayer, we don't have a single "opponent" - it's a free-for-all
+  // opponentId is only for legacy 2-player compatibility
+  const opponentId = null;
+  const isFriendWithOpponent = false;
 
   const playerIds = playersMap ? Object.keys(playersMap) : [];
   const isMultiRoom = !!playersMap && playerIds.length > 2;
@@ -390,21 +383,21 @@ export default function MultiplayerGameView({
       const me = playersMap[authUser.uid];
       if (me && Array.isArray(me.guesses)) return me.guesses;
     }
-    return isPlayerHost ? gameState.hostGuesses || [] : gameState.guestGuesses || [];
+    return [];
   })();
 
   const opponentGuesses = (() => {
-    if (playersMap && authUser && playerCount === 2) {
+    if (playersMap && authUser) {
       const others = Object.values(playersMap).filter((p) => p.id !== authUser.uid);
       if (others[0] && Array.isArray(others[0].guesses)) return others[0].guesses;
     }
-    return isPlayerHost ? gameState.guestGuesses || [] : gameState.hostGuesses || [];
+    return [];
   })();
 
   const mySolved = gameState.solution && myGuesses.includes(gameState.solution);
   const opponentSolved = gameState.solution && opponentGuesses.includes(gameState.solution);
 
-  // In multi-board 1v1, hide opponent guesses until the local player has
+  // In multi-board multiplayer, hide opponent guesses until the local player has
   // solved *all* boards. This applies only when there is more than one
   // solution/board.
   const isMultiBoard = solutionList.length > 1;
@@ -414,10 +407,6 @@ export default function MultiplayerGameView({
   const hideOpponentBoards = isMultiBoard && !mySolvedAllBoards;
   // When hiding, we still want to show colors but not letters.
   const hideOpponentLetters = hideOpponentBoards;
-
-  // Rematch flags for current player vs opponent
-  const myRematch = isPlayerHost ? gameState.hostRematch : gameState.guestRematch;
-  const opponentRematch = isPlayerHost ? gameState.guestRematch : gameState.hostRematch;
 
   const myGuessCount = myGuesses.length;
   const opponentGuessCount = opponentGuesses.length;
@@ -491,22 +480,7 @@ export default function MultiplayerGameView({
     if (playersMap && Object.keys(playersMap).length > 0) {
       return Object.values(playersMap);
     }
-    const list = [];
-    if (gameState.hostId || gameState.hostName) {
-      list.push({
-        id: gameState.hostId || "host",
-        name: gameState.hostName || "Host",
-        guesses: gameState.hostGuesses || [],
-      });
-    }
-    if (gameState.guestId || gameState.guestName) {
-      list.push({
-        id: gameState.guestId || "guest",
-        name: gameState.guestName || "Guest",
-        guesses: gameState.guestGuesses || [],
-      });
-    }
-    return list;
+    return [];
   })();
 
   return (
@@ -753,71 +727,6 @@ export default function MultiplayerGameView({
             </div>
 
             {/* Rematch status text */}
-            {gameState.status === "finished" && (
-              <div
-                style={{
-                  textAlign: "center",
-                  fontSize: 13,
-                  color: "#c9b458",
-                  marginBottom: "4px",
-                  minHeight: 18,
-                }}
-              >
-                {myRematch && !opponentRematch && "Waiting for opponent to accept rematch..."}
-                {!myRematch && opponentRematch && "Opponent wants a rematch"}
-                {myRematch && opponentRematch && "Starting rematch..."}
-              </div>
-            )}
-
-            {/* Add Friend Button */}
-            {gameState && authUser && !isFriendWithOpponent && (
-              <div
-                style={{
-                  width: "100%",
-                  textAlign: "center",
-                  marginBottom: "12px",
-                }}
-              >
-                <button
-                  onClick={() => {
-                    if (friendRequestSent) return;
-                    const opponentName =
-                      authUser?.uid === gameState.hostId
-                        ? gameState.guestName
-                        : gameState.hostName;
-                    const opponentId =
-                      authUser?.uid === gameState.hostId
-                        ? gameState.guestId
-                        : gameState.hostId;
-                    if (opponentName && opponentId) {
-                      onAddFriendRequest(opponentName, opponentId);
-                    }
-                  }}
-                  disabled={friendRequestSent}
-                  style={{
-                    padding: "8px 14px",
-                    borderRadius: "8px",
-                    border: "1px solid #3a3a3c",
-                    background: "transparent",
-                    color: "#ffffff",
-                    fontSize: "12px",
-                    fontWeight: "bold",
-                    cursor: friendRequestSent ? "not-allowed" : "pointer",
-                    letterSpacing: "0.5px",
-                    transition: "all 0.2s ease",
-                    opacity: friendRequestSent ? 0.6 : 1,
-                  }}
-                >
-                  {friendRequestSent
-                    ? "Friend request sent"
-                    : `Add ${
-                        gameState.hostId === authUser?.uid
-                          ? gameState.guestName
-                          : gameState.hostName
-                      } as Friend`}
-                </button>
-              </div>
-            )}
 
             {/* Boards: local player only */}
             <div

@@ -293,7 +293,7 @@ export default function Home({
               Once verified, you&apos;ll be able to play Multiplayer Mode and use friends.
               Check your Spam or Junk folder for the verification link.
             </p>
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <div className="flexRow justifyEnd">
               <button
                 type="button"
                 className="homeBtn homeBtnGreen homeBtnLg"

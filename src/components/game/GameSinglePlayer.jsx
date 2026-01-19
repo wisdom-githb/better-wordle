@@ -665,10 +665,11 @@ export default function GameSinglePlayer({
       const metaKey = marathonMetaKey(speedrunEnabled);
       // Keep marathon stage index in sync across devices for signed-in users.
       persistForUser(`singlePlayer/meta/${metaKey}`, updatedMeta);
-      navigate(`/game?mode=marathon&speedrun=${speedrunEnabled}`, { replace: true });
-      window.location.reload();
+      // Navigate to the next marathon stage. Use direct href navigation instead of
+      // navigate() + reload() to ensure the navigation happens before the page reload.
+      window.location.href = `/game?mode=marathon&speedrun=${speedrunEnabled}`;
     }
-  }, [marathonHasNext, marathonIndex, speedrunEnabled, navigate]);
+  }, [marathonHasNext, marathonIndex, speedrunEnabled]);
 
   const exitFromOutOfGuesses = () => {
     // Freeze the timer and immediately transition to the end-of-game popup
@@ -901,16 +902,7 @@ export default function GameSinglePlayer({
           <title>{pageTitle}</title>
           <meta name="description" content={pageDescription} />
         </Helmet>
-        <div
-          style={{
-            minHeight: "100vh",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "#121213",
-            color: "#ffffff",
-          }}
-        >
+        <div className="loadingContainer">
           Loading Wordle dictionaries...
         </div>
       </>

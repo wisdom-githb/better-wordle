@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { ref, set, onValue, off, remove, update, get } from 'firebase/database';
 import { database } from '../config/firebase';
 import { auth } from '../config/firebase';
@@ -119,33 +119,18 @@ const createGame = useCallback(async (options = {}) => {
     const gameData = {
       hostId: user.uid,
       hostName,
-      hostReady: false,
-      guestId: null,
-      guestName: null,
-      guestReady: false,
       status: 'waiting', // waiting, ready, playing, finished
-      currentTurn: null, // 'host' or 'guest' (null for speedrun or >2 players)
       solution: null,
-      // Legacy 2-player guesses (kept for backwards compatibility)
-      hostGuesses: [],
-      guestGuesses: [],
-      hostColors: [], // Colors for each guess (for opponent to see)
-      guestColors: [],
-      winner: null, // 'host', 'guest', or null
+      solutions: [], // Array of solutions (one per board)
+      winner: null, // Will be set to a uid when a player wins, or 'draw' for ties
       speedrun: effectiveSpeedrun, // Whether speedrun mode is enabled
-      hostTimeMs: null, // Time taken by host (in speedrun mode)
-      guestTimeMs: null, // Time taken by guest (in speedrun mode)
-      hostStartTime: null, // When host started solving (in speedrun mode)
-      guestStartTime: null, // When guest started solving (in speedrun mode)
-      // Rematch handshake flags (for first two players)
-      hostRematch: false,
-      guestRematch: false,
       createdAt: now,
       startedAt: null,
       // Multiplayer room settings
       maxPlayers,
       isPublic,
       configBoards,
+      // All game state now lives in the players map - no legacy host/guest duplication
       players: {
         [user.uid]: {
           id: user.uid,
@@ -154,6 +139,7 @@ const createGame = useCallback(async (options = {}) => {
           ready: false,
           joinedAt: now,
           guesses: [],
+          colors: [], // Colors for each guess (for opponent to see)
           timeMs: null,
           startTime: null,
         },
@@ -251,28 +237,12 @@ const createGame = useCallback(async (options = {}) => {
           },
         };
 
-        // For 2-player games, keep legacy guest fields in sync for backwards compatibility.
-        if (!gameData.guestId) {
-          updateData.guestId = user.uid;
-          updateData.guestName = displayName;
-          updateData.guestReady = false;
-        }
-
         await update(gameDataRef, updateData);
         return code;
       }
 
-      // Legacy 2-player game without players map.
-      if (gameData.guestId && gameData.guestId !== user.uid) {
-        throw new Error('Game is full');
-      }
-
-      await update(gameDataRef, {
-        guestId: user.uid,
-        guestName: user.displayName || user.email || 'Player 2',
-      });
-
-      return code;
+      // All games now use the players map - no legacy mode.
+      throw new Error('Game is full or invalid');
     } catch (err) {
       setError(err.message);
       throw err;
@@ -282,7 +252,7 @@ const createGame = useCallback(async (options = {}) => {
 /**
    * Set ready status for the current user.
    *
-   * Mirrors into the per-player entry and legacy host/guest ready flags.
+   * Updates the per-player ready flag in the players map.
    */
   const setReady = useCallback(async (code, ready = true) => {
     if (!user) throw new Error('User must be signed in');
@@ -299,26 +269,15 @@ const createGame = useCallback(async (options = {}) => {
 
       const gameData = snapshot.val();
       const players = gameData.players || null;
-      const isHost = gameData.hostId === user.uid;
 
-      const updateData = {};
-
-      // Update per-player ready flag when using the players map.
-      if (players && players[user.uid]) {
-        updateData[`players/${user.uid}/ready`] = ready;
+      // All games now use the players map for ready status.
+      if (!players || !players[user.uid]) {
+        throw new Error('Player not in game');
       }
 
-      // Keep legacy 2-player ready fields in sync only when there is no players
-      // map (true legacy games).
-      if (!players) {
-        if (isHost) {
-          updateData.hostReady = ready;
-        } else if (gameData.guestId === user.uid) {
-          updateData.guestReady = ready;
-        }
-      }
-
-      await update(gameDataRef, updateData);
+      await update(gameDataRef, {
+        [`players/${user.uid}/ready`]: ready,
+      });
     } catch (err) {
       setError(err.message);
       throw err;
@@ -399,28 +358,11 @@ const createGame = useCallback(async (options = {}) => {
 
       const updatePayload = {
         status: 'playing',
-        // Keep single `solution` field for backwards compatibility, but
-        // also store full `solutions` array for multi-board support.
         solution: solutionsArray[0],
         solutions: solutionsArray,
         speedrun: isSpeedrunRound,
-        // Multiplayer is now fully free-for-all: no turn order.
-        currentTurn: null,
         startedAt: now,
-        // Clear previous round state (legacy fields for first two players)
-        hostGuesses: [],
-        guestGuesses: [],
-        hostColors: [],
-        guestColors: [],
         winner: null,
-        hostTimeMs: null,
-        guestTimeMs: null,
-        // Initialize start times for speedrun mode (timer starts when game starts)
-        hostStartTime: isSpeedrunRound ? now : null,
-        guestStartTime: isSpeedrunRound ? now : null,
-        // Clear rematch flags once new round starts
-        hostRematch: false,
-        guestRematch: false,
       };
 
       if (updatedPlayers) {
@@ -471,94 +413,25 @@ const createGame = useCallback(async (options = {}) => {
 
       const updateData = {};
 
-      // Helper to compute speedrun completion and timeMs for a given list of guesses.
-      const maybeSetSpeedrunTime = (
-        currentGuesses,
-        existingTimeMs,
-        startTimeFieldPath,
-        timeMsFieldPath,
-      ) => {
-        if (!isSpeedrun || existingTimeMs || solutionArray.length === 0) return;
-        const solvedAll = solutionArray.every((sol) => currentGuesses.includes(sol));
-        if (!solvedAll) return;
-        const startTime =
-          (startTimeFieldPath && gameData[startTimeFieldPath]) || gameData.startedAt || now;
-        const elapsed = now - startTime;
-        updateData[timeMsFieldPath] = elapsed;
-      };
-
       // Update per-player guesses when using the players map.
       if (players && players[user.uid]) {
         const playerRecord = players[user.uid];
         const newGuesses = [...(playerRecord.guesses || []), guess];
         updateData[`players/${user.uid}/guesses`] = newGuesses;
+        updateData[`players/${user.uid}/colors`] = [...(playerRecord.colors || []), colors];
 
-        // Also keep legacy 2-player host/guest arrays in sync when there are
-        // exactly 2 players, so existing UI continues to work.
-        if (playerCount <= 2) {
-          if (isHost) {
-            const hostGuesses = [...(gameData.hostGuesses || []), guess];
-            const hostColors = [...(gameData.hostColors || []), colors];
-            updateData.hostGuesses = hostGuesses;
-            updateData.hostColors = hostColors;
-            maybeSetSpeedrunTime(
-              hostGuesses,
-              gameData.hostTimeMs,
-              'hostStartTime',
-              'hostTimeMs',
-            );
-          } else {
-            const guestGuesses = [...(gameData.guestGuesses || []), guess];
-            const guestColors = [...(gameData.guestColors || []), colors];
-            updateData.guestGuesses = guestGuesses;
-            updateData.guestColors = guestColors;
-            maybeSetSpeedrunTime(
-              guestGuesses,
-              gameData.guestTimeMs,
-              'guestStartTime',
-              'guestTimeMs',
-            );
-          }
-        } else {
-          // Multi-player speedrun timing: track timeMs per player.
-          if (isSpeedrun && solutionArray.length > 0 && !playerRecord.timeMs) {
-            const solvedAll = solutionArray.every((sol) => newGuesses.includes(sol));
-            if (solvedAll) {
-              const startTime = playerRecord.startTime || gameData.startedAt || now;
-              const elapsed = now - startTime;
-              updateData[`players/${user.uid}/timeMs`] = elapsed;
-            }
+        // Multi-player speedrun timing: track timeMs per player.
+        if (isSpeedrun && solutionArray.length > 0 && !playerRecord.timeMs) {
+          const solvedAll = solutionArray.every((sol) => newGuesses.includes(sol));
+          if (solvedAll) {
+            const startTime = playerRecord.startTime || gameData.startedAt || now;
+            const elapsed = now - startTime;
+            updateData[`players/${user.uid}/timeMs`] = elapsed;
           }
         }
       } else {
-        // Legacy 2-player game without players map.
-        if (isHost) {
-          const hostGuesses = [...(gameData.hostGuesses || []), guess];
-          const hostColors = [...(gameData.hostColors || []), colors];
-
-          updateData.hostGuesses = hostGuesses;
-          updateData.hostColors = hostColors;
-
-          maybeSetSpeedrunTime(
-            hostGuesses,
-            gameData.hostTimeMs,
-            'hostStartTime',
-            'hostTimeMs',
-          );
-        } else {
-          const guestGuesses = [...(gameData.guestGuesses || []), guess];
-          const guestColors = [...(gameData.guestColors || []), colors];
-
-          updateData.guestGuesses = guestGuesses;
-          updateData.guestColors = guestColors;
-
-          maybeSetSpeedrunTime(
-            guestGuesses,
-            gameData.guestTimeMs,
-            'guestStartTime',
-            'guestTimeMs',
-          );
-        }
+        // All games now use the players map.
+        throw new Error('Invalid game state: no players map found');
       }
 
       await update(gameDataRef, updateData);
@@ -578,9 +451,7 @@ const createGame = useCallback(async (options = {}) => {
     const gameDataRef = ref(database, gamePath);
 
     try {
-      const snapshot = await new Promise((resolve, reject) => {
-        onValue(gameDataRef, resolve, reject, { onlyOnce: true });
-      });
+      const snapshot = await get(gameDataRef);
 
       if (!snapshot.exists()) {
         throw new Error('Game not found');
@@ -646,9 +517,7 @@ const createGame = useCallback(async (options = {}) => {
     const gameDataRef = ref(database, gamePath);
 
     try {
-      const snapshot = await new Promise((resolve, reject) => {
-        onValue(gameDataRef, resolve, reject, { onlyOnce: true });
-      });
+      const snapshot = await get(gameDataRef);
 
       if (!snapshot.exists()) {
         throw new Error('Game not found');
@@ -703,9 +572,7 @@ const createGame = useCallback(async (options = {}) => {
     const gameDataRef = ref(database, gamePath);
 
     try {
-      const snapshot = await new Promise((resolve, reject) => {
-        onValue(gameDataRef, resolve, reject, { onlyOnce: true });
-      });
+      const snapshot = await get(gameDataRef);
 
       if (!snapshot.exists()) {
         throw new Error('Game not found');
@@ -753,9 +620,7 @@ const createGame = useCallback(async (options = {}) => {
     const gameDataRef = ref(database, gamePath);
 
     try {
-      const snapshot = await new Promise((resolve, reject) => {
-        onValue(gameDataRef, resolve, reject, { onlyOnce: true });
-      });
+      const snapshot = await get(gameDataRef);
 
       if (!snapshot.exists()) {
         throw new Error('Game not found');
@@ -781,22 +646,12 @@ const createGame = useCallback(async (options = {}) => {
 
       const updatePayload = {
         status: 'waiting',
-        hostReady: false,
-        guestReady: false,
         solution: null,
-        hostGuesses: [],
-        guestGuesses: [],
-        hostColors: [],
-        guestColors: [],
+        solutions: [],
         currentTurn: null,
         winner: null,
         startedAt: null,
-        hostTimeMs: null,
-        guestTimeMs: null,
-        hostStartTime: null,
-        guestStartTime: null,
-        hostRematch: false,
-        guestRematch: false,
+        rematchRequested: false,
         // Keep speedrun flag
       };
 
@@ -839,22 +694,15 @@ const createGame = useCallback(async (options = {}) => {
 
           const updatePayload = {};
 
-          // Legacy guest handling.
-          if (gameData.guestId === user.uid) {
-            updatePayload.guestId = null;
-            updatePayload.guestName = null;
-            updatePayload.guestReady = false;
-          }
-
           // Remove from players map for multiplayer rooms.
           if (players && players[user.uid]) {
             const updatedPlayers = { ...players };
             delete updatedPlayers[user.uid];
             updatePayload.players = updatedPlayers;
-          }
 
-          if (Object.keys(updatePayload).length > 0) {
-            await update(gameDataRef, updatePayload);
+            if (Object.keys(updatePayload).length > 0) {
+              await update(gameDataRef, updatePayload);
+            }
           }
         }
       }
@@ -888,9 +736,7 @@ const createGame = useCallback(async (options = {}) => {
     const gameDataRef = ref(database, gamePath);
 
     try {
-      const snapshot = await new Promise((resolve, reject) => {
-        onValue(gameDataRef, resolve, reject, { onlyOnce: true });
-      });
+      const snapshot = await get(gameDataRef);
 
       if (!snapshot.exists()) {
         throw new Error('Game not found');
@@ -945,7 +791,7 @@ const createGame = useCallback(async (options = {}) => {
     }
   }, [user]);
 
-  return {
+  return useMemo(() => ({
     gameState,
     error,
     loading,
@@ -962,7 +808,7 @@ const createGame = useCallback(async (options = {}) => {
     leaveGame,
     expireGame,
     updateConfig,
-  };
+  }), [gameState, error, loading, createGame, joinGame, setReady, startGame, submitGuess, switchTurn, setWinner, setFriendRequestStatus, requestRematch, resetGame, leaveGame, expireGame, updateConfig]);
 }
 
 // Backwards-compatible alias for existing imports.

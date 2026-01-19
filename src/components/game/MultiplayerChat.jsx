@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ref, onValue, push, set } from "firebase/database";
+import { ref, onValue, push, set, query, limitToLast } from "firebase/database";
 import { database } from "../../config/firebase";
 
 /**
  * Lightweight real-time chat tied to a specific multiplayer room.
  * Messages live under: onevone/<gameCode>/chat/<autoId>
+ * Limits display to last 100 messages to prevent unbounded growth.
  */
 export default function MultiplayerChat({ gameCode, authUser }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -18,12 +19,14 @@ export default function MultiplayerChat({ gameCode, authUser }) {
     return !!gameCode && !!authUser;
   }, [gameCode, authUser]);
 
-  // Subscribe to chat messages for this room.
+  // Subscribe to chat messages for this room, limited to last 100 messages.
   useEffect(() => {
     if (!gameCode) return undefined;
 
     const chatRef = ref(database, `onevone/${gameCode}/chat`);
-    const unsubscribe = onValue(chatRef, (snapshot) => {
+    // Limit to last 100 messages to prevent unbounded growth
+    const chatQuery = query(chatRef, limitToLast(100));
+    const unsubscribe = onValue(chatQuery, (snapshot) => {
       if (!snapshot.exists()) {
         setMessages([]);
         return;

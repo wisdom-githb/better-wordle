@@ -33,6 +33,8 @@ export default function GamePopup({
   hasCommentsSection = false,
   streakLabel,
   currentUserId,
+  onAddFriend,
+  friendRequestSent,
 }) {
   const navigate = useNavigate();
   
@@ -419,10 +421,37 @@ export default function GamePopup({
                               {isMe ? " (You)" : ""}
                             </div>
                           </div>
-                          <div style={{ textAlign: "right", color: "#d7dadc" }}>
-                            <div>{primaryStat}</div>
-                            {secondary && (
-                              <div style={{ fontSize: 11, color: "#9ca3af" }}>{secondary}</div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ textAlign: "right", color: "#d7dadc" }}>
+                              <div>{primaryStat}</div>
+                              {secondary && (
+                                <div style={{ fontSize: 11, color: "#9ca3af" }}>{secondary}</div>
+                              )}
+                            </div>
+                            {!isMe && onAddFriend && (
+                              <button
+                                onClick={() => onAddFriend(p.id, p.name)}
+                                disabled={friendRequestSent && friendRequestSent[p.id]}
+                                style={{
+                                  padding: "4px 8px",
+                                  fontSize: 12,
+                                  borderRadius: 4,
+                                  border: "none",
+                                  backgroundColor:
+                                    friendRequestSent && friendRequestSent[p.id]
+                                      ? "#818384"
+                                      : "#6aaa64",
+                                  color: "#ffffff",
+                                  cursor:
+                                    friendRequestSent && friendRequestSent[p.id]
+                                      ? "default"
+                                      : "pointer",
+                                  fontWeight: "bold",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {friendRequestSent && friendRequestSent[p.id] ? "✓" : "+"}
+                              </button>
                             )}
                           </div>
                         </div>

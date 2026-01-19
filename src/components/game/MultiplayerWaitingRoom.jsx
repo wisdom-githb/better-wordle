@@ -21,21 +21,15 @@ export default function MultiplayerWaitingRoom({
   onUpdateConfig,
 }) {
   const {
-    hostName,
-    guestName,
-    hostReady,
-    guestReady,
     status,
     players: playersMapRaw,
     maxPlayers,
     isPublic,
     speedrun,
-    hostId,
   } = gameState || {};
 
   const playersMap = playersMapRaw || null;
   const currentUserId = authUserId || null;
-  const isCurrentUserHost = !!isHost;
 
   // Derive per-player list when using the players map.
   const playerEntries = playersMap
@@ -52,16 +46,12 @@ export default function MultiplayerWaitingRoom({
     if (hasPlayersMap && currentUserId && playersMap[currentUserId]) {
       return !!playersMap[currentUserId].ready;
     }
-    return isCurrentUserHost ? !!hostReady : !!guestReady;
+    return false;
   })();
 
   const allPlayersReady = hasPlayersMap
     ? playerEntries.length > 0 && playerEntries.every((p) => !!p.ready)
-    : !!hostReady && !!guestReady;
-
-  const otherPlayerReady = isCurrentUserHost ? guestReady : hostReady;
-  const otherPlayerName = isCurrentUserHost ? guestName : hostName;
-  const currentUserName = isCurrentUserHost ? hostName : guestName;
+    : false;
 
   const [showFriendsList, setShowFriendsList] = React.useState(false);
 
@@ -82,12 +72,25 @@ export default function MultiplayerWaitingRoom({
   const [maxPlayersDraft, setMaxPlayersDraft] = React.useState(maxPlayersConfig);
   const [isPublicDraft, setIsPublicDraft] = React.useState(isPublicConfig);
   const [isSpeedrunDraft, setIsSpeedrunDraft] = React.useState(isSpeedrunConfig);
+  
+  // Optimistic state for immediate UI feedback
+  const [boardsOptimistic, setBoardsOptimistic] = React.useState(boards);
+  const [maxPlayersOptimistic, setMaxPlayersOptimistic] = React.useState(maxPlayersConfig);
+  const [isPublicOptimistic, setIsPublicOptimistic] = React.useState(isPublicConfig);
+  const [isSpeedrunOptimistic, setIsSpeedrunOptimistic] = React.useState(isSpeedrunConfig);
+  const [isSavingConfig, setIsSavingConfig] = React.useState(false);
+  const [configError, setConfigError] = React.useState(null);
 
   React.useEffect(() => {
     setBoardsDraft(boards);
     setMaxPlayersDraft(maxPlayersConfig);
     setIsPublicDraft(isPublicConfig);
     setIsSpeedrunDraft(isSpeedrunConfig);
+    // Sync optimistic state with live values when server updates come in
+    setBoardsOptimistic(boards);
+    setMaxPlayersOptimistic(maxPlayersConfig);
+    setIsPublicOptimistic(isPublicConfig);
+    setIsSpeedrunOptimistic(isSpeedrunConfig);
   }, [boards, maxPlayersConfig, isPublicConfig, isSpeedrunConfig]);
 
   // Expiry countdown based on createdAt and current time.
@@ -108,7 +111,7 @@ export default function MultiplayerWaitingRoom({
 
   const handleToggleReady = () => {
     if (!onReady) return;
-    onReady(!currentUserReady);
+    onReady();
   };
 
   return (
@@ -179,10 +182,12 @@ export default function MultiplayerWaitingRoom({
 
               {!isEditingConfig && (
                 <div className="waitingRoomSettingsSummary">
-                  Boards: <strong>{boards}</strong> · Mode:{' '}
-                  <strong>{isSpeedrunConfig ? 'Speedrun' : 'Standard'}</strong> ·
-                  Max players: <strong>{maxPlayersConfig}</strong> · Visibility:{' '}
-                  <strong>{isPublicConfig ? 'Public' : 'Private'}</strong>
+                  Boards: <strong>{boardsOptimistic}</strong> · Mode:{' '}
+                  <strong>{isSpeedrunOptimistic ? 'Speedrun' : 'Standard'}</strong> ·
+                  Max players: <strong>{maxPlayersOptimistic}</strong> · Visibility:{' '}
+                  <strong>{isPublicOptimistic ? 'Public' : 'Private'}</strong>
+                  {isSavingConfig && <span className="waitingRoomSavingIndicator"> (saving...)</span>}
+                  {configError && <div className="waitingRoomConfigError">Error: {configError}</div>}
                 </div>
               )}
 
@@ -278,19 +283,43 @@ export default function MultiplayerWaitingRoom({
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         if (!onUpdateConfig) return;
-                        onUpdateConfig({
-                          boards: boardsDraft,
-                          maxPlayers: maxPlayersDraft,
-                          isPublic: isPublicDraft,
-                          speedrun: isSpeedrunDraft,
-                        });
+                        
+                        setIsSavingConfig(true);
+                        setConfigError(null);
+                        
+                        // Optimistically update the display immediately
+                        setBoardsOptimistic(boardsDraft);
+                        setMaxPlayersOptimistic(maxPlayersDraft);
+                        setIsPublicOptimistic(isPublicDraft);
+                        setIsSpeedrunOptimistic(isSpeedrunDraft);
                         setIsEditingConfig(false);
+                        
+                        try {
+                          await onUpdateConfig({
+                            boards: boardsDraft,
+                            maxPlayers: maxPlayersDraft,
+                            isPublic: isPublicDraft,
+                            speedrun: isSpeedrunDraft,
+                          });
+                        } catch (err) {
+                          // If the request fails, revert the optimistic update
+                          setConfigError(err.message || 'Failed to save settings');
+                          setBoardsOptimistic(boards);
+                          setMaxPlayersOptimistic(maxPlayersConfig);
+                          setIsPublicOptimistic(isPublicConfig);
+                          setIsSpeedrunOptimistic(isSpeedrunConfig);
+                          // Re-open the form so user can try again or discard
+                          setIsEditingConfig(true);
+                        } finally {
+                          setIsSavingConfig(false);
+                        }
                       }}
+                      disabled={isSavingConfig}
                       className="waitingRoomPrimaryButton waitingRoomSettingsButton"
                     >
-                      Save changes
+                      {isSavingConfig ? 'Saving...' : 'Save changes'}
                     </button>
                   </div>
                 </div>
@@ -303,66 +332,45 @@ export default function MultiplayerWaitingRoom({
                 Players in room:
               </div>
               <div className="waitingRoomPlayersList">
-                {hasPlayersMap
-                  ? playerEntries.map((p) => {
-                      const isHostPlayer = !!p.isHost || p.id === hostId;
-                      const isCurrent = currentUserId && p.id === currentUserId;
-                      return (
-                        <div
-                          key={p.id}
-                          className="waitingRoomPlayerCard"
-                        >
-                          <span className="waitingRoomPlayerName">
-                            {p.name || 'Player'}
-                            {isHostPlayer ? ' (Host)' : ''}
-                            {isCurrent ? ' (You)' : ''}
-                          </span>
-                          <span
-                            className={
-                              p.ready
-                                ? 'waitingRoomPlayerReady waitingRoomPlayerReadyOn'
-                                : 'waitingRoomPlayerReady waitingRoomPlayerReadyOff'
-                            }
-                          >
-                            {p.ready ? '✓ Ready' : 'Not Ready'}
-                          </span>
-                        </div>
-                      );
-                    })
-                  : (
-                    <>
-                      <div className="waitingRoomPlayerCard">
+                {playerEntries.map((p) => {
+                  const isHostPlayer = !!p.isHost;
+                  const isCurrent = currentUserId && p.id === currentUserId;
+                  const isOtherPlayer = !isCurrent && onAddFriend;
+                  return (
+                    <div
+                      key={p.id}
+                      className="waitingRoomPlayerCard"
+                    >
+                      <div className="waitingRoomPlayerInfo">
                         <span className="waitingRoomPlayerName">
-                          {currentUserName} {isHost ? '(Host)' : ''}
+                          {p.name || 'Player'}
+                          {isHostPlayer ? ' (Host)' : ''}
+                          {isCurrent ? ' (You)' : ''}
                         </span>
-                        <span
-                          className={
-                            currentUserReady
-                              ? 'waitingRoomPlayerReady waitingRoomPlayerReadyOn'
-                              : 'waitingRoomPlayerReady waitingRoomPlayerReadyOff'
-                          }
-                        >
-                          {currentUserReady ? '✓ Ready' : 'Not Ready'}
-                        </span>
-                      </div>
-                      {otherPlayerName && (
-                        <div className="waitingRoomPlayerCard">
-                          <span className="waitingRoomPlayerName">
-                            {otherPlayerName} {!isHost ? '(Host)' : ''}
-                          </span>
-                          <span
-                            className={
-                              otherPlayerReady
-                                ? 'waitingRoomPlayerReady waitingRoomPlayerReadyOn'
-                                : 'waitingRoomPlayerReady waitingRoomPlayerReadyOff'
-                            }
+                        {isOtherPlayer && (
+                          <button
+                            type="button"
+                            onClick={() => !friendRequestSent && onAddFriend(p.name)}
+                            disabled={friendRequestSent}
+                            className="waitingRoomPlayerFriendButton"
+                            title={friendRequestSent ? 'Friend request sent' : `Add ${p.name} as friend`}
                           >
-                            {otherPlayerReady ? '✓ Ready' : 'Not Ready'}
-                          </span>
-                        </div>
-                      )}
-                    </>
-                  )}
+                            +
+                          </button>
+                        )}
+                      </div>
+                      <span
+                        className={
+                          p.ready
+                            ? 'waitingRoomPlayerReady waitingRoomPlayerReadyOn'
+                            : 'waitingRoomPlayerReady waitingRoomPlayerReadyOff'
+                        }
+                      >
+                        {p.ready ? '✓ Ready' : 'Not Ready'}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Ready / Not Ready + Start Game */}
@@ -405,24 +413,6 @@ export default function MultiplayerWaitingRoom({
                 </>
               )}
             </div>
-
-            {/* Add Friend button when a guest is present */}
-            {guestName && onAddFriend && (
-              <button
-                type="button"
-                onClick={() => !friendRequestSent && onAddFriend(guestName)}
-                disabled={friendRequestSent}
-                className="waitingRoomSecondaryButton waitingRoomFriendButton"
-                style={{
-                  cursor: friendRequestSent ? 'not-allowed' : 'pointer',
-                  opacity: friendRequestSent ? 0.6 : 1,
-                }}
-              >
-                {friendRequestSent
-                  ? 'Friend request sent'
-                  : `Add ${guestName} as Friend`}
-              </button>
-            )}
 
             {/* Collapsible friends list for inviting friends directly into this room */}
             {friends && friends.length > 0 && onInviteFriend && (
