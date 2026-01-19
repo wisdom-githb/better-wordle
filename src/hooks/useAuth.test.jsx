@@ -469,8 +469,9 @@ describe('useAuth - social data subscription', () => {
 });
 
 describe('useAuth - profile helpers', () => {
-  it('updateUsername updates displayName via updateProfile and local user', async () => {
+  it('updateUsername updates displayName, profile username, and username index', async () => {
     const { getAuth, updateProfile } = firebaseAuth;
+    const { set, get, ref } = firebaseDb;
     const auth = getAuth();
     auth.currentUser = {
       uid: 'u5',
@@ -478,6 +479,15 @@ describe('useAuth - profile helpers', () => {
       emailVerified: true,
       providerData: [],
     };
+
+    const db = firebaseDb.getDatabase();
+    // Seed existing profile + username index for the old name.
+    await set(ref(db, 'users/u5/profile'), {
+      uid: 'u5',
+      email: 'old@example.com',
+      username: 'Old Name',
+    });
+    await set(ref(db, 'usernames/old name'), { uid: 'u5' });
 
     const { result } = renderHook(() => useAuth());
     const listener = getAuthListener();
@@ -491,6 +501,16 @@ describe('useAuth - profile helpers', () => {
 
     expect(updateProfile).toHaveBeenCalledWith(auth.currentUser, { displayName: 'New Name' });
     expect(result.current.user.displayName).toBe('New Name');
+
+    const profileSnap = await get(ref(db, 'users/u5/profile'));
+    expect(profileSnap.val().username).toBe('New Name');
+
+    const newIndexSnap = await get(ref(db, 'usernames/new name'));
+    expect(newIndexSnap.val().uid).toBe('u5');
+
+    const oldIndexSnap = await get(ref(db, 'usernames/old name'));
+    expect(oldIndexSnap.exists()).toBe(false);
+
     expect(result.current.error).toBeNull();
   });
 

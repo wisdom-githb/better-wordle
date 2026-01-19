@@ -66,6 +66,8 @@ export default function SinglePlayerGameView({
   commentThreadId,
   canShare,
   streakLabel,
+  wordListError,
+  onRetryWordLists,
 }) {
   const inRouter = useInRouterContext();
 
@@ -127,6 +129,34 @@ export default function SinglePlayerGameView({
             turnsUsed={turnsUsed}
             maxTurns={maxTurns}
           />
+
+          {wordListError && (
+            <div
+              style={{
+                marginTop: 12,
+                marginBottom: 12,
+                padding: "12px 16px",
+                borderRadius: 8,
+                backgroundColor: "#3a3a3c",
+                color: "#ffffff",
+                fontSize: 14,
+              }}
+            >
+              <div style={{ marginBottom: onRetryWordLists ? 8 : 0 }}>
+                {wordListError}
+              </div>
+              {onRetryWordLists && (
+                <button
+                  type="button"
+                  className="homeBtn homeBtnGreen"
+                  onClick={onRetryWordLists}
+                  style={{ marginTop: 4 }}
+                >
+                  Retry loading word lists
+                </button>
+              )}
+            </div>
+          )}
 
           {streakLabel && (
             <div

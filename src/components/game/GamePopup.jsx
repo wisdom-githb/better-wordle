@@ -1,5 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { getSolutionArray } from "../../lib/multiplayerConfig";
 
 export default function GamePopup({
   allSolved,
@@ -97,11 +98,7 @@ export default function GamePopup({
               ? Object.values(oneVOneGameState.players).filter(Boolean)
               : null;
 
-          const solutionList = oneVOneGameState && Array.isArray(oneVOneGameState.solutions) && oneVOneGameState.solutions.length > 0
-            ? oneVOneGameState.solutions
-            : oneVOneGameState && oneVOneGameState.solution
-            ? [oneVOneGameState.solution]
-            : [];
+          const solutionList = getSolutionArray(oneVOneGameState);
 
           const makePlayerStats = (id, name, guesses, timeMs) => {
             const safeGuesses = Array.isArray(guesses) ? guesses : [];
@@ -529,11 +526,7 @@ export default function GamePopup({
             </div>
 
             {(() => {
-              const solutionList = Array.isArray(oneVOneGameState?.solutions) && oneVOneGameState.solutions.length > 0
-                ? oneVOneGameState.solutions
-                : oneVOneGameState.solution
-                ? [oneVOneGameState.solution]
-                : [];
+              const solutionList = getSolutionArray(oneVOneGameState);
 
               return (
                 <div

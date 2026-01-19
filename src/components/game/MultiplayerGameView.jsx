@@ -8,7 +8,7 @@ import MultiplayerChat from "./MultiplayerChat";
 const AuthModal = lazy(() => import("../AuthModal"));
 import { KEYBOARD_HEIGHT, formatElapsed as formatElapsedLib, scoreGuess } from "../../lib/wordle";
 import { FLIP_MS } from "../../lib/gameConstants";
-import { MULTIPLAYER_WAITING_TIMEOUT_MS } from "../../lib/multiplayerConfig";
+import { MULTIPLAYER_WAITING_TIMEOUT_MS, getSolutionArray } from "../../lib/multiplayerConfig";
 
 /**
  * Presentation component for all multiplayer-specific game views (formerly 1v1).
@@ -378,11 +378,7 @@ export default function MultiplayerGameView({
   }
 
   // Show all solution words in header (similar to multi-board daily)
-  const solutionList = Array.isArray(gameState.solutions) && gameState.solutions.length > 0
-    ? gameState.solutions
-    : gameState.solution
-    ? [gameState.solution]
-    : [];
+  const solutionList = getSolutionArray(gameState);
   const solutionsText = solutionList.map((w) => w.toUpperCase()).join(" · ");
   const numBoardsForHeader = solutionList.length || 1;
 

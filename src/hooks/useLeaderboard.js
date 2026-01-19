@@ -54,10 +54,19 @@ export function useLeaderboard(mode, numBoards = null, limit = 100) {
 
     const leaderboardRef = ref(database, `leaderboard/${mode}`);
 
-    // Compute today's local day range so the leaderboard resets at local midnight
+    // Compute today's UTC day range so the leaderboard resets at the same time
+    // for all players globally (midnight UTC).
     const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const startOfNextDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+    const startOfDay = Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+    );
+    const startOfNextDay = Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() + 1,
+    );
     
     // Query: order by score descending, then by timeMs ascending (for same score, faster is better)
     // Firebase doesn't support multiple orderBy, so we'll fetch all and sort in JS
@@ -74,14 +83,34 @@ export function useLeaderboard(mode, numBoards = null, limit = 100) {
             return;
           }
 
-          // Convert to array
-          let entriesArray = Object.entries(data).map(([key, value]) => ({
-            id: key,
-            ...value
-          }));
+          // Convert to array and normalise numeric fields so we can safely sort
+          // and render even if some historical entries are malformed.
+          let entriesArray = Object.entries(data)
+            .map(([key, value]) => ({
+              id: key,
+              ...value,
+            }))
+            .map((entry) => {
+              const normalised = { ...entry };
 
-          // Keep only entries from the current local day so the leaderboard refreshes daily
-          entriesArray = entriesArray.filter(entry => {
+              // Coerce score to a finite number, defaulting to 0 when missing.
+              const scoreNum = Number(normalised.score);
+              normalised.score = Number.isFinite(scoreNum) ? scoreNum : 0;
+
+              // Coerce timeMs; entries with non-finite timeMs are dropped later.
+              const timeNum = Number(normalised.timeMs);
+              normalised.timeMs = Number.isFinite(timeNum) ? timeNum : NaN;
+
+              // Normalise numBoards to a number when possible so filters behave.
+              const boardsNum = Number(normalised.numBoards);
+              normalised.numBoards = Number.isFinite(boardsNum) ? boardsNum : null;
+
+              return normalised;
+            })
+            .filter((entry) => Number.isFinite(entry.timeMs));
+
+          // Keep only entries from the current UTC day so the leaderboard refreshes daily
+          entriesArray = entriesArray.filter((entry) => {
             if (typeof entry.timestamp !== 'number') return false;
             return entry.timestamp >= startOfDay && entry.timestamp < startOfNextDay;
           });

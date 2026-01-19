@@ -1,4 +1,5 @@
 import React from 'react';
+import './MultiplayerWaitingRoom.css';
 
 export default function MultiplayerWaitingRoom({
   gameCode,
@@ -107,116 +108,43 @@ export default function MultiplayerWaitingRoom({
 
   const handleToggleReady = () => {
     if (!onReady) return;
-    if (!currentUserReady) {
-      onReady(true);
-    } else {
-      onReady(false);
-    }
+    onReady(!currentUserReady);
   };
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '60vh',
-        padding: '20px',
-        textAlign: 'center',
-      }}
-    >
-      <div
-        style={{
-          background: '#1a1a1b',
-          border: '1px solid #3a3a3c',
-          borderRadius: 12,
-          padding: '32px',
-          maxWidth: '500px',
-          width: '100%',
-        }}
-      >
-        <h2
-          style={{
-            margin: 0,
-            marginBottom: '24px',
-            fontSize: 24,
-            fontWeight: 'bold',
-            color: '#ffffff',
-          }}
-        >
+    <div className="waitingRoomRoot">
+      <div className="waitingRoomCard">
+        <h2 className="waitingRoomTitle">
           Multiplayer Room
         </h2>
 
         {status === 'waiting' && (
           <div>
-            <p style={{ color: '#d7dadc', marginBottom: '12px', fontSize: 16 }}>
+            <p className="waitingRoomSubtitle">
               Waiting for players to join...
             </p>
             {expiryLabel && (
-              <p
-                style={{
-                  color: '#9ca3af',
-                  marginBottom: '16px',
-                  fontSize: 12,
-                }}
-              >
+              <p className="waitingRoomExpiry">
                 Room expires in {expiryLabel}.
               </p>
             )}
 
             {/* Game code / share */}
-            <div
-              style={{
-                background: '#3a3a3c',
-                borderRadius: 8,
-                padding: '20px',
-                marginBottom: '16px',
-              }}
-            >
-              <div
-                style={{ color: '#818384', fontSize: 12, marginBottom: '8px' }}
-              >
+            <div className="waitingRoomCodeCard">
+              <div className="waitingRoomCodeLabel">
                 Game Code:
               </div>
-              <div
-                style={{
-                  fontSize: 36,
-                  fontWeight: 'bold',
-                  color: '#6aaa64',
-                  letterSpacing: '8px',
-                  fontFamily: 'monospace',
-                  marginBottom: '12px',
-                }}
-              >
+              <div className="waitingRoomCodeValue">
                 {gameCode}
               </div>
-              <p
-                style={{
-                  color: '#818384',
-                  fontSize: 12,
-                  marginTop: 0,
-                  marginBottom: '12px',
-                }}
-              >
+              <p className="waitingRoomCodeHelp">
                 Share this code with your opponent
               </p>
               {isHost && onShareCode && (
                 <button
                   type="button"
                   onClick={() => onShareCode(gameCode)}
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    borderRadius: 6,
-                    border: 'none',
-                    background: '#6aaa64',
-                    color: '#ffffff',
-                    fontSize: 12,
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                  }}
+                  className="waitingRoomPrimaryButton"
                 >
                   Share Code
                 </button>
@@ -228,46 +156,21 @@ export default function MultiplayerWaitingRoom({
               <button
                 type="button"
                 onClick={() => onCancelChallenge()}
-                style={{
-                  width: '100%',
-                  marginBottom: '16px',
-                  padding: '10px',
-                  borderRadius: 8,
-                  border: '1px solid #3a3a3c',
-                  background: 'transparent',
-                  color: '#ffffff',
-                  fontSize: 13,
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                }}
+                className="waitingRoomSecondaryButton waitingRoomCloseRoomButton"
               >
                 Close Room
               </button>
             )}
 
             {/* Game settings summary + optional host editor */}
-            <div style={{ marginBottom: '20px', textAlign: 'left' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: 4,
-                }}
-              >
-                <div style={{ fontSize: 13, color: '#d7dadc' }}>Game settings</div>
+            <div className="waitingRoomSettings">
+              <div className="waitingRoomSettingsHeader">
+                <div className="waitingRoomSettingsLabel">Game settings</div>
                 {isHost && onUpdateConfig && (
                   <button
                     type="button"
                     onClick={() => setIsEditingConfig((prev) => !prev)}
-                    style={{
-                      border: 'none',
-                      background: 'transparent',
-                      color: '#9ca3af',
-                      fontSize: 11,
-                      cursor: 'pointer',
-                      textDecoration: 'underline',
-                    }}
+                    className="waitingRoomSettingsEdit"
                   >
                     {isEditingConfig ? 'Cancel' : 'Edit'}
                   </button>
@@ -275,7 +178,7 @@ export default function MultiplayerWaitingRoom({
               </div>
 
               {!isEditingConfig && (
-                <div style={{ fontSize: 12, color: '#9ca3af' }}>
+                <div className="waitingRoomSettingsSummary">
                   Boards: <strong>{boards}</strong> · Mode:{' '}
                   <strong>{isSpeedrunConfig ? 'Speedrun' : 'Standard'}</strong> ·
                   Max players: <strong>{maxPlayersConfig}</strong> · Visibility:{' '}
@@ -284,20 +187,12 @@ export default function MultiplayerWaitingRoom({
               )}
 
               {isEditingConfig && isHost && onUpdateConfig && (
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: '#d7dadc',
-                    marginTop: 8,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                  }}
-                >
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <label style={{ flex: 1 }}>
-                      <div style={{ marginBottom: 2 }}>Boards</div>
+                <div className="waitingRoomSettingsEditForm">
+                  <div className="waitingRoomSettingsRow">
+                    <label className="waitingRoomSettingsField">
+                      <div className="waitingRoomSettingsFieldLabel">Boards</div>
                       <select
+                        className="waitingRoomSelect"
                         value={boardsDraft}
                         onChange={(e) =>
                           setBoardsDraft(
@@ -307,15 +202,6 @@ export default function MultiplayerWaitingRoom({
                             ),
                           )
                         }
-                        style={{
-                          width: '100%',
-                          padding: '6px 8px',
-                          borderRadius: 6,
-                          border: '1px solid #3a3a3c',
-                          background: '#1a1a1b',
-                          color: '#ffffff',
-                          fontSize: 12,
-                        }}
                       >
                         {Array.from({ length: 32 }, (_, i) => i + 1).map((n) => (
                           <option key={n} value={n}>
@@ -324,9 +210,10 @@ export default function MultiplayerWaitingRoom({
                         ))}
                       </select>
                     </label>
-                    <label style={{ flex: 1 }}>
-                      <div style={{ marginBottom: 2 }}>Max players</div>
+                    <label className="waitingRoomSettingsField">
+                      <div className="waitingRoomSettingsFieldLabel">Max players</div>
                       <select
+                        className="waitingRoomSelect"
                         value={maxPlayersDraft}
                         onChange={(e) =>
                           setMaxPlayersDraft(
@@ -336,15 +223,6 @@ export default function MultiplayerWaitingRoom({
                             ),
                           )
                         }
-                        style={{
-                          width: '100%',
-                          padding: '6px 8px',
-                          borderRadius: 6,
-                          border: '1px solid #3a3a3c',
-                          background: '#1a1a1b',
-                          color: '#ffffff',
-                          fontSize: 12,
-                        }}
                       >
                         {Array.from({ length: 7 }, (_, i) => i + 2).map((n) => (
                           <option key={n} value={n}>
@@ -355,17 +233,8 @@ export default function MultiplayerWaitingRoom({
                     </label>
                   </div>
 
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: 12,
-                      alignItems: 'center',
-                      flexWrap: 'wrap',
-                    }}
-                  >
-                    <label
-                      style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                    >
+                  <div className="waitingRoomSettingsToggles">
+                    <label className="waitingRoomCheckboxLabel">
                       <input
                         type="checkbox"
                         checked={isSpeedrunDraft}
@@ -373,20 +242,8 @@ export default function MultiplayerWaitingRoom({
                       />
                       <span>Speedrun mode</span>
                     </label>
-                    <div
-                      style={{
-                        display: 'flex',
-                        gap: 12,
-                        alignItems: 'center',
-                      }}
-                    >
-                      <label
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                        }}
-                      >
+                    <div className="waitingRoomVisibilityGroup">
+                      <label className="waitingRoomRadioLabel">
                         <input
                           type="radio"
                           checked={isPublicDraft}
@@ -394,13 +251,7 @@ export default function MultiplayerWaitingRoom({
                         />
                         <span>Public</span>
                       </label>
-                      <label
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                        }}
-                      >
+                      <label className="waitingRoomRadioLabel">
                         <input
                           type="radio"
                           checked={!isPublicDraft}
@@ -411,7 +262,7 @@ export default function MultiplayerWaitingRoom({
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                  <div className="waitingRoomSettingsButtons">
                     <button
                       type="button"
                       onClick={() => {
@@ -421,17 +272,7 @@ export default function MultiplayerWaitingRoom({
                         setIsPublicDraft(isPublicConfig);
                         setIsSpeedrunDraft(isSpeedrunConfig);
                       }}
-                      style={{
-                        flex: 1,
-                        padding: '8px',
-                        borderRadius: 6,
-                        border: '1px solid #3a3a3c',
-                        background: 'transparent',
-                        color: '#ffffff',
-                        fontSize: 12,
-                        fontWeight: 'bold',
-                        cursor: 'pointer',
-                      }}
+                      className="waitingRoomSecondaryButton waitingRoomSettingsButton"
                     >
                       Discard
                     </button>
@@ -447,17 +288,7 @@ export default function MultiplayerWaitingRoom({
                         });
                         setIsEditingConfig(false);
                       }}
-                      style={{
-                        flex: 1,
-                        padding: '8px',
-                        borderRadius: 6,
-                        border: 'none',
-                        background: '#6aaa64',
-                        color: '#ffffff',
-                        fontSize: 12,
-                        fontWeight: 'bold',
-                        cursor: 'pointer',
-                      }}
+                      className="waitingRoomPrimaryButton waitingRoomSettingsButton"
                     >
                       Save changes
                     </button>
@@ -467,20 +298,11 @@ export default function MultiplayerWaitingRoom({
             </div>
 
             {/* Players in room */}
-            <div style={{ marginBottom: '24px' }}>
-              <div
-                style={{ color: '#d7dadc', fontSize: 14, marginBottom: '16px' }}
-              >
+            <div className="waitingRoomPlayersSection">
+              <div className="waitingRoomPlayersTitle">
                 Players in room:
               </div>
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px',
-                  marginBottom: '20px',
-                }}
-              >
+              <div className="waitingRoomPlayersList">
                 {hasPlayersMap
                   ? playerEntries.map((p) => {
                       const isHostPlayer = !!p.isHost || p.id === hostId;
@@ -488,28 +310,19 @@ export default function MultiplayerWaitingRoom({
                       return (
                         <div
                           key={p.id}
-                          style={{
-                            padding: '12px',
-                            background: '#3a3a3c',
-                            borderRadius: 6,
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                          }}
+                          className="waitingRoomPlayerCard"
                         >
-                          <span
-                            style={{ color: '#ffffff', fontWeight: 'bold' }}
-                          >
+                          <span className="waitingRoomPlayerName">
                             {p.name || 'Player'}
                             {isHostPlayer ? ' (Host)' : ''}
                             {isCurrent ? ' (You)' : ''}
                           </span>
                           <span
-                            style={{
-                              color: p.ready ? '#6aaa64' : '#818384',
-                              fontSize: 12,
-                              fontWeight: 'bold',
-                            }}
+                            className={
+                              p.ready
+                                ? 'waitingRoomPlayerReady waitingRoomPlayerReadyOn'
+                                : 'waitingRoomPlayerReady waitingRoomPlayerReadyOff'
+                            }
                           >
                             {p.ready ? '✓ Ready' : 'Not Ready'}
                           </span>
@@ -518,55 +331,31 @@ export default function MultiplayerWaitingRoom({
                     })
                   : (
                     <>
-                      <div
-                        style={{
-                          padding: '12px',
-                          background: '#3a3a3c',
-                          borderRadius: 6,
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                        }}
-                      >
-                        <span
-                          style={{ color: '#ffffff', fontWeight: 'bold' }}
-                        >
+                      <div className="waitingRoomPlayerCard">
+                        <span className="waitingRoomPlayerName">
                           {currentUserName} {isHost ? '(Host)' : ''}
                         </span>
                         <span
-                          style={{
-                            color: currentUserReady ? '#6aaa64' : '#818384',
-                            fontSize: 12,
-                            fontWeight: 'bold',
-                          }}
+                          className={
+                            currentUserReady
+                              ? 'waitingRoomPlayerReady waitingRoomPlayerReadyOn'
+                              : 'waitingRoomPlayerReady waitingRoomPlayerReadyOff'
+                          }
                         >
                           {currentUserReady ? '✓ Ready' : 'Not Ready'}
                         </span>
                       </div>
                       {otherPlayerName && (
-                        <div
-                          style={{
-                            padding: '12px',
-                            background: '#3a3a3c',
-                            borderRadius: 6,
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                          }}
-                        >
-                          <span
-                            style={{ color: '#ffffff', fontWeight: 'bold' }}
-                          >
+                        <div className="waitingRoomPlayerCard">
+                          <span className="waitingRoomPlayerName">
                             {otherPlayerName} {!isHost ? '(Host)' : ''}
                           </span>
                           <span
-                            style={{
-                              color: otherPlayerReady
-                                ? '#6aaa64'
-                                : '#818384',
-                              fontSize: 12,
-                              fontWeight: 'bold',
-                            }}
+                            className={
+                              otherPlayerReady
+                                ? 'waitingRoomPlayerReady waitingRoomPlayerReadyOn'
+                                : 'waitingRoomPlayerReady waitingRoomPlayerReadyOff'
+                            }
                           >
                             {otherPlayerReady ? '✓ Ready' : 'Not Ready'}
                           </span>
@@ -583,17 +372,7 @@ export default function MultiplayerWaitingRoom({
                     <button
                       type="button"
                       onClick={handleToggleReady}
-                      style={{
-                        width: '100%',
-                        padding: '14px',
-                        borderRadius: 8,
-                        border: 'none',
-                        background: '#6aaa64',
-                        color: '#ffffff',
-                        fontSize: 16,
-                        fontWeight: 'bold',
-                        cursor: 'pointer',
-                      }}
+                      className="waitingRoomPrimaryButton waitingRoomReadyButton"
                     >
                       Ready
                     </button>
@@ -602,22 +381,11 @@ export default function MultiplayerWaitingRoom({
                       type="button"
                       onClick={handleToggleReady}
                       disabled={allPlayersReady}
-                      style={{
-                        width: '100%',
-                        padding: '14px',
-                        borderRadius: 8,
-                        border: 'none',
-                        background: allPlayersReady
-                          ? '#3a3a3c'
-                          : '#818384',
-                        color: '#ffffff',
-                        fontSize: 16,
-                        fontWeight: 'bold',
-                        cursor: allPlayersReady
-                          ? 'not-allowed'
-                          : 'pointer',
-                        opacity: allPlayersReady ? 0.5 : 1,
-                      }}
+                      className={
+                        allPlayersReady
+                          ? 'waitingRoomSecondaryButton waitingRoomReadyButton waitingRoomReadyButtonDisabled'
+                          : 'waitingRoomSecondaryButton waitingRoomReadyButton'
+                      }
                     >
                       {allPlayersReady
                         ? 'All Ready - Starting...'
@@ -629,18 +397,7 @@ export default function MultiplayerWaitingRoom({
                     <button
                       type="button"
                       onClick={onStartGame}
-                      style={{
-                        width: '100%',
-                        marginTop: '12px',
-                        padding: '14px',
-                        borderRadius: 8,
-                        border: 'none',
-                        background: '#c9b458',
-                        color: '#ffffff',
-                        fontSize: 16,
-                        fontWeight: 'bold',
-                        cursor: 'pointer',
-                      }}
+                      className="waitingRoomStartButton"
                     >
                       Start Game
                     </button>
@@ -655,18 +412,9 @@ export default function MultiplayerWaitingRoom({
                 type="button"
                 onClick={() => !friendRequestSent && onAddFriend(guestName)}
                 disabled={friendRequestSent}
+                className="waitingRoomSecondaryButton waitingRoomFriendButton"
                 style={{
-                  width: '100%',
-                  marginTop: '12px',
-                  padding: '14px',
-                  borderRadius: 8,
-                  border: '1px solid #3a3a3c',
-                  background: 'transparent',
-                  color: '#ffffff',
-                  fontSize: 14,
-                  fontWeight: 'bold',
                   cursor: friendRequestSent ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s ease',
                   opacity: friendRequestSent ? 0.6 : 1,
                 }}
               >
@@ -678,66 +426,28 @@ export default function MultiplayerWaitingRoom({
 
             {/* Collapsible friends list for inviting friends directly into this room */}
             {friends && friends.length > 0 && onInviteFriend && (
-              <div style={{ marginTop: '20px', width: '100%' }}>
+              <div className="waitingRoomInviteSection">
                 <button
                   type="button"
                   onClick={() => setShowFriendsList((prev) => !prev)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: 8,
-                    border: '1px solid #3a3a3c',
-                    background: 'transparent',
-                    color: '#ffffff',
-                    fontSize: 13,
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                  }}
+                  className="waitingRoomInviteToggle"
                 >
                   Invite friends {showFriendsList ? '▾' : '▸'}
                 </button>
                 {showFriendsList && (
-                  <div
-                    style={{
-                      marginTop: '8px',
-                      maxHeight: '180px',
-                      overflowY: 'auto',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px',
-                    }}
-                  >
+                  <div className="waitingRoomInviteList">
                     {friends.map((friend) => (
                       <div
                         key={friend.id}
-                        style={{
-                          padding: '8px 10px',
-                          borderRadius: 6,
-                          border: '1px solid #3a3a3c',
-                          background: '#2b2b2e',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          gap: '8px',
-                        }}
+                        className="waitingRoomInviteItem"
                       >
-                        <span style={{ color: '#ffffff', fontSize: 13 }}>
+                        <span className="waitingRoomInviteName">
                           {friend.name}
                         </span>
                         <button
                           type="button"
                           onClick={() => onInviteFriend(friend)}
-                          style={{
-                            padding: '6px 10px',
-                            borderRadius: 6,
-                            border: 'none',
-                            background: '#6aaa64',
-                            color: '#ffffff',
-                            fontSize: 11,
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                          }}
+                          className="waitingRoomPrimaryButton waitingRoomInviteButton"
                         >
                           Invite
                         </button>

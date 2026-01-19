@@ -9,6 +9,7 @@ import { useAuth } from "./hooks/useAuth";
 const FeedbackModal = lazy(() => import("./components/FeedbackModal"));
 const MultiplayerModal = lazy(() => import("./components/MultiplayerModal"));
 import { loadJSON, saveJSON, makeDailyKey, makeMarathonKey, marathonMetaKey, makeSolvedKey, removeKey } from "./lib/persist";
+import { loadMarathonMeta } from "./lib/marathonMeta";
 import { database } from "./config/firebase";
 import { ref, get, update } from "firebase/database";
 
@@ -93,7 +94,7 @@ export default function Home({
       }
 
       if (!meta) {
-        meta = loadJSON(metaKey, null);
+        meta = loadMarathonMeta(speedrunEnabledFlag);
       }
 
       return meta;

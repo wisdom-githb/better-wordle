@@ -72,6 +72,7 @@ describe('useSinglePlayerGame', () => {
     const setIsLoading = vi.fn();
     const setShowPopup = vi.fn();
     const setTimedMessage = vi.fn();
+    const setStageTimerSeed = vi.fn();
 
     const refs = createRefs();
 
@@ -98,6 +99,7 @@ describe('useSinglePlayerGame', () => {
         setIsLoading,
         setShowPopup,
         setTimedMessage,
+        setStageTimerSeed,
       },
     });
 
@@ -147,6 +149,7 @@ describe('useSinglePlayerGame', () => {
       setIsLoading,
       setShowPopup,
       setTimedMessage,
+      setStageTimerSeed,
     });
   });
 
@@ -176,6 +179,7 @@ describe('useSinglePlayerGame', () => {
     const setIsLoading = vi.fn();
     const setShowPopup = vi.fn();
     const setTimedMessage = vi.fn();
+    const setStageTimerSeed = vi.fn();
 
     const refs = createRefs();
 
@@ -202,6 +206,7 @@ describe('useSinglePlayerGame', () => {
         setIsLoading,
         setShowPopup,
         setTimedMessage,
+        setStageTimerSeed,
       },
     });
 
@@ -260,6 +265,7 @@ describe('useSinglePlayerGame', () => {
     const setIsLoading = vi.fn();
     const setShowPopup = vi.fn();
     const setTimedMessage = vi.fn();
+    const setStageTimerSeed = vi.fn();
 
     const refs = createRefs();
 
@@ -289,6 +295,7 @@ describe('useSinglePlayerGame', () => {
         setIsLoading,
         setShowPopup,
         setTimedMessage,
+        setStageTimerSeed,
       },
     });
 
@@ -312,11 +319,10 @@ describe('useSinglePlayerGame', () => {
     expect(selectDailyWords).not.toHaveBeenCalled();
     expect(createBoardState).not.toHaveBeenCalled();
 
-    // Timer state should be resumed in-progress
-    expect(refs.stageEndRef.current).toBeNull();
+    // Timer state should be resumed in-progress via the stage timer hook.
+    expect(setStageTimerSeed).toHaveBeenCalledWith({ elapsedMs: 2_000, frozen: false });
     expect(refs.committedRef.current).toBe(false);
     expect(refs.committedStageMsRef.current).toBe(0);
-    expect(refs.stageStartRef.current).toBe(8_000);
 
     // Loading should be cleared
     expect(setIsLoading).toHaveBeenCalledWith(false);

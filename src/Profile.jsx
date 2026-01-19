@@ -12,7 +12,7 @@ import "./Profile.css";
 
 export default function Profile() {
   const navigate = useNavigate();
-  const { user, loading, updateUsername, deleteAccount, error, isVerifiedUser, resendVerificationEmail, linkGoogleAccount } = useAuth();
+  const { user, loading, updateUsername, deleteAccount, isVerifiedUser, resendVerificationEmail, linkGoogleAccount, formatAuthErrorForDisplay } = useAuth();
   const [username, setUsername] = useState("");
   const [initialUsername, setInitialUsername] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -95,7 +95,7 @@ export default function Profile() {
       setInitialUsername(username);
       setMessage("Username updated successfully!");
     } catch (err) {
-      setMessage(`Error: ${error || err.message}`);
+      setMessage(`Error: ${formatAuthErrorForDisplay(err)}`);
     } finally {
       setIsSaving(false);
     }
@@ -114,7 +114,7 @@ export default function Profile() {
       await resendVerificationEmail();
       setMessage('Verification email sent. Please check your inbox (and spam folder).');
     } catch (err) {
-      setMessage(`Error: ${err.message}`);
+      setMessage(`Error: ${formatAuthErrorForDisplay(err)}`);
     } finally {
       setSendingVerification(false);
     }
@@ -131,7 +131,7 @@ export default function Profile() {
       if (err.code === 'auth/credential-already-in-use' || err.code === 'auth/provider-already-linked') {
         setMessage('Google account is already linked.');
       } else {
-        setMessage(`Error: ${err.message}`);
+        setMessage(`Error: ${formatAuthErrorForDisplay(err)}`);
       }
     } finally {
       setLinkingGoogle(false);
@@ -152,7 +152,7 @@ export default function Profile() {
       setMessage('Your account has been deleted.');
       navigate('/');
     } catch (err) {
-      setMessage(`Error: ${err.message}`);
+      setMessage(`Error: ${formatAuthErrorForDisplay(err)}`);
     } finally {
       setIsDeleting(false);
     }
@@ -170,7 +170,7 @@ export default function Profile() {
       <div className="profileRoot">
       <div className="profileContainer">
         {loading ? (
-          <div style={{ textAlign: "center", padding: "40px 20px", color: "#d7dadc" }}>
+          <div className="profileLoading">
             Loading...
           </div>
         ) : (
@@ -185,7 +185,7 @@ export default function Profile() {
                   <div className="profileField">
                     <label>
                       Email
-                      <span style={{ marginLeft: 8, fontSize: 12, color: '#818384' }}>
+                      <span className="profileEmailStatus">
                         ({isVerifiedUser ? 'verified' : 'unverified'})
                       </span>
                     </label>
@@ -237,7 +237,7 @@ export default function Profile() {
                 </div>
 
                 {streaks && (
-                  <div className="profileSection" style={{ marginTop: "24px" }}>
+                  <div className="profileSection profileSectionSpacing">
                     <h2>Game streaks</h2>
                     <div className="profileField">
                       <label style={{ fontSize: 12, color: "#9ca3af" }}>
@@ -281,19 +281,19 @@ export default function Profile() {
                   </div>
                 )}
 
-                <div className="profileSection" style={{ marginTop: '24px' }}>
+                <div className="profileSection profileSectionSpacing">
                   <h2>Account Security</h2>
 
                   {!isVerifiedUser && user && user.providerData?.some(p => p.providerId === 'password') && (
                     <div className="profileField">
                       <label>Email verification</label>
-                      <div className="profileValue" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div className="profileValue profileInlineField">
                         <span>Your email is not verified.</span>
                         <button
                           onClick={handleResendVerification}
                           disabled={sendingVerification}
-                          className="homeBtn homeBtnGreen"
-                          style={{ padding: '6px 10px', fontSize: '12px', opacity: sendingVerification ? 0.8 : 1, cursor: sendingVerification ? 'not-allowed' : 'pointer' }}
+                          className="homeBtn homeBtnGreen profileInlineButton"
+                          style={{ opacity: sendingVerification ? 0.8 : 1, cursor: sendingVerification ? 'not-allowed' : 'pointer' }}
                         >
                           {sendingVerification ? 'Sending...' : 'Resend link'}
                         </button>
@@ -304,13 +304,13 @@ export default function Profile() {
                   {user && !user.providerData?.some(p => p.providerId === 'google.com') && (
                     <div className="profileField">
                       <label>Google account</label>
-                      <div className="profileValue" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div className="profileValue profileInlineField">
                         <span>Not linked</span>
                         <button
                           onClick={handleLinkGoogle}
                           disabled={linkingGoogle}
-                          className="homeBtn homeBtnGreen"
-                          style={{ padding: '6px 10px', fontSize: '12px', opacity: linkingGoogle ? 0.8 : 1, cursor: linkingGoogle ? 'not-allowed' : 'pointer' }}
+                          className="homeBtn homeBtnGreen profileInlineButton"
+                          style={{ opacity: linkingGoogle ? 0.8 : 1, cursor: linkingGoogle ? 'not-allowed' : 'pointer' }}
                         >
                           {linkingGoogle ? 'Linking...' : 'Connect Google account'}
                         </button>
@@ -326,24 +326,18 @@ export default function Profile() {
                   )}
                 </div>
 
-                <div className="profileSection" style={{ marginTop: '24px' }}>
+                <div className="profileSection profileSectionSpacing">
                   <h2>Danger zone</h2>
                     <div className="profileField">
                       <label>Delete account</label>
-                      <div className="profileValue" style={{ marginBottom: '8px', fontSize: '13px', color: '#d7dadc' }}>
+                      <div className="profileValue profileDangerText">
                         This will permanently delete your Better Wordle account and associated friends/challenge data from Better Wordle. You'll need to create a new account to sign in again.
                       </div>
                     <button
                       onClick={handleDeleteAccount}
                       disabled={isDeleting}
+                      className="profileDangerButton"
                       style={{
-                        padding: '10px 16px',
-                        borderRadius: '8px',
-                        border: 'none',
-                        background: '#8b3a3a',
-                        color: '#ffffff',
-                        fontWeight: 'bold',
-                        fontSize: '13px',
                         cursor: isDeleting ? 'not-allowed' : 'pointer',
                         opacity: isDeleting ? 0.8 : 1,
                       }}

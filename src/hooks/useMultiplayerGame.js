@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { ref, set, onValue, off, remove, update, get } from 'firebase/database';
 import { database } from '../config/firebase';
 import { auth } from '../config/firebase';
-import { MULTIPLAYER_WAITING_TIMEOUT_MS } from '../lib/multiplayerConfig';
+import { MULTIPLAYER_WAITING_TIMEOUT_MS, getSolutionArray } from '../lib/multiplayerConfig';
 
 /**
  * Generate a random 6-digit game code
@@ -29,10 +29,9 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
   // Cleanup listener on unmount
   useEffect(() => {
     return () => {
-      if (gameRef.current) {
-        off(gameRef.current);
-        gameRef.current = null;
-      }
+      // Listener cleanup is handled via the unsubscribe function returned from
+      // onValue in the gameState subscription effect; we simply clear the ref.
+      gameRef.current = null;
     };
   }, []);
 
@@ -45,10 +44,12 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
     gameRef.current = dbRef;
 
     setLoading(true);
-    onValue(
+    const unsubscribe = onValue(
       dbRef,
       (snapshot) => {
-        const data = snapshot.val();
+        // In some test setups the snapshot may be undefined/null; treat this as
+        // an empty/missing game.
+        const data = snapshot && typeof snapshot.val === 'function' ? snapshot.val() : null;
 
         // If there is no game data at this code, surface a clear error so the UI
         // can show an error screen instead of an endless "Connecting to game...".
@@ -70,7 +71,11 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
     );
 
     return () => {
-      off(dbRef);
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      } else {
+        off(dbRef);
+      }
     };
   }, [gameCode]);
 
@@ -113,7 +118,6 @@ const createGame = useCallback(async (options = {}) => {
 
     const gameData = {
       hostId: user.uid,
-      hostName,
       hostName,
       hostReady: false,
       guestId: null,
@@ -304,11 +308,14 @@ const createGame = useCallback(async (options = {}) => {
         updateData[`players/${user.uid}/ready`] = ready;
       }
 
-      // Keep legacy 2-player ready fields in sync.
-      if (isHost) {
-        updateData.hostReady = ready;
-      } else if (gameData.guestId === user.uid) {
-        updateData.guestReady = ready;
+      // Keep legacy 2-player ready fields in sync only when there is no players
+      // map (true legacy games).
+      if (!players) {
+        if (isHost) {
+          updateData.hostReady = ready;
+        } else if (gameData.guestId === user.uid) {
+          updateData.guestReady = ready;
+        }
       }
 
       await update(gameDataRef, updateData);
@@ -460,12 +467,7 @@ const createGame = useCallback(async (options = {}) => {
 
       // Normalize to an array of solutions so we can correctly determine
       // when a player has finished *all* boards in multi-board speedrun.
-      const solutionArray =
-        Array.isArray(gameData.solutions) && gameData.solutions.length > 0
-          ? gameData.solutions
-          : gameData.solution
-          ? [gameData.solution]
-          : [];
+      const solutionArray = getSolutionArray(gameData);
 
       const updateData = {};
 
@@ -658,6 +660,9 @@ const createGame = useCallback(async (options = {}) => {
       if (status === 'pending') {
         const updateData = {
           friendRequestStatus: 'pending',
+          // Track who initiated the request so UIs can distinguish requester
+          // vs recipient if needed.
+          friendRequestFrom: user.uid,
         };
         if (isHost) {
           updateData.hostFriendRequestSent = true;

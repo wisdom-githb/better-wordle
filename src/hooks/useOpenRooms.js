@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ref, onValue, off } from 'firebase/database';
 import { database } from '../config/firebase';
+import { MULTIPLAYER_WAITING_TIMEOUT_MS } from '../lib/multiplayerConfig';
 
 /**
  * Subscribe to publicly visible waiting rooms under `onevone/*`.
@@ -53,12 +54,15 @@ export function useOpenRooms() {
               createdAt: room.createdAt || 0,
             };
           })
-          .filter((room) =>
-            room &&
-            room.isPublic &&
-            room.status === 'waiting' &&
-            (room.createdAt || 0) > now - 24 * 60 * 60 * 1000
-          )
+          .filter((room) => {
+            if (!room) return false;
+            if (!room.isPublic) return false;
+            if (room.status !== 'waiting') return false;
+            if (!room.createdAt) return false;
+            // Only include rooms that are still within the same lifetime
+            // window used by joinGame/expireGame.
+            return now - room.createdAt <= MULTIPLAYER_WAITING_TIMEOUT_MS;
+          })
           .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
         setRooms(list);

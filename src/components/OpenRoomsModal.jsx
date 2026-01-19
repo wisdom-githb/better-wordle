@@ -4,6 +4,7 @@ import { ref, onValue, off, remove } from "firebase/database";
 import Modal from "./Modal";
 import { database, auth } from "../config/firebase";
 import { MULTIPLAYER_WAITING_TIMEOUT_MS } from "../lib/multiplayerConfig";
+import "./OpenRoomsModal.css";
 
 export default function OpenRoomsModal({ isOpen, onRequestClose, adminMode = false }) {
   const navigate = useNavigate();
@@ -143,46 +144,23 @@ export default function OpenRoomsModal({ isOpen, onRequestClose, adminMode = fal
 
   return (
     <Modal isOpen={isOpen} onRequestClose={onRequestClose}>
-      <div
-        style={{
-          padding: "24px",
-          width: "100%",
-          maxWidth: 480,
-          boxSizing: "border-box",
-        }}
-      >
-        <h2
-          style={{
-            margin: "0 0 16px 0",
-            fontSize: 20,
-            fontWeight: "bold",
-            color: "#ffffff",
-          }}
-        >
+      <div className="openRoomsModalRoot">
+        <h2 className="openRoomsTitle">
           Open Rooms
         </h2>
 
         {loading ? (
-          <div style={{ padding: "16px 0", color: "#d7dadc", fontSize: 14 }}>
+          <div className="openRoomsStatus openRoomsStatusLoading">
             Loading rooms...
           </div>
         ) : rooms.length === 0 ? (
-          <div style={{ padding: "16px 0", color: "#818384", fontSize: 14 }}>
+          <div className="openRoomsStatus openRoomsStatusEmpty">
             {adminMode
               ? "There are no active rooms right now."
               : "There are no public rooms available right now."}
           </div>
         ) : (
-          <div
-            style={{
-              maxHeight: 320,
-              overflowY: "auto",
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-              marginBottom: 8,
-            }}
-          >
+          <div className="openRoomsList">
             {rooms.map(({ code, data }) => {
               const playersMap = data.players || null;
               const playerCount = playersMap
@@ -223,51 +201,28 @@ export default function OpenRoomsModal({ isOpen, onRequestClose, adminMode = fal
               return (
                 <div
                   key={code}
-                  style={{
-                    padding: "10px 12px",
-                    borderRadius: 8,
-                    border: "1px solid #3a3a3c",
-                    background: "#2b2b2e",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 10,
-                  }}
+                  className="openRoomsItem"
                 >
-                  <div style={{ textAlign: "left", flex: 1 }}>
-                    <div
-                      style={{
-                        color: "#ffffff",
-                        fontWeight: 600,
-                        fontSize: 14,
-                        marginBottom: 2,
-                      }}
-                    >
+                  <div className="openRoomsItemMain">
+                    <div className="openRoomsItemTitle">
                       {hostName}'s room
                     </div>
-                    <div style={{ color: "#d7dadc", fontSize: 12 }}>
+                    <div className="openRoomsItemMeta">
                       {playerCount}/{maxPlayers} players · {boards} board
                       {boards > 1 ? "s" : ""} · {speedrun ? "Speedrun" : "Standard"}
                     </div>
                     {expiresLabel && (
-                      <div
-                        style={{
-                          marginTop: 4,
-                          fontSize: 11,
-                          color: "#9ca3af",
-                        }}
-                      >
+                      <div className="openRoomsItemExpires">
                         Expires in {expiresLabel}
                       </div>
                     )}
                   </div>
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div className="openRoomsItemActions">
                     {adminMode && (
                       <button
                         type="button"
                         onClick={() => handleCloseRoom(code)}
-                        className="homeBtn homeBtnOutline"
-                        style={{ padding: "6px 10px", fontSize: 12, borderRadius: 6 }}
+                        className="homeBtn homeBtnOutline openRoomsItemButton"
                       >
                         Close
                       </button>
@@ -276,8 +231,7 @@ export default function OpenRoomsModal({ isOpen, onRequestClose, adminMode = fal
                       <button
                         type="button"
                         onClick={() => handleJoin({ code, data })}
-                        className="homeBtn homeBtnGreen"
-                        style={{ padding: "6px 12px", fontSize: 12, borderRadius: 6 }}
+                        className="homeBtn homeBtnGreen openRoomsItemButton"
                       >
                         Join
                       </button>
@@ -289,15 +243,14 @@ export default function OpenRoomsModal({ isOpen, onRequestClose, adminMode = fal
           </div>
         )}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+        <div className="openRoomsFooter">
           {adminMode && (
             <button
               type="button"
               onClick={handleCloseAllRooms}
               disabled={closingAll || loading || rooms.length === 0}
-              className="homeBtn homeBtnOutline homeBtnLg"
+              className="homeBtn homeBtnOutline homeBtnLg openRoomsFooterButton"
               style={{
-                width: "100%",
                 opacity: closingAll || loading || rooms.length === 0 ? 0.7 : 1,
               }}
             >
@@ -308,8 +261,7 @@ export default function OpenRoomsModal({ isOpen, onRequestClose, adminMode = fal
           <button
             type="button"
             onClick={onRequestClose}
-            className="homeBtn homeBtnGreen homeBtnLg"
-            style={{ width: "100%" }}
+            className="homeBtn homeBtnGreen homeBtnLg openRoomsFooterButton"
           >
             Close
           </button>

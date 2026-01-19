@@ -15,6 +15,33 @@ import {
 import { auth, googleProvider, database } from '../config/firebase';
 import { ref, get, set, remove, onValue, update } from 'firebase/database';
 
+// Helper: determine whether a user is allowed to use social features (friends,
+// challenges, multiplayer). Centralizing this makes it easy to adjust the
+// verification policy without touching every caller.
+function isVerifiedSocialUser(u) {
+  if (!u) return false;
+  const providers = u.providerData || [];
+  const hasGoogle = providers.some((p) => p && p.providerId === 'google.com');
+  return !!u.emailVerified || hasGoogle;
+}
+
+// Helper: normalize auth-related errors into user-facing messages. This keeps
+// messaging consistent across profile, sign-in, and social helpers.
+function formatAuthError(err) {
+  if (!err) return null;
+  if (typeof err === 'string') return err;
+  const code = err.code || '';
+
+  if (code === 'auth/network-request-failed') {
+    return 'Network error. Please check your internet connection and try again.';
+  }
+  if (code === 'auth/too-many-requests') {
+    return 'Too many attempts. Please wait a bit and try again.';
+  }
+
+  return err.message || 'Something went wrong with authentication. Please try again.';
+}
+
 export function useAuth() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -118,8 +145,8 @@ export function useAuth() {
 
       if (authUser) {
         // Only load social data for verified users (or OAuth providers like Google)
-        const isVerifiedUser = authUser.emailVerified || (authUser.providerData || []).some(p => p.providerId === 'google.com');
-        if (!isVerifiedUser) {
+        const verified = isVerifiedSocialUser(authUser);
+        if (!verified) {
           setFriends([]);
           setFriendRequests([]);
           setIncomingChallenges([]);
@@ -257,7 +284,7 @@ export function useAuth() {
         throw friendlyError;
       }
 
-      setError(err.message);
+      setError(formatAuthError(err));
       throw err;
     } finally {
       setLoading(false);
@@ -277,7 +304,7 @@ export function useAuth() {
       }
       return result.user;
     } catch (err) {
-      setError(err.message);
+      setError(formatAuthError(err));
       throw err;
     } finally {
       setLoading(false);
@@ -291,7 +318,7 @@ export function useAuth() {
       const result = await signInWithEmailAndPassword(auth, email, password);
       return result.user;
     } catch (err) {
-      setError(err.message);
+      setError(formatAuthError(err));
       throw err;
     } finally {
       setLoading(false);
@@ -308,7 +335,7 @@ export function useAuth() {
       await sendPasswordResetEmail(auth, email);
       return true;
     } catch (err) {
-      setError(err.message);
+      setError(formatAuthError(err));
       throw err;
     } finally {
       setLoading(false);
@@ -320,7 +347,7 @@ export function useAuth() {
       setError(null);
       await firebaseSignOut(auth);
     } catch (err) {
-      setError(err.message);
+      setError(formatAuthError(err));
       throw err;
     }
   }, []);
@@ -329,11 +356,46 @@ export function useAuth() {
     try {
       setError(null);
       if (!auth.currentUser) throw new Error('No user signed in');
-      await updateProfile(auth.currentUser, { displayName: newUsername });
-      setUser({ ...auth.currentUser, displayName: newUsername });
+
+      const trimmed = (newUsername || '').trim();
+      if (!trimmed) {
+        throw new Error('Username cannot be empty');
+      }
+
+      const uid = auth.currentUser.uid;
+      const previousUsername = auth.currentUser.displayName || null;
+      const previousKey = previousUsername ? previousUsername.trim().toLowerCase() : null;
+
+      // Update Firebase Auth displayName first so UI reflects the new username.
+      await updateProfile(auth.currentUser, { displayName: trimmed });
+      setUser({ ...auth.currentUser, displayName: trimmed });
+
+      // Keep the Realtime Database profile and username index in sync so that
+      // username-based lookups remain correct for friends search.
+      const nowIso = new Date().toISOString();
+      const profileRef = ref(database, `users/${uid}/profile`);
+      await update(profileRef, {
+        username: trimmed,
+        updatedAt: nowIso,
+      });
+
+      const newKey = trimmed.toLowerCase();
+      if (newKey) {
+        await set(ref(database, `usernames/${newKey}`), { uid });
+      }
+
+      if (previousKey && previousKey !== newKey) {
+        try {
+          await remove(ref(database, `usernames/${previousKey}`));
+        } catch (cleanupErr) {
+          // Index cleanup should not block profile updates.
+          console.error('Failed to remove old username index:', cleanupErr);
+        }
+      }
+
       return true;
     } catch (err) {
-      setError(err.message);
+      setError(formatAuthError(err));
       throw err;
     }
   }, []);
@@ -371,7 +433,7 @@ export function useAuth() {
       await deleteUser(auth.currentUser);
       return true;
     } catch (err) {
-      setError(err.message);
+      setError(formatAuthError(err));
       throw err;
     }
   }, []);
@@ -380,8 +442,9 @@ export function useAuth() {
     try {
       setError(null);
       if (!auth.currentUser) throw new Error('No user signed in');
-      const isVerifiedUser = auth.currentUser.emailVerified || (auth.currentUser.providerData || []).some(p => p.providerId === 'google.com');
-      if (!isVerifiedUser) throw new Error('You must verify your email or sign in with Google to use friends.');
+      if (!isVerifiedSocialUser(auth.currentUser)) {
+        throw new Error('You must verify your email or sign in with Google to use friends.');
+      }
       
       // Send request to the other user
       const requestRef = ref(database, `users/${friendId}/friendRequests/${auth.currentUser.uid}`);
@@ -394,7 +457,7 @@ export function useAuth() {
       return true;
     } catch (err) {
       console.error('sendFriendRequest error:', err);
-      setError(err.message);
+      setError(formatAuthError(err));
       throw err;
     }
   }, []);
@@ -403,8 +466,9 @@ export function useAuth() {
     try {
       setError(null);
       if (!auth.currentUser) throw new Error('No user signed in');
-      const isVerifiedUser = auth.currentUser.emailVerified || (auth.currentUser.providerData || []).some(p => p.providerId === 'google.com');
-      if (!isVerifiedUser) throw new Error('You must verify your email or sign in with Google to use friends.');
+      if (!isVerifiedSocialUser(auth.currentUser)) {
+        throw new Error('You must verify your email or sign in with Google to use friends.');
+      }
       
       const nowIso = new Date().toISOString();
       
@@ -436,7 +500,7 @@ export function useAuth() {
       
       return true;
     } catch (err) {
-      setError(err.message);
+      setError(formatAuthError(err));
       throw err;
     }
   }, []);
@@ -445,8 +509,9 @@ export function useAuth() {
     try {
       setError(null);
       if (!auth.currentUser) throw new Error('No user signed in');
-      const isVerifiedUser = auth.currentUser.emailVerified || (auth.currentUser.providerData || []).some(p => p.providerId === 'google.com');
-      if (!isVerifiedUser) throw new Error('You must verify your email or sign in with Google to use friends.');
+      if (!isVerifiedSocialUser(auth.currentUser)) {
+        throw new Error('You must verify your email or sign in with Google to use friends.');
+      }
       
       const requestRef = ref(database, `users/${auth.currentUser.uid}/friendRequests/${fromUserId}`);
       await remove(requestRef);
@@ -464,7 +529,7 @@ export function useAuth() {
       
       return true;
     } catch (err) {
-      setError(err.message);
+      setError(formatAuthError(err));
       throw err;
     }
   }, []);
@@ -473,8 +538,9 @@ export function useAuth() {
     try {
       setError(null);
       if (!auth.currentUser) throw new Error('No user signed in');
-      const isVerifiedUser = auth.currentUser.emailVerified || (auth.currentUser.providerData || []).some(p => p.providerId === 'google.com');
-      if (!isVerifiedUser) throw new Error('You must verify your email or sign in with Google to use friends.');
+      if (!isVerifiedSocialUser(auth.currentUser)) {
+        throw new Error('You must verify your email or sign in with Google to use friends.');
+      }
       
       // Remove friend from current user's list
       const myFriendRef = ref(database, `users/${auth.currentUser.uid}/friends/${friendId}`);
@@ -488,7 +554,7 @@ export function useAuth() {
       setFriends(prev => prev.filter(f => f.id !== friendId));
       return true;
     } catch (err) {
-      setError(err.message);
+      setError(formatAuthError(err));
       throw err;
     }
   }, []);
@@ -505,8 +571,9 @@ export function useAuth() {
     try {
       setError(null);
       if (!auth.currentUser) throw new Error('No user signed in');
-      const isVerifiedUser = auth.currentUser.emailVerified || (auth.currentUser.providerData || []).some(p => p.providerId === 'google.com');
-      if (!isVerifiedUser) throw new Error('You must verify your email or sign in with Google to use friends.');
+      if (!isVerifiedSocialUser(auth.currentUser)) {
+        throw new Error('You must verify your email or sign in with Google to use friends.');
+      }
 
       const currentUserId = auth.currentUser.uid;
       const fromUserName = auth.currentUser.displayName || auth.currentUser.email || 'Unknown';
@@ -556,7 +623,7 @@ export function useAuth() {
       return true;
     } catch (err) {
       console.error('sendChallenge error:', err);
-      setError(err.message);
+      setError(formatAuthError(err));
       throw err;
     }
   }, []);
@@ -582,7 +649,7 @@ export function useAuth() {
       return data;
     } catch (err) {
       console.error('acceptChallenge error:', err);
-      setError(err.message);
+      setError(formatAuthError(err));
       throw err;
     }
   }, []);
@@ -644,7 +711,7 @@ export function useAuth() {
       return true;
     } catch (err) {
       console.error('dismissChallenge error:', err);
-      setError(err.message);
+      setError(formatAuthError(err));
       throw err;
     }
   }, []);
@@ -707,7 +774,7 @@ export function useAuth() {
       return true;
     } catch (err) {
       console.error('cancelSentChallenge error:', err);
-      setError(err.message);
+      setError(formatAuthError(err));
       throw err;
     }
   }, []);
@@ -769,12 +836,12 @@ export function useAuth() {
       return true;
     } catch (err) {
       console.error('sendFriendRequestByIdentifier error:', err);
-      setError(err.message);
+      setError(formatAuthError(err));
       throw err;
     }
   }, [findUserByIdentifier, sendFriendRequest]);
 
-  const isVerifiedUser = !!user && (user.emailVerified || (user.providerData || []).some(p => p.providerId === 'google.com'));
+  const isVerifiedUser = isVerifiedSocialUser(user);
 
   const resendVerificationEmail = useCallback(async () => {
     try {
@@ -783,7 +850,7 @@ export function useAuth() {
       await sendEmailVerification(auth.currentUser);
       return true;
     } catch (err) {
-      setError(err.message);
+      setError(formatAuthError(err));
       throw err;
     }
   }, []);
@@ -800,7 +867,7 @@ export function useAuth() {
       if (err.code === 'auth/credential-already-in-use' || err.code === 'auth/provider-already-linked') {
         setError('Google account is already linked.');
       } else {
-        setError(err.message);
+        setError(formatAuthError(err));
       }
       throw err;
     }
@@ -833,5 +900,8 @@ export function useAuth() {
     cancelSentChallenge,
     resendVerificationEmail,
     linkGoogleAccount,
+    // Expose a small helper so views like Profile can format auth errors
+    // consistently without having to read the raw error state.
+    formatAuthErrorForDisplay: formatAuthError,
   };
 }

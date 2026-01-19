@@ -1,58 +1,12 @@
 import { useEffect, useState } from "react";
-
-let cached = null; // { answerWords, allowedGuesses, allowedSet }
-let cachedPromise = null;
-
-async function loadWordListsOnce() {
-  if (cached) return cached;
-  if (cachedPromise) return cachedPromise;
-
-  cachedPromise = (async () => {
-    const baseUrl = import.meta.env.BASE_URL;
-    const [answersRes, guessesRes] = await Promise.all([
-      fetch(`${baseUrl}wordle-answers-alphabetical.txt`),
-      fetch(`${baseUrl}valid-wordle-words.txt`)
-    ]);
-
-    if (!answersRes.ok) {
-      throw new Error(`Failed to load answers (${answersRes.status})`);
-    }
-    if (!guessesRes.ok) {
-      throw new Error(`Failed to load guesses (${guessesRes.status})`);
-    }
-
-    const answersText = await answersRes.text();
-    const guessesText = await guessesRes.text();
-
-    const answerWords = answersText
-      .split("\n")
-      .map((w) => w.trim())
-      .filter((w) => w.length === 5)
-      .map((w) => w.toUpperCase());
-
-    const allowedGuesses = guessesText
-      .split("\n")
-      .map((w) => w.trim())
-      .filter((w) => w.length === 5)
-      .map((w) => w.toUpperCase());
-
-    cached = {
-      answerWords,
-      allowedGuesses,
-      allowedSet: new Set(allowedGuesses)
-    };
-
-    return cached;
-  })();
-
-  return cachedPromise;
-}
+import { loadWordListsOnce, getCachedWordLists } from "../lib/wordLists";
 
 export function useWordLists() {
-  const [loading, setLoading] = useState(!cached);
+  const initialCache = getCachedWordLists();
+  const [loading, setLoading] = useState(!initialCache);
   const [error, setError] = useState(null);
-  const [answerWords, setAnswerWords] = useState(cached?.answerWords || []);
-  const [allowedSet, setAllowedSet] = useState(cached?.allowedSet || new Set());
+  const [answerWords, setAnswerWords] = useState(initialCache?.answerWords || []);
+  const [allowedSet, setAllowedSet] = useState(initialCache?.allowedSet || new Set());
 
   const reload = async () => {
     // optional: allow manual retry
@@ -72,7 +26,7 @@ export function useWordLists() {
   useEffect(() => {
     let alive = true;
 
-    if (cached) return;
+    if (getCachedWordLists()) return;
 
     (async () => {
       setLoading(true);

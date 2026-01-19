@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export function useStageTimer(speedrunEnabled, tickMs = 250) {
+export function useStageTimer(speedrunEnabled, tickMs = 250, options = {}) {
+  const { initialElapsedMs = 0, initiallyFrozen = false } = options || {};
+
   const startRef = useRef(null);
   const endRef = useRef(null);
   const [nowMs, setNowMs] = useState(Date.now());
-  const [isFrozen, setIsFrozen] = useState(false);
+  const [isFrozen, setIsFrozen] = useState(initiallyFrozen);
 
   const start = useCallback(() => {
     const t = Date.now();
@@ -23,6 +25,23 @@ export function useStageTimer(speedrunEnabled, tickMs = 250) {
     setNowMs(endRef.current);
     return (endRef.current ?? Date.now()) - startRef.current;
   }, []);
+
+  // Seed the timer on first mount if there is an existing elapsed time.
+  useEffect(() => {
+    if (!speedrunEnabled) return;
+    if (startRef.current != null) return;
+    if (initialElapsedMs > 0) {
+      const now = Date.now();
+      if (initiallyFrozen) {
+        startRef.current = now - initialElapsedMs;
+        endRef.current = now;
+      } else {
+        startRef.current = now - initialElapsedMs;
+        endRef.current = null;
+      }
+      setNowMs(now);
+    }
+  }, [speedrunEnabled, initialElapsedMs, initiallyFrozen]);
 
   const elapsedMs = (() => {
     if (!speedrunEnabled || !startRef.current) return 0;
