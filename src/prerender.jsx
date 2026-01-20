@@ -2,16 +2,30 @@ import React from "react";
 import { renderToString } from "react-dom/server";
 import { StaticRouter } from "react-router-dom/server";
 import { HelmetProvider } from "react-helmet-async";
+
 import App from "./App.jsx";
 
+const PRERENDER_ROUTES = [
+  "/",
+  "/game",
+  "/leaderboard",
+  "/faq",
+  "/profile",
+  // SEO landings
+  "/multiplayer-wordle",
+  "/multi-board-wordle",
+  "/wordle-speedrun",
+  "/wordle-marathon",
+];
+
 function toHeadElements(helmet) {
-  // react-helmet-async can give React elements; convert them into
-  // { type, props } objects that vite-prerender-plugin expects.
   const reactEls = [
     ...(helmet?.meta?.toComponent?.() || []),
     ...(helmet?.link?.toComponent?.() || []),
     ...(helmet?.script?.toComponent?.() || []),
-  ].flat().filter(Boolean);
+  ]
+    .flat()
+    .filter(Boolean);
 
   return new Set(
     reactEls.map((el) => ({
@@ -37,10 +51,12 @@ export async function prerender(data) {
 
   return {
     html,
-    links: new Set(["/", "/game", "/leaderboard", "/faq", "/profile"]),
+    links: new Set(PRERENDER_ROUTES),
     head: {
       lang: "en",
-      title: helmet?.title?.toString?.().replace(/<\/?title>/g, "") || "Better Wordle",
+      title:
+        helmet?.title?.toString?.().replace(/<\/?title>/g, "") ||
+        "Better Wordle",
       elements: toHeadElements(helmet),
     },
   };

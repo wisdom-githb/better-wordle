@@ -5,6 +5,10 @@ const Game = lazy(() => import("./Game"));
 const Profile = lazy(() => import("./Profile"));
 const Leaderboard = lazy(() => import("./components/Leaderboard"));
 const Faq = lazy(() => import("./Faq"));
+const MultiplayerWordleLanding = lazy(() => import("./landing/MultiplayerWordleLanding.jsx"));
+const MultiBoardWordleLanding = lazy(() => import("./landing/MultiBoardWordleLanding.jsx"));
+const WordleSpeedrunLanding = lazy(() => import("./landing/WordleSpeedrunLanding.jsx"));
+const WordleMarathonLanding = lazy(() => import("./landing/WordleMarathonLanding.jsx"));
 
 const MARATHON_LEVELS = [1, 2, 3, 4];
 
@@ -72,6 +76,10 @@ function App() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/faq" element={<Faq />} />
+        <Route path="/multiplayer-wordle" element={<MultiplayerWordleLanding />} />
+        <Route path="/multi-board-wordle" element={<MultiBoardWordleLanding />} />
+        <Route path="/wordle-speedrun" element={<WordleSpeedrunLanding />} />
+        <Route path="/wordle-marathon" element={<WordleMarathonLanding />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>

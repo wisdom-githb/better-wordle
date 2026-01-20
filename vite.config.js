@@ -1,15 +1,29 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { vitePrerenderPlugin } from 'vite-prerender-plugin'
-import fs from 'fs'
-import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(),vitePrerenderPlugin({
+  plugins: [
+    react(),
+    // Pre-render key routes into real HTML files so Google sees 200 + content.
+    // This does NOT change runtime routing for users.
+    vitePrerenderPlugin({
       renderTarget: '#root',
-      additionalPrerenderRoutes: ['/', '/game', '/leaderboard', '/faq', '/profile'],
-    }),],
+      additionalPrerenderRoutes: [
+        '/',
+        '/game',
+        '/leaderboard',
+        '/faq',
+        '/profile',
+        // Long-tail SEO landing pages (match current features; multiplayer includes 1v1 intent)
+        '/multiplayer-wordle',
+        '/multi-board-wordle',
+        '/wordle-speedrun',
+        '/wordle-marathon'
+      ],
+    }),
+  ],
   base: '/better-wordle/',
   build: {
     emptyOutDir: true,
