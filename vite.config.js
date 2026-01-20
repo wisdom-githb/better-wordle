@@ -1,11 +1,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { vitePrerenderPlugin } from 'vite-prerender-plugin'
 import fs from 'fs'
 import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(),vitePrerenderPlugin({
+      renderTarget: '#root',
+      additionalPrerenderRoutes: ['/', '/game', '/leaderboard', '/faq', '/profile'],
+    }),],
   base: '/better-wordle/',
   build: {
     emptyOutDir: true,
