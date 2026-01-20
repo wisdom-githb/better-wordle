@@ -10,16 +10,15 @@
     <loc>https://wisdom-githb.github.io/better-wordle/leaderboard/</loc>
   </url>
   <url>
-    <loc>https://wisdom-githb.github.io/better-wordle/faq/</loc>
-  </url>
-  <url>
     <loc>https://wisdom-githb.github.io/better-wordle/profile/</loc>
   </url>
   <url>
-    <loc>https://wisdom-githb.github.io/better-wordle/multiplayer-wordle/</loc>
+    <loc>https://wisdom-githb.github.io/better-wordle/faq/</loc>
   </url>
+
+  <!-- SEO landing pages (long-tail intent) -->
   <url>
-    <loc>https://wisdom-githb.github.io/better-wordle/wordle-1v1/</loc>
+    <loc>https://wisdom-githb.github.io/better-wordle/multiplayer-wordle/</loc>
   </url>
   <url>
     <loc>https://wisdom-githb.github.io/better-wordle/multi-board-wordle/</loc>
