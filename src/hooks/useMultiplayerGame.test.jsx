@@ -28,7 +28,27 @@ vi.mock('firebase/database', () => {
 
   const update = async (refObj, patch) => {
     if (!dbData[refObj.path]) dbData[refObj.path] = {};
-    Object.assign(dbData[refObj.path], patch || {});
+    // Handle nested paths like "players/host-1/rematch"
+    const applyNestedUpdate = (obj, path, value) => {
+      const parts = path.split('/');
+      let current = obj;
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!current[parts[i]] || typeof current[parts[i]] !== 'object') {
+          current[parts[i]] = {};
+        }
+        current = current[parts[i]];
+      }
+      current[parts[parts.length - 1]] = value;
+    };
+    if (patch) {
+      Object.keys(patch).forEach((key) => {
+        if (key.includes('/')) {
+          applyNestedUpdate(dbData[refObj.path], key, patch[key]);
+        } else {
+          dbData[refObj.path][key] = patch[key];
+        }
+      });
+    }
     trigger(refObj.path);
   };
 
@@ -116,39 +136,31 @@ describe('useMultiplayerGame – DB operations', () => {
     });
 
     expect(code).toHaveLength(6);
-    const stored = __dbData[`onevone/${code}`];
+    const stored = __dbData[`multiplayer/${code}`];
     expect(stored).toBeTruthy();
     expect(stored).toMatchObject({
       hostId: 'host-1',
       hostName: 'Host Player',
-      guestId: null,
-      guestName: null,
       status: 'waiting',
       speedrun: false,
-      hostGuesses: [],
-      guestGuesses: [],
-      hostColors: [],
-      guestColors: [],
-      hostRematch: false,
-      guestRematch: false,
       maxPlayers: 2,
       isPublic: true,
       players: {
-        'host-1': expect.objectContaining({ id: 'host-1', name: 'Host Player', isHost: true }),
+        'host-1': expect.objectContaining({ id: 'host-1', name: 'Host Player', isHost: true, ready: false }),
       },
     });
   });
 
   it('joinGame attaches a guest to an existing waiting game', async () => {
-    __dbData['onevone/123456'] = {
+    __dbData['multiplayer/123456'] = {
       hostId: 'host-1',
       hostName: 'Host',
-      guestId: null,
-      guestName: null,
-      hostReady: false,
-      guestReady: false,
       status: 'waiting',
       speedrun: false,
+      maxPlayers: 2,
+      players: {
+        'host-1': { id: 'host-1', name: 'Host', isHost: true, ready: false },
+      },
     };
 
     auth.currentUser = {
@@ -164,30 +176,28 @@ describe('useMultiplayerGame – DB operations', () => {
       expect(returned).toBe('123456');
     });
 
-    expect(__dbData['onevone/123456']).toMatchObject({
-      guestId: 'guest-1',
-      guestName: 'Guest Player',
+    // joinGame now only adds to players map, not legacy guestId/guestName
+    expect(__dbData['multiplayer/123456'].players['guest-1']).toMatchObject({
+      id: 'guest-1',
+      name: 'Guest Player',
+      isHost: false,
     });
   });
 
   it('startGame (standard) sets status, solution(s) and clears round fields', async () => {
-    __dbData['onevone/ABC123'] = {
+    __dbData['multiplayer/ABC123'] = {
       hostId: 'host-1',
       guestId: 'guest-1',
       hostReady: true,
       guestReady: true,
       status: 'waiting',
       speedrun: false,
-      hostGuesses: ['OLD'],
-      guestGuesses: ['OLD'],
-      hostColors: [[0, 0, 0, 0, 0]],
-      guestColors: [[0, 0, 0, 0, 0]],
       winner: 'host',
       hostRematch: true,
       guestRematch: true,
       players: {
-        'host-1': { id: 'host-1', name: 'Host', isHost: true, ready: true, guesses: [] },
-        'guest-1': { id: 'guest-1', name: 'Guest', isHost: false, ready: true, guesses: [] },
+        'host-1': { id: 'host-1', name: 'Host', isHost: true, ready: true, guesses: ['OLD'] },
+        'guest-1': { id: 'guest-1', name: 'Guest', isHost: false, ready: true, guesses: ['OLD'] },
       },
     };
 
@@ -199,22 +209,23 @@ describe('useMultiplayerGame – DB operations', () => {
       await hookResult.startGame('ABC123', 'apple');
     });
 
-    const stored = __dbData['onevone/ABC123'];
+    const stored = __dbData['multiplayer/ABC123'];
     expect(stored.status).toBe('playing');
     expect(stored.solution).toBe('apple');
     expect(stored.solutions).toEqual(['apple']);
     expect(stored.speedrun).toBe(false);
-    expect(stored.hostGuesses).toEqual([]);
-    expect(stored.guestGuesses).toEqual([]);
-    expect(stored.hostColors).toEqual([]);
-    expect(stored.guestColors).toEqual([]);
     expect(stored.winner).toBeNull();
     expect(stored.hostRematch).toBe(false);
     expect(stored.guestRematch).toBe(false);
+    // Players map guesses should be cleared
+    expect(stored.players['host-1'].guesses).toEqual([]);
+    expect(stored.players['guest-1'].guesses).toEqual([]);
+    expect(stored.players['host-1'].rematch).toBe(false);
+    expect(stored.players['guest-1'].rematch).toBe(false);
   });
 
   it('startGame respects explicit speedrun override and nulls currentTurn', async () => {
-    __dbData['onevone/SPRUN1'] = {
+    __dbData['multiplayer/SPRUN1'] = {
       hostId: 'host-1',
       guestId: 'guest-1',
       hostReady: true,
@@ -235,26 +246,26 @@ describe('useMultiplayerGame – DB operations', () => {
       await hookResult.startGame('SPRUN1', ['apple', 'other'], { speedrun: true });
     });
 
-    const stored = __dbData['onevone/SPRUN1'];
+    const stored = __dbData['multiplayer/SPRUN1'];
     expect(stored.speedrun).toBe(true);
-    expect(stored.currentTurn).toBeNull();
+    expect(stored.currentTurn).toBeUndefined();
     expect(stored.solutions).toEqual(['apple', 'other']);
-    expect(stored.hostStartTime).not.toBeNull();
-    expect(stored.guestStartTime).not.toBeNull();
+    expect(stored.players['host-1'].startTime).not.toBeNull();
+    expect(stored.players['guest-1'].startTime).not.toBeNull();
   });
 
   it('submitGuess (standard) appends host guesses/colors without enforcing turn order', async () => {
-    __dbData['onevone/CODE1'] = {
+    __dbData['multiplayer/CODE1'] = {
       hostId: 'host-1',
       guestId: 'guest-1',
       status: 'playing',
       speedrun: false,
       currentTurn: 'host',
       solution: 'APPLE',
-      hostGuesses: [],
-      guestGuesses: [],
-      hostColors: [],
-      guestColors: [],
+      players: {
+        'host-1': { id: 'host-1', name: 'Host', isHost: true, guesses: [], colors: [] },
+        'guest-1': { id: 'guest-1', name: 'Guest', isHost: false, guesses: [], colors: [] },
+      },
     };
 
     auth.currentUser = { uid: 'host-1', displayName: 'Host' };
@@ -265,9 +276,9 @@ describe('useMultiplayerGame – DB operations', () => {
       await hookResult.submitGuess('CODE1', 'OTHER', [0, 0, 0, 0, 0]);
     });
 
-    const stored = __dbData['onevone/CODE1'];
-    expect(stored.hostGuesses).toEqual(['OTHER']);
-    expect(stored.hostColors).toEqual([[0, 0, 0, 0, 0]]);
+    const stored = __dbData['multiplayer/CODE1'];
+    expect(stored.players['host-1'].guesses).toEqual(['OTHER']);
+    expect(stored.players['host-1'].colors).toEqual([[0, 0, 0, 0, 0]]);
     // In non-turn-based mode, submitGuess no longer mutates currentTurn.
     expect(stored.currentTurn).toBe('host');
   });
@@ -275,22 +286,18 @@ describe('useMultiplayerGame – DB operations', () => {
   it('submitGuess (speedrun) sets per-player time only after all solutions solved', async () => {
     vi.useFakeTimers();
 
-    __dbData['onevone/SPRUN2'] = {
+    __dbData['multiplayer/SPRUN2'] = {
       hostId: 'host-1',
       guestId: 'guest-1',
       status: 'playing',
       speedrun: true,
       currentTurn: null,
       solutions: ['APPLE', 'OTHER'],
-      hostGuesses: [],
-      guestGuesses: [],
-      hostColors: [],
-      guestColors: [],
-      hostStartTime: 1_000,
-      guestStartTime: 1_000,
       startedAt: 1_000,
-      hostTimeMs: null,
-      guestTimeMs: null,
+      players: {
+        'host-1': { id: 'host-1', name: 'Host', isHost: true, guesses: [], colors: [], startTime: 1_000, timeMs: null },
+        'guest-1': { id: 'guest-1', name: 'Guest', isHost: false, guesses: [], colors: [], startTime: 1_000, timeMs: null },
+      },
     };
 
     auth.currentUser = { uid: 'host-1', displayName: 'Host' };
@@ -302,7 +309,7 @@ describe('useMultiplayerGame – DB operations', () => {
     await act(async () => {
       await hookResult.submitGuess('SPRUN2', 'APPLE', [2, 2, 2, 2, 2]);
     });
-    expect(__dbData['onevone/SPRUN2'].hostTimeMs).toBeNull();
+    expect(__dbData['multiplayer/SPRUN2'].players['host-1'].timeMs).toBeNull();
 
     // Second correct word – now all boards solved, hostTimeMs should be set
     vi.setSystemTime(20_000);
@@ -310,13 +317,13 @@ describe('useMultiplayerGame – DB operations', () => {
       await hookResult.submitGuess('SPRUN2', 'OTHER', [2, 2, 2, 2, 2]);
     });
 
-    const stored = __dbData['onevone/SPRUN2'];
-    expect(stored.hostGuesses).toEqual(['APPLE', 'OTHER']);
-    expect(stored.hostTimeMs).toBe(19_000); // now - hostStartTime
+    const stored = __dbData['multiplayer/SPRUN2'];
+    expect(stored.players['host-1'].guesses).toEqual(['APPLE', 'OTHER']);
+    expect(stored.players['host-1'].timeMs).toBe(19_000); // now - startTime
   });
 
   it('switchTurn toggles between host and guest in non-speedrun mode', async () => {
-    __dbData['onevone/SWITCH'] = {
+    __dbData['multiplayer/SWITCH'] = {
       hostId: 'host-1',
       guestId: 'guest-1',
       status: 'playing',
@@ -331,11 +338,11 @@ describe('useMultiplayerGame – DB operations', () => {
     await act(async () => {
       await hookResult.switchTurn('SWITCH');
     });
-    expect(__dbData['onevone/SWITCH'].currentTurn).toBe('guest');
+    expect(__dbData['multiplayer/SWITCH'].currentTurn).toBe('guest');
   });
 
   it('setWinner marks winner and finished status', async () => {
-    __dbData['onevone/RESULT'] = {
+    __dbData['multiplayer/RESULT'] = {
       hostId: 'host-1',
       guestId: 'guest-1',
       status: 'playing',
@@ -350,41 +357,43 @@ describe('useMultiplayerGame – DB operations', () => {
       await hookResult.setWinner('RESULT', 'host');
     });
 
-    expect(__dbData['onevone/RESULT']).toMatchObject({
+    expect(__dbData['multiplayer/RESULT']).toMatchObject({
       status: 'finished',
       winner: 'host',
     });
   });
 
-  it('requestRematch toggles host/guest rematch flags', async () => {
-    __dbData['onevone/REM1'] = {
+  it('requestRematch sets player rematch flag in players map', async () => {
+    __dbData['multiplayer/REM1'] = {
       hostId: 'host-1',
       guestId: 'guest-1',
-      hostRematch: false,
-      guestRematch: false,
+      players: {
+        'host-1': { id: 'host-1', name: 'Host', isHost: true, rematch: false },
+        'guest-1': { id: 'guest-1', name: 'Guest', isHost: false, rematch: false },
+      },
     };
 
-    // Host sets hostRematch
+    // Host sets rematch flag in players map
     auth.currentUser = { uid: 'host-1', displayName: 'Host' };
     render(<HookWrapper />);
     await act(async () => {
       await hookResult.requestRematch('REM1');
     });
-    expect(__dbData['onevone/REM1'].hostRematch).toBe(true);
+    expect(__dbData['multiplayer/REM1'].players['host-1'].rematch).toBe(true);
 
     cleanup();
 
-    // Guest sets guestRematch
+    // Guest sets rematch flag in players map
     auth.currentUser = { uid: 'guest-1', displayName: 'Guest' };
     render(<HookWrapper />);
     await act(async () => {
       await hookResult.requestRematch('REM1');
     });
-    expect(__dbData['onevone/REM1'].guestRematch).toBe(true);
+    expect(__dbData['multiplayer/REM1'].players['guest-1'].rematch).toBe(true);
   });
 
   it('setFriendRequestStatus sets pending and clears on declined', async () => {
-    __dbData['onevone/FRIEND1'] = {
+    __dbData['multiplayer/FRIEND1'] = {
       hostId: 'host-1',
       guestId: 'guest-1',
       friendRequestStatus: null,
@@ -398,7 +407,7 @@ describe('useMultiplayerGame – DB operations', () => {
     await act(async () => {
       await hookResult.setFriendRequestStatus('FRIEND1', 'pending');
     });
-    expect(__dbData['onevone/FRIEND1']).toMatchObject({
+    expect(__dbData['multiplayer/FRIEND1']).toMatchObject({
       friendRequestStatus: 'pending',
       hostFriendRequestSent: true,
       guestFriendRequestSent: false,
@@ -412,7 +421,7 @@ describe('useMultiplayerGame – DB operations', () => {
     await act(async () => {
       await hookResult.setFriendRequestStatus('FRIEND1', 'declined');
     });
-    expect(__dbData['onevone/FRIEND1']).toMatchObject({
+    expect(__dbData['multiplayer/FRIEND1']).toMatchObject({
       friendRequestStatus: null,
       hostFriendRequestSent: false,
       guestFriendRequestSent: false,
@@ -454,7 +463,7 @@ describe('useMultiplayerGame – error paths', () => {
   });
 
   it('joinGame throws when game is already full', async () => {
-    __dbData['onevone/FULL01'] = {
+    __dbData['multiplayer/FULL01'] = {
       hostId: 'host-1',
       hostName: 'Host',
       guestId: 'someone-else',
@@ -479,7 +488,7 @@ describe('useMultiplayerGame – error paths', () => {
   });
 
   it('startGame throws when called by non-host', async () => {
-    __dbData['onevone/START1'] = {
+    __dbData['multiplayer/START1'] = {
       hostId: 'host-1',
       guestId: 'guest-1',
       hostReady: true,
@@ -500,7 +509,7 @@ describe('useMultiplayerGame – error paths', () => {
   });
 
   it('startGame throws when both players are not ready', async () => {
-    __dbData['onevone/NOTREADY'] = {
+    __dbData['multiplayer/NOTREADY'] = {
       hostId: 'host-1',
       guestId: 'guest-1',
       hostReady: true,

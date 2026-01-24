@@ -469,8 +469,9 @@ describe('useAuth - social data subscription', () => {
 });
 
 describe('useAuth - profile helpers', () => {
-  it('updateUsername updates displayName via updateProfile and local user', async () => {
+  it('updateUsername updates displayName, profile username, and username index', async () => {
     const { getAuth, updateProfile } = firebaseAuth;
+    const { set, get, ref } = firebaseDb;
     const auth = getAuth();
     auth.currentUser = {
       uid: 'u5',
@@ -478,6 +479,15 @@ describe('useAuth - profile helpers', () => {
       emailVerified: true,
       providerData: [],
     };
+
+    const db = firebaseDb.getDatabase();
+    // Seed existing profile + username index for the old name.
+    await set(ref(db, 'users/u5/profile'), {
+      uid: 'u5',
+      email: 'old@example.com',
+      username: 'Old Name',
+    });
+    await set(ref(db, 'usernames/old name'), { uid: 'u5' });
 
     const { result } = renderHook(() => useAuth());
     const listener = getAuthListener();
@@ -491,6 +501,16 @@ describe('useAuth - profile helpers', () => {
 
     expect(updateProfile).toHaveBeenCalledWith(auth.currentUser, { displayName: 'New Name' });
     expect(result.current.user.displayName).toBe('New Name');
+
+    const profileSnap = await get(ref(db, 'users/u5/profile'));
+    expect(profileSnap.val().username).toBe('New Name');
+
+    const newIndexSnap = await get(ref(db, 'usernames/new name'));
+    expect(newIndexSnap.val().uid).toBe('u5');
+
+    const oldIndexSnap = await get(ref(db, 'usernames/old name'));
+    expect(oldIndexSnap.exists()).toBe(false);
+
     expect(result.current.error).toBeNull();
   });
 
@@ -784,7 +804,7 @@ describe('useAuth - friends & challenges helpers', () => {
     expect(snap.exists()).toBe(false);
   });
 
-  it('dismissChallenge removes incoming challenge and marks 1v1 game cancelled when gameCode provided', async () => {
+  it('dismissChallenge removes incoming challenge and marks multiplayer game cancelled when gameCode provided', async () => {
     const { getAuth } = firebaseAuth;
     const auth = getAuth();
     auth.currentUser = {
@@ -801,7 +821,7 @@ describe('useAuth - friends & challenges helpers', () => {
     await set(chRef, { fromUserId: 'friend-1', gameCode: 'GM456' });
     const sentRef = ref(db, 'users/friend-1/sentChallenges/GM456');
     await set(sentRef, { toUserId: 'me', gameCode: 'GM456' });
-    const gameRef = ref(db, 'onevone/GM456');
+    const gameRef = ref(db, 'multiplayer/GM456');
     await set(gameRef, { status: 'waiting' });
 
     const { result } = renderHook(() => useAuth());
@@ -823,7 +843,7 @@ describe('useAuth - friends & challenges helpers', () => {
     expect(gameSnap.val().cancelledByName).toBe('Me User');
   });
 
-  it('cancelSentChallenge cleans up sent and incoming challenges and updates 1v1 game', async () => {
+  it('cancelSentChallenge cleans up sent and incoming challenges and updates multiplayer game', async () => {
     const { getAuth } = firebaseAuth;
     const auth = getAuth();
     auth.currentUser = {
@@ -840,7 +860,7 @@ describe('useAuth - friends & challenges helpers', () => {
     await set(sentRef, { toUserId: 'friend-1', gameCode: 'GM1' });
     const incomingRef = ref(db, 'users/friend-1/challenges/GM1');
     await set(incomingRef, { fromUserId: 'me', gameCode: 'GM1' });
-    const gameRef = ref(db, 'onevone/GM1');
+    const gameRef = ref(db, 'multiplayer/GM1');
     await set(gameRef, { status: 'waiting' });
 
     const { result } = renderHook(() => useAuth());

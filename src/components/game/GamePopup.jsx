@@ -1,5 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { getSolutionArray } from "../../lib/multiplayerConfig";
 
 export default function GamePopup({
   allSolved,
@@ -19,8 +20,8 @@ export default function GamePopup({
   freezeStageTimer,
   isMarathonSpeedrun,
   commitStageIfNeeded,
-  isOneVOne,
-  oneVOneGameState,
+  isMultiplayer,
+  multiplayerGameState,
   winner,
   isPlayerHost,
   onRematch,
@@ -32,6 +33,8 @@ export default function GamePopup({
   hasCommentsSection = false,
   streakLabel,
   currentUserId,
+  onAddFriend,
+  friendRequestSent,
 }) {
   const navigate = useNavigate();
   
@@ -52,7 +55,7 @@ export default function GamePopup({
   // has solved all boards we show a more descriptive label on the close button
   // to highlight that comments are available below the board.
   const showPostCommentCta =
-    !isOneVOne &&
+    !isMultiplayer &&
     (allSolved || hasCommentsSection) &&
     (mode === "daily" || mode === "marathon");
 
@@ -85,23 +88,19 @@ export default function GamePopup({
           boxShadow: "0 20px 60px rgba(0,0,0,0.8)"
         }}
       >
-        {isOneVOne ? (() => {
-          const isSpeedrun = oneVOneGameState?.speedrun || false;
+        {isMultiplayer ? (() => {
+          const isSpeedrun = multiplayerGameState?.speedrun || false;
           const hasExplicitScores =
             typeof myScore === "number" || typeof opponentScore === "number";
 
           // Build a rankings table for all players in the room.
           const playersFromState =
-            oneVOneGameState && oneVOneGameState.players &&
-            typeof oneVOneGameState.players === "object"
-              ? Object.values(oneVOneGameState.players).filter(Boolean)
+            multiplayerGameState && multiplayerGameState.players &&
+            typeof multiplayerGameState.players === "object"
+              ? Object.values(multiplayerGameState.players).filter(Boolean)
               : null;
 
-          const solutionList = oneVOneGameState && Array.isArray(oneVOneGameState.solutions) && oneVOneGameState.solutions.length > 0
-            ? oneVOneGameState.solutions
-            : oneVOneGameState && oneVOneGameState.solution
-            ? [oneVOneGameState.solution]
-            : [];
+          const solutionList = getSolutionArray(multiplayerGameState);
 
           const makePlayerStats = (id, name, guesses, timeMs) => {
             const safeGuesses = Array.isArray(guesses) ? guesses : [];
@@ -111,16 +110,16 @@ export default function GamePopup({
             // per-player value, but fall back to host/guest time fields
             // when using the legacy 2-player structure.
             let effectiveTimeMs = typeof timeMs === "number" ? timeMs : null;
-            if (effectiveTimeMs == null && oneVOneGameState) {
-              if (id && oneVOneGameState.hostId === id) {
+            if (effectiveTimeMs == null && multiplayerGameState) {
+              if (id && multiplayerGameState.hostId === id) {
                 effectiveTimeMs =
-                  typeof oneVOneGameState.hostTimeMs === "number"
-                    ? oneVOneGameState.hostTimeMs
+                  typeof multiplayerGameState.hostTimeMs === "number"
+                    ? multiplayerGameState.hostTimeMs
                     : null;
-              } else if (id && oneVOneGameState.guestId === id) {
+              } else if (id && multiplayerGameState.guestId === id) {
                 effectiveTimeMs =
-                  typeof oneVOneGameState.guestTimeMs === "number"
-                    ? oneVOneGameState.guestTimeMs
+                  typeof multiplayerGameState.guestTimeMs === "number"
+                    ? multiplayerGameState.guestTimeMs
                     : null;
               }
             }
@@ -155,22 +154,22 @@ export default function GamePopup({
               const timeMs = p.timeMs;
               players.push(makePlayerStats(id, name, guesses, timeMs));
             });
-          } else if (oneVOneGameState) {
-            const hostId = oneVOneGameState.hostId || null;
-            const guestId = oneVOneGameState.guestId || null;
-            const hostName = oneVOneGameState.hostName || (hostId ? "Host" : null);
-            const guestName = oneVOneGameState.guestName || (guestId ? "Guest" : null);
-            const hostGuesses = oneVOneGameState.hostGuesses || [];
-            const guestGuesses = oneVOneGameState.guestGuesses || [];
+          } else if (multiplayerGameState) {
+            const hostId = multiplayerGameState.hostId || null;
+            const guestId = multiplayerGameState.guestId || null;
+            const hostName = multiplayerGameState.hostName || (hostId ? "Host" : null);
+            const guestName = multiplayerGameState.guestName || (guestId ? "Guest" : null);
+            const hostGuesses = multiplayerGameState.hostGuesses || [];
+            const guestGuesses = multiplayerGameState.guestGuesses || [];
 
             if (hostId || hostName) {
               players.push(
-                makePlayerStats(hostId || "host", hostName || "Host", hostGuesses, oneVOneGameState.hostTimeMs),
+                makePlayerStats(hostId || "host", hostName || "Host", hostGuesses, multiplayerGameState.hostTimeMs),
               );
             }
             if (guestId || guestName) {
               players.push(
-                makePlayerStats(guestId || "guest", guestName || "Guest", guestGuesses, oneVOneGameState.guestTimeMs),
+                makePlayerStats(guestId || "guest", guestName || "Guest", guestGuesses, multiplayerGameState.guestTimeMs),
               );
             }
           }
@@ -230,9 +229,9 @@ export default function GamePopup({
                 const byId = rankedPlayers.find((p) => p.id === currentUserId);
                 if (byId) return byId;
               }
-              if (oneVOneGameState) {
-                const hostId = oneVOneGameState.hostId || null;
-                const guestId = oneVOneGameState.guestId || null;
+              if (multiplayerGameState) {
+                const hostId = multiplayerGameState.hostId || null;
+                const guestId = multiplayerGameState.guestId || null;
                 if (isPlayerHost && hostId) {
                   return rankedPlayers.find((p) => p.id === hostId) || null;
                 }
@@ -272,8 +271,8 @@ export default function GamePopup({
             </h2>
 
             <div style={{ marginBottom: 20, fontSize: 18, color: "#d7dadc" }}>
-              {/* Rematch status text for 1v1 */}
-              {isOneVOne && oneVOneGameState?.status === 'finished' && (
+              {/* Rematch status text for multiplayer */}
+              {isMultiplayer && multiplayerGameState?.status === 'finished' && (
                 <div style={{
                   marginBottom: 12,
                   fontSize: 14,
@@ -281,13 +280,32 @@ export default function GamePopup({
                 }}>
                   {(() => {
                     const isPlayerHostLocal = isPlayerHost;
-                    const hostRematch = oneVOneGameState?.hostRematch;
-                    const guestRematch = oneVOneGameState?.guestRematch;
-                    const myRematch = isPlayerHostLocal ? hostRematch : guestRematch;
-                    const opponentRematch = isPlayerHostLocal ? guestRematch : hostRematch;
-                    if (myRematch && !opponentRematch) return "Waiting for opponent to accept rematch...";
-                    if (!myRematch && opponentRematch) return "Opponent wants a rematch";
-                    if (myRematch && opponentRematch) return "Starting rematch...";
+                    const players = multiplayerGameState?.players;
+                    
+                    // Check players map first for multiplayer rooms
+                    let myRematch = false;
+                    let allPlayersRematched = false;
+                    let somePlayersRematched = false;
+                    
+                    if (players && typeof players === 'object' && currentUserId) {
+                      const playerEntries = Object.values(players).filter(Boolean);
+                      const myPlayer = players[currentUserId];
+                      myRematch = !!myPlayer?.rematch;
+                      allPlayersRematched = playerEntries.length > 0 && playerEntries.every((p) => !!p.rematch);
+                      somePlayersRematched = playerEntries.some((p) => !!p.rematch);
+                    } else {
+                      // Fallback to legacy 2-player structure
+                      const hostRematch = multiplayerGameState?.hostRematch;
+                      const guestRematch = multiplayerGameState?.guestRematch;
+                      myRematch = isPlayerHostLocal ? hostRematch : guestRematch;
+                      const opponentRematch = isPlayerHostLocal ? guestRematch : hostRematch;
+                      allPlayersRematched = !!hostRematch && !!guestRematch;
+                      somePlayersRematched = !!hostRematch || !!guestRematch;
+                    }
+                    
+                    if (allPlayersRematched) return "Starting rematch...";
+                    if (myRematch && !allPlayersRematched) return "Waiting for other players to accept rematch...";
+                    if (!myRematch && somePlayersRematched) return "Other players want a rematch";
                     return null;
                   })()}
                 </div>
@@ -304,19 +322,35 @@ export default function GamePopup({
                 <div style={{ fontSize: 24, color: "#ffffff", fontWeight: "bold" }}>
                   {(() => {
                     if (isSpeedrun) {
-                      if (!oneVOneGameState) return "N/A";
-                      const myTimeMs = isPlayerHost
-                        ? oneVOneGameState?.hostTimeMs ?? null
-                        : oneVOneGameState?.guestTimeMs ?? null;
+                      if (!multiplayerGameState) return "N/A";
+                      // Check players map first for multiplayer rooms
+                      let myTimeMs = null;
+                      if (currentUserId && multiplayerGameState.players && multiplayerGameState.players[currentUserId]) {
+                        myTimeMs = multiplayerGameState.players[currentUserId].timeMs ?? null;
+                      }
+                      // Fallback to legacy host/guest structure
+                      if (myTimeMs == null) {
+                        myTimeMs = isPlayerHost
+                          ? multiplayerGameState?.hostTimeMs ?? null
+                          : multiplayerGameState?.guestTimeMs ?? null;
+                      }
                       return myTimeMs != null ? formatElapsed(myTimeMs) : "N/A";
                     }
 
                     if (typeof myScore === "number") return myScore;
 
-                    if (!oneVOneGameState) return "N/A";
-                    const myGuesses = isPlayerHost
-                      ? oneVOneGameState.hostGuesses || []
-                      : oneVOneGameState.guestGuesses || [];
+                    if (!multiplayerGameState) return "N/A";
+                    // Check players map first for multiplayer rooms
+                    let myGuesses = [];
+                    if (currentUserId && multiplayerGameState.players && multiplayerGameState.players[currentUserId]) {
+                      myGuesses = multiplayerGameState.players[currentUserId].guesses || [];
+                    }
+                    // Fallback to legacy host/guest structure
+                    if (myGuesses.length === 0) {
+                      myGuesses = isPlayerHost
+                        ? multiplayerGameState.hostGuesses || []
+                        : multiplayerGameState.guestGuesses || [];
+                    }
                     return myGuesses.length;
                   })()}
                 </div>
@@ -332,19 +366,45 @@ export default function GamePopup({
                 <div style={{ fontSize: 24, color: "#ffffff", fontWeight: "bold" }}>
                   {(() => {
                     if (isSpeedrun) {
-                      if (!oneVOneGameState) return "N/A";
-                      const opponentTimeMs = isPlayerHost
-                        ? oneVOneGameState?.guestTimeMs ?? null
-                        : oneVOneGameState?.hostTimeMs ?? null;
+                      if (!multiplayerGameState) return "N/A";
+                      // For multiplayer, find the first opponent's time
+                      let opponentTimeMs = null;
+                      if (multiplayerGameState.players && typeof multiplayerGameState.players === "object") {
+                        const opponent = Object.values(multiplayerGameState.players).find(
+                          (p) => p.id && p.id !== currentUserId
+                        );
+                        if (opponent) {
+                          opponentTimeMs = opponent.timeMs ?? null;
+                        }
+                      }
+                      // Fallback to legacy host/guest structure
+                      if (opponentTimeMs == null) {
+                        opponentTimeMs = isPlayerHost
+                          ? multiplayerGameState?.guestTimeMs ?? null
+                          : multiplayerGameState?.hostTimeMs ?? null;
+                      }
                       return opponentTimeMs != null ? formatElapsed(opponentTimeMs) : "N/A";
                     }
 
                     if (typeof opponentScore === "number") return opponentScore;
 
-                    if (!oneVOneGameState) return "N/A";
-                    const opponentGuesses = isPlayerHost
-                      ? oneVOneGameState.guestGuesses || []
-                      : oneVOneGameState.hostGuesses || [];
+                    if (!multiplayerGameState) return "N/A";
+                    // For multiplayer, find the first opponent's guesses
+                    let opponentGuesses = [];
+                    if (multiplayerGameState.players && typeof multiplayerGameState.players === "object") {
+                      const opponent = Object.values(multiplayerGameState.players).find(
+                        (p) => p.id && p.id !== currentUserId
+                      );
+                      if (opponent) {
+                        opponentGuesses = opponent.guesses || [];
+                      }
+                    }
+                    // Fallback to legacy host/guest structure
+                    if (opponentGuesses.length === 0) {
+                      opponentGuesses = isPlayerHost
+                        ? multiplayerGameState.guestGuesses || []
+                        : multiplayerGameState.hostGuesses || [];
+                    }
                     return opponentGuesses.length;
                   })()}
                 </div>
@@ -380,8 +440,8 @@ export default function GamePopup({
                     {rankedPlayers.map((p) => {
                       const isMe =
                         (currentUserId && p.id === currentUserId) ||
-                        (!currentUserId && isPlayerHost && oneVOneGameState?.hostId === p.id) ||
-                        (!currentUserId && !isPlayerHost && oneVOneGameState?.guestId === p.id);
+                        (!currentUserId && isPlayerHost && multiplayerGameState?.hostId === p.id) ||
+                        (!currentUserId && !isPlayerHost && multiplayerGameState?.guestId === p.id);
 
                       const primaryStat = isSpeedrun
                         ? p.timeMs != null
@@ -422,10 +482,37 @@ export default function GamePopup({
                               {isMe ? " (You)" : ""}
                             </div>
                           </div>
-                          <div style={{ textAlign: "right", color: "#d7dadc" }}>
-                            <div>{primaryStat}</div>
-                            {secondary && (
-                              <div style={{ fontSize: 11, color: "#9ca3af" }}>{secondary}</div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ textAlign: "right", color: "#d7dadc" }}>
+                              <div>{primaryStat}</div>
+                              {secondary && (
+                                <div style={{ fontSize: 11, color: "#9ca3af" }}>{secondary}</div>
+                              )}
+                            </div>
+                            {!isMe && onAddFriend && (
+                              <button
+                                onClick={() => onAddFriend(p.id, p.name)}
+                                disabled={friendRequestSent && friendRequestSent[p.id]}
+                                style={{
+                                  padding: "4px 8px",
+                                  fontSize: 12,
+                                  borderRadius: 4,
+                                  border: "none",
+                                  backgroundColor:
+                                    friendRequestSent && friendRequestSent[p.id]
+                                      ? "#818384"
+                                      : "#6aaa64",
+                                  color: "#ffffff",
+                                  cursor:
+                                    friendRequestSent && friendRequestSent[p.id]
+                                      ? "default"
+                                      : "pointer",
+                                  fontWeight: "bold",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {friendRequestSent && friendRequestSent[p.id] ? "✓" : "+"}
+                              </button>
                             )}
                           </div>
                         </div>
@@ -489,7 +576,7 @@ export default function GamePopup({
           </>
         )}
 
-        {!isOneVOne && (
+        {!isMultiplayer && (
           <>
             <div style={{ marginBottom: 10, color: "#ffffff", fontWeight: "bold" }}>Solutions</div>
 
@@ -520,20 +607,16 @@ export default function GamePopup({
           </>
         )}
 
-        {isOneVOne && (oneVOneGameState?.solution || oneVOneGameState?.solutions) && (
+        {isMultiplayer && (multiplayerGameState?.solution || multiplayerGameState?.solutions) && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ marginBottom: 8, color: "#ffffff", fontWeight: "bold", fontSize: 16 }}>
-              {Array.isArray(oneVOneGameState?.solutions) && oneVOneGameState.solutions.length > 1
+              {Array.isArray(multiplayerGameState?.solutions) && multiplayerGameState.solutions.length > 1
                 ? "Solutions"
                 : "Solution"}
             </div>
 
             {(() => {
-              const solutionList = Array.isArray(oneVOneGameState?.solutions) && oneVOneGameState.solutions.length > 0
-                ? oneVOneGameState.solutions
-                : oneVOneGameState.solution
-                ? [oneVOneGameState.solution]
-                : [];
+              const solutionList = getSolutionArray(multiplayerGameState);
 
               return (
                 <div
@@ -568,7 +651,7 @@ export default function GamePopup({
         )}
 
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {!isOneVOne && canShare && (
+          {!isMultiplayer && canShare && (
             <button
               onClick={onShare}
               style={{
@@ -590,7 +673,7 @@ export default function GamePopup({
             </button>
           )}
 
-          {isOneVOne && onRematch && (
+          {isMultiplayer && isPlayerHost && onRematch && (
             <button
               onClick={onRematch}
               style={{
@@ -612,7 +695,29 @@ export default function GamePopup({
             </button>
           )}
 
-          {isOneVOne && isPlayerHost && onChangeMode && (
+          {isMultiplayer && !isPlayerHost && onChangeMode && (
+            <button
+              onClick={onChangeMode}
+              style={{
+                flex: 1,
+                minWidth: 160,
+                padding: "12px 0",
+                borderRadius: 10,
+                border: "1px solid #3a3a3c",
+                background: "transparent",
+                color: "#ffffff",
+                fontSize: 14,
+                fontWeight: "bold",
+                cursor: "pointer",
+                letterSpacing: 1,
+                textTransform: "uppercase",
+              }}
+            >
+              View Config
+            </button>
+          )}
+
+          {isMultiplayer && isPlayerHost && onChangeMode && (
             <button
               onClick={onChangeMode}
               style={{

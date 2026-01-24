@@ -10,6 +10,7 @@ export default function MultiplayerRoomConfigModal({
   speedrunDraft,
   onChangeSpeedrunDraft,
   onSave,
+  isHost = true,
 }) {
   return (
     <Modal isOpen={isOpen} onRequestClose={onRequestClose}>
@@ -23,11 +24,17 @@ export default function MultiplayerRoomConfigModal({
             color: "#ffffff",
           }}
         >
-          Multiplayer Room Configuration
+          {isHost ? "Multiplayer Room Configuration" : "Next Game Configuration"}
         </h2>
+        {!isHost && (
+          <p style={{ margin: 0, marginBottom: "16px", fontSize: 14, color: "#818384" }}>
+            View the configuration for the next rematch. Only the host can change these settings.
+          </p>
+        )}
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div>
             <label
+              htmlFor="multiplayer-boards-select"
               style={{
                 display: "block",
                 marginBottom: "8px",
@@ -38,17 +45,20 @@ export default function MultiplayerRoomConfigModal({
               Number of Boards
             </label>
             <select
+              id="multiplayer-boards-select"
               value={boardsDraft}
               onChange={(e) => onChangeBoardsDraft(parseInt(e.target.value, 10))}
+              disabled={!isHost}
               style={{
                 width: "100%",
                 padding: "10px",
                 borderRadius: 6,
                 border: "1px solid #3a3a3c",
-                background: "#1a1a1b",
-                color: "#ffffff",
+                background: isHost ? "#1a1a1b" : "#121213",
+                color: isHost ? "#ffffff" : "#818384",
                 fontSize: 14,
-                cursor: "pointer",
+                cursor: isHost ? "pointer" : "not-allowed",
+                opacity: isHost ? 1 : 0.6,
               }}
             >
               {boardOptions.map((n) => (
@@ -65,7 +75,13 @@ export default function MultiplayerRoomConfigModal({
               id="multiplayer-speedrun-config-checkbox"
               checked={speedrunDraft}
               onChange={(e) => onChangeSpeedrunDraft(e.target.checked)}
-              style={{ cursor: "pointer", width: "18px", height: "18px" }}
+              disabled={!isHost}
+              style={{ 
+                cursor: isHost ? "pointer" : "not-allowed", 
+                width: "18px", 
+                height: "18px",
+                opacity: isHost ? 1 : 0.6,
+              }}
             />
             <label
               htmlFor="multiplayer-speedrun-config-checkbox"
@@ -92,22 +108,40 @@ export default function MultiplayerRoomConfigModal({
             >
               Cancel
             </button>
-            <button
-              onClick={onSave}
-              style={{
-                flex: 1,
-                padding: "12px",
-                borderRadius: 8,
-                border: "none",
-                background: "#6aaa64",
-                color: "#ffffff",
-                fontSize: 14,
-                fontWeight: "bold",
-                cursor: "pointer",
-              }}
-            >
-              Save for Rematch
-            </button>
+            {isHost ? (
+              <button
+                onClick={onSave}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "#6aaa64",
+                  color: "#ffffff",
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
+                Save for Rematch
+              </button>
+            ) : (
+              <div
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: 8,
+                  border: "1px solid #3a3a3c",
+                  background: "transparent",
+                  color: "#818384",
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  textAlign: "center",
+                }}
+              >
+                View Only
+              </div>
+            )}
           </div>
         </div>
       </div>

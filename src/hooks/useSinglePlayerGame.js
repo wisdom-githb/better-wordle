@@ -6,10 +6,52 @@ import { selectDailyWords, getCurrentDateString } from "../lib/dailyWords";
 import { FLIP_COMPLETE_MS } from "../lib/gameConstants";
 import { useAuth } from "./useAuth";
 import { database } from "../config/firebase";
-import { ref, get } from "firebase/database";
+import { loadSolvedState, loadGameState } from "../lib/singlePlayerStore";
+
+function applySolvedCommitState({ speedrunEnabled, solvedState, committedRef, committedStageMsRef, setStageTimerSeed }) {
+  const elapsed = (solvedState && solvedState.stageElapsedMs) || 0;
+
+  if (typeof setStageTimerSeed === "function") {
+    setStageTimerSeed({ elapsedMs: elapsed, frozen: !!speedrunEnabled });
+  }
+
+  if (speedrunEnabled) {
+    committedRef.current = true;
+    committedStageMsRef.current = elapsed;
+  } else {
+    committedRef.current = false;
+    committedStageMsRef.current = 0;
+  }
+}
+
+function applySavedGameCommitState({ speedrunEnabled, savedGameState, committedRef, committedStageMsRef, setStageTimerSeed }) {
+  if (!speedrunEnabled || !savedGameState) {
+    committedRef.current = false;
+    committedStageMsRef.current = 0;
+    if (typeof setStageTimerSeed === "function") {
+      const elapsed = (savedGameState && savedGameState.stageElapsedMs) || 0;
+      setStageTimerSeed({ elapsedMs: elapsed, frozen: false });
+    }
+    return;
+  }
+
+  const elapsed = savedGameState.stageElapsedMs || 0;
+  const fullyCommitted =
+    savedGameState.stageElapsedMs > 0 &&
+    savedGameState.stageElapsedMs === savedGameState.committedStageMs;
+
+  if (typeof setStageTimerSeed === "function") {
+    setStageTimerSeed({ elapsedMs: elapsed, frozen: !!fullyCommitted });
+  }
+
+  committedRef.current = !!fullyCommitted;
+  committedStageMsRef.current = fullyCommitted
+    ? savedGameState.committedStageMs || elapsed
+    : 0;
+}
 
 /**
- * Encapsulates single-player (non-1v1) game initialization and resume logic.
+ * Encapsulates single-player (non-multiplayer) game initialization and resume logic.
  */
 export function useSinglePlayerGame({
   isOneVOne,
@@ -19,8 +61,6 @@ export function useSinglePlayerGame({
   marathonIndex,
   getGameStateKey,
   savedSolvedStateRef,
-  stageStartRef,
-  stageEndRef,
   committedRef,
   committedStageMsRef,
   setBoards,
@@ -37,6 +77,7 @@ export function useSinglePlayerGame({
   setIsLoading,
   setShowPopup,
   setTimedMessage,
+  setStageTimerSeed,
 }) {
   const { user: authUser, loading: authLoading } = useAuth();
 
@@ -46,7 +87,7 @@ export function useSinglePlayerGame({
     if (authLoading) return;
 
     async function initGame() {
-      // Skip regular init for 1v1 mode
+      // Skip regular init for multiplayer mode
       if (isOneVOne) return;
 
       try {
@@ -62,31 +103,11 @@ export function useSinglePlayerGame({
           dateString
         );
 
-        let solvedState = null;
-
-        // For signed-in users, prefer the server-stored solved snapshot so
-        // progress stays consistent across devices.
-        if (authUser) {
-          try {
-            const solvedRef = ref(
-              database,
-              `users/${authUser.uid}/singlePlayer/solvedStates/${solvedKey}`
-            );
-            const snap = await get(solvedRef);
-            if (snap.exists()) {
-              solvedState = snap.val() || null;
-            }
-          } catch (err) {
-            // Remote failures should never block local play; fall back to
-            // local storage when the server lookup fails.
-            // eslint-disable-next-line no-console
-            console.error("Failed to load remote solved state, falling back to local", err);
-          }
-        }
-
-        if (!solvedState) {
-          solvedState = loadJSON(solvedKey, null);
-        }
+        const solvedState = await loadSolvedState({
+          authUser,
+          database,
+          solvedKey,
+        });
 
         // Only use a solved state if it matches the current configuration.
         // This prevents old/local-storage states with a different board count
@@ -107,6 +128,16 @@ export function useSinglePlayerGame({
             : [];
 
           const exitedDueToOutOfGuesses = !!solvedState.exitedDueToOutOfGuesses;
+
+          // Apply commit state + timer seeding for solved snapshots via a
+          // shared helper so marathon display logic stays consistent.
+          applySolvedCommitState({
+            speedrunEnabled,
+            solvedState,
+            committedRef,
+            committedStageMsRef,
+            setStageTimerSeed,
+          });
 
           // Use a shared non-zero reveal id and assign it to all relevant boards so
           // their final row replays the flip once when the page is opened.
@@ -147,23 +178,6 @@ export function useSinglePlayerGame({
           const turns = getMaxTurns(numBoards);
           setMaxTurns(turns);
 
-          // For speedrun, restore timing state based on the saved stage time.
-          if (speedrunEnabled) {
-            const elapsedMs = solvedState.stageElapsedMs || 0;
-            stageStartRef.current = Date.now() - elapsedMs;
-            stageEndRef.current = Date.now();
-            // For runs resumed from a completed state, treat the stage as
-            // already "committed" for display purposes so we don't change
-            // cumulative timing.
-            committedRef.current = true;
-            committedStageMsRef.current = elapsedMs;
-          } else {
-            stageStartRef.current = Date.now();
-            stageEndRef.current = null;
-            committedRef.current = false;
-            committedStageMsRef.current = 0;
-          }
-
           const { ALLOWED_GUESSES } = await loadWordLists();
           setAllowedSet(new Set(ALLOWED_GUESSES));
 
@@ -189,29 +203,11 @@ export function useSinglePlayerGame({
 
         // Check if there's an incomplete game state to resume
         const gameStateKey = getGameStateKey();
-        let savedGameState = null;
-
-        // For signed-in users, prefer any server-stored in‑progress state so
-        // they can resume daily/marathon games across devices.
-        if (authUser) {
-          try {
-            const stateRef = ref(
-              database,
-              `users/${authUser.uid}/singlePlayer/gameStates/${gameStateKey}`
-            );
-            const snap = await get(stateRef);
-            if (snap.exists()) {
-              savedGameState = snap.val() || null;
-            }
-          } catch (err) {
-            // eslint-disable-next-line no-console
-            console.error("Failed to load remote game state, falling back to local", err);
-          }
-        }
-
-        if (!savedGameState) {
-          savedGameState = loadJSON(gameStateKey, null);
-        }
+        const savedGameState = await loadGameState({
+          authUser,
+          database,
+          gameStateKey,
+        });
 
         const savedBoardsCount =
           savedGameState && Array.isArray(savedGameState.boards)
@@ -234,32 +230,16 @@ export function useSinglePlayerGame({
             setIsUnlimited(savedGameState.isUnlimited || false);
             setSelectedBoardIndex(null);
 
-            // Restore timing state
-            if (speedrunEnabled && savedGameState.stageStartTime) {
-              if (
-                savedGameState.stageElapsedMs > 0 &&
-                savedGameState.stageElapsedMs === savedGameState.committedStageMs
-              ) {
-                // Was frozen/committed
-                stageStartRef.current = savedGameState.stageStartTime;
-                stageEndRef.current =
-                  savedGameState.stageStartTime + (savedGameState.stageElapsedMs || 0);
-                committedRef.current = savedGameState.committedRef || false;
-                committedStageMsRef.current = savedGameState.committedStageMs || 0;
-              } else {
-                // Was active, resume timing
-                const elapsed = savedGameState.stageElapsedMs || 0;
-                stageStartRef.current = Date.now() - elapsed;
-                stageEndRef.current = null;
-                committedRef.current = false;
-                committedStageMsRef.current = 0;
-              }
-            } else {
-              stageStartRef.current = Date.now();
-              stageEndRef.current = null;
-              committedRef.current = false;
-              committedStageMsRef.current = 0;
-            }
+            // Restore timing/commit state based solely on persisted elapsed time
+            // and commit markers; the actual ticking is owned by useStageTimer
+            // via setStageTimerSeed.
+            applySavedGameCommitState({
+              speedrunEnabled,
+              savedGameState,
+              committedRef,
+              committedStageMsRef,
+              setStageTimerSeed,
+            });
 
             setRevealId(savedGameState.revealId || 0);
             setIsFlipping(false); // No animation in progress when resuming
@@ -302,11 +282,14 @@ export function useSinglePlayerGame({
         setIsUnlimited(!!speedrunEnabled);
         setSelectedBoardIndex(null);
 
-        // Reset stage timer + commit guard for each stage
-        stageStartRef.current = Date.now();
-        stageEndRef.current = null;
+        // Reset commit guard for each new stage; actual timing is owned by the
+        // stage timer hook seeded via setStageTimerSeed.
         committedRef.current = false;
         committedStageMsRef.current = 0;
+
+        if (typeof setStageTimerSeed === "function") {
+          setStageTimerSeed({ elapsedMs: 0, frozen: false });
+        }
 
         // Reset flip id and state
         setRevealId(0);

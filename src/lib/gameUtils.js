@@ -1,6 +1,11 @@
 // Game-specific utility functions
+//
+// This module intentionally stays free of React so its helpers can be shared
+// between components and tests without pulling in hook/runtime concerns.
 
-import { WORD_LENGTH } from "./wordle";
+import { WORD_LENGTH, getTurnsUsed } from "./wordle";
+import { loadJSON, makeSolvedKey } from "./persist";
+import { getCurrentDateString } from "./dailyWords";
 
 // Convert color to emoji for sharing (no longer used in share text, but kept
 // exported in case we want emoji grids elsewhere in the UI.)
@@ -188,6 +193,84 @@ export function generateShareText(
   lines.push("https://wisdom-githb.github.io/better-wordle/");
 
   return lines.join("\n");
+}
+
+// Build aggregated marathon share totals (turns, max turns, solved counts, and
+// per-stage breakdown) for the current date. Returns null when no per-stage
+// data is available yet.
+export function buildMarathonShareTotals(marathonLevels, speedrunEnabled, defaultMaxTurns) {
+  const dateString = getCurrentDateString();
+
+  let totalTurnsUsed = 0;
+  let totalMaxTurns = 0;
+  let totalSolvedCount = 0;
+  let stagesWithData = 0;
+  const stages = [];
+
+  marathonLevels.forEach((boardsForStage, stageIndex) => {
+    const solvedKey = makeSolvedKey(
+      "marathon",
+      boardsForStage,
+      speedrunEnabled,
+      stageIndex,
+      dateString,
+    );
+    const solvedState = loadJSON(solvedKey, null);
+
+    let stageTurns = 0;
+    let stageMaxTurns = defaultMaxTurns;
+    let stageSolvedCount = 0;
+    let stageElapsed = 0;
+
+    if (solvedState) {
+      stagesWithData += 1;
+
+      stageTurns =
+        typeof solvedState.turnsUsed === "number"
+          ? solvedState.turnsUsed
+          : getTurnsUsed(solvedState.boards || []);
+      stageMaxTurns =
+        typeof solvedState.maxTurns === "number"
+          ? solvedState.maxTurns
+          : defaultMaxTurns;
+      stageSolvedCount =
+        typeof solvedState.solvedCount === "number"
+          ? solvedState.solvedCount
+          : Array.isArray(solvedState.boards)
+          ? solvedState.boards.filter((b) => b && b.isSolved).length
+          : 0;
+      stageElapsed =
+        typeof solvedState.stageElapsedMs === "number"
+          ? solvedState.stageElapsedMs
+          : 0;
+
+      totalTurnsUsed += stageTurns;
+      totalMaxTurns += stageMaxTurns;
+      totalSolvedCount += stageSolvedCount;
+    }
+
+    stages.push({
+      boards: boardsForStage,
+      turnsUsed: stageTurns,
+      maxTurns: stageMaxTurns,
+      solvedCount: stageSolvedCount,
+      stageElapsedMs: stageElapsed,
+    });
+  });
+
+  if (stagesWithData === 0) {
+    return null;
+  }
+
+  const totalBoards = marathonLevels.reduce((sum, n) => sum + n, 0);
+
+  return {
+    totalBoards,
+    totalTurnsUsed,
+    totalMaxTurns,
+    totalSolvedCount,
+    stages,
+  };
 }
 
 // Detect if the device is mobile

@@ -5,6 +5,7 @@ import { useMultiplayerGame } from "../hooks/useMultiplayerGame";
 import { useTimedMessage } from "../hooks/useTimedMessage";
 import GameToast from "./game/GameToast";
 import { useNavigate } from "react-router-dom";
+import "./FriendsModal.css";
 
 const ONE_V_ONE_BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
 
@@ -38,13 +39,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
   if (!isVerifiedUser) {
     return (
       <Modal isOpen={isOpen} onRequestClose={onRequestClose}>
-        <div
-          style={{
-            textAlign: "center",
-            width: "100%",
-            boxSizing: "border-box",
-          }}
-        >
+        <div className="friendsModalRoot">
           <h2 style={{ margin: "0 0 16px 0", fontSize: "22px", fontWeight: "bold" }}>
             Verify your account
           </h2>
@@ -54,17 +49,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
           </p>
           <button
             onClick={onRequestClose}
-            style={{
-              padding: "10px 16px",
-              borderRadius: "8px",
-              border: "none",
-              background: "#6aaa64",
-              color: "#ffffff",
-              fontWeight: "bold",
-              fontSize: "13px",
-              cursor: "pointer",
-              letterSpacing: "0.5px"
-            }}
+            className="friendsModalPrimaryButton"
           >
             Close
           </button>
@@ -97,13 +82,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
     <Modal isOpen={isOpen} onRequestClose={onRequestClose}>
       {/* Global toast for friends/challenges actions */}
       <GameToast message={message} />
-      <div
-        style={{
-          textAlign: "center",
-          width: "100%",
-          boxSizing: "border-box",
-        }}
-      >
+      <div className="friendsModalRoot">
         <h2 style={{ margin: "0 0 24px 0", fontSize: "24px", fontWeight: "bold" }}>
           Friends & Requests
         </h2>
@@ -315,23 +294,13 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
 
         <button
           onClick={onRequestClose}
-          style={{
-            padding: "10px 16px",
-            borderRadius: "8px",
-            border: "none",
-            background: "#6aaa64",
-            color: "#ffffff",
-            fontWeight: "bold",
-            fontSize: "13px",
-            cursor: "pointer",
-            letterSpacing: "0.5px"
-          }}
+          className="friendsModalPrimaryButton"
         >
           Close
         </button>
       </div>
 
-      {/* 1v1 Challenge configuration modal (per-friend).
+      {/* Multiplayer Challenge configuration modal (per-friend).
           NOTE: This will later be replaced to route through the shared
           Multiplayer host modal so that challenges and direct hosting use
           the same room configuration flow. */}

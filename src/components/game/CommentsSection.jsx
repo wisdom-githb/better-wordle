@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ref, onValue, push, set, update } from "firebase/database";
+import { ref, onValue, push, set, update, query, limitToLast } from "firebase/database";
 import { database } from "../../config/firebase";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -9,6 +9,7 @@ import { useAuth } from "../../hooks/useAuth";
  *
  * Comments are stored in Firebase Realtime Database under:
  *   comments/<threadId>/<autoId>
+ * Limits display to last 300 comments to prevent unbounded growth.
  */
 export default function CommentsSection({ threadId }) {
   const { user } = useAuth();
@@ -58,12 +59,14 @@ export default function CommentsSection({ threadId }) {
     }
   }, [user, guestDefaultName]);
 
-  // Subscribe to comments for this thread.
+  // Subscribe to comments for this thread, limited to last 300 comments.
   useEffect(() => {
     if (!threadId) return undefined;
 
     const commentsRef = ref(database, `comments/${threadId}`);
-    const unsubscribe = onValue(commentsRef, (snapshot) => {
+    // Limit to last 300 comments to prevent unbounded growth
+    const commentsQuery = query(commentsRef, limitToLast(300));
+    const unsubscribe = onValue(commentsQuery, (snapshot) => {
       if (!snapshot.exists()) {
         setComments([]);
         return;

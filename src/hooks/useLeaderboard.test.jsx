@@ -112,6 +112,53 @@ describe('useLeaderboard', () => {
     expect(result.current.error).toBe('boom');
     expect(result.current.loading).toBe(false);
   });
+
+  it('drops entries with non-numeric timeMs and coerces score to 0 when missing', () => {
+    const now = Date.now();
+    const raw = {
+      good: {
+        userId: 'u1',
+        userName: 'Good',
+        numBoards: 3,
+        score: '250',
+        timeMs: 5000,
+        timestamp: now,
+      },
+      badTime: {
+        userId: 'u2',
+        userName: 'BadTime',
+        numBoards: 3,
+        score: 999,
+        timeMs: 'not-a-number',
+        timestamp: now,
+      },
+      missingTime: {
+        userId: 'u3',
+        userName: 'MissingTime',
+        numBoards: 3,
+        score: 50,
+        // no timeMs
+        timestamp: now,
+      },
+      badScore: {
+        userId: 'u4',
+        userName: 'NoScore',
+        numBoards: 3,
+        score: 'not-a-number',
+        timeMs: 8000,
+        timestamp: now,
+      },
+    };
+
+    const { result } = renderHook(() => useLeaderboard('daily', null, 10));
+    triggerSnapshot(raw);
+
+    // Entries with invalid or missing timeMs should be dropped.
+    expect(result.current.entries.map((e) => e.userName)).toEqual(['Good', 'NoScore']);
+
+    const noScoreEntry = result.current.entries.find((e) => e.userName === 'NoScore');
+    expect(noScoreEntry.score).toBe(0);
+  });
 });
 
 describe('submitSpeedrunScore', () => {

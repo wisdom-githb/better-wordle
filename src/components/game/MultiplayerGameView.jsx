@@ -8,10 +8,10 @@ import MultiplayerChat from "./MultiplayerChat";
 const AuthModal = lazy(() => import("../AuthModal"));
 import { KEYBOARD_HEIGHT, formatElapsed as formatElapsedLib, scoreGuess } from "../../lib/wordle";
 import { FLIP_MS } from "../../lib/gameConstants";
-import { MULTIPLAYER_WAITING_TIMEOUT_MS } from "../../lib/multiplayerConfig";
+import { MULTIPLAYER_WAITING_TIMEOUT_MS, getSolutionArray } from "../../lib/multiplayerConfig";
 
 /**
- * Presentation component for all multiplayer-specific game views (formerly 1v1).
+ * Presentation component for all multiplayer-specific game views.
  * Handles: waiting room, error/loading states, dual boards, scores, and rematch button.
  */
 export default function MultiplayerGameView({
@@ -19,7 +19,7 @@ export default function MultiplayerGameView({
   gameCode,
   authUser,
   authLoading,
-  oneVOneGame,
+  multiplayerGame,
   isLoading,
   maxTurns,
   currentGuess,
@@ -39,7 +39,7 @@ export default function MultiplayerGameView({
   onRematch,
   setShowFeedbackModal,
   setTimedMessage,
-  oneVOneNowMs,
+  multiplayerNowMs,
   waitingNowMs,
   initialNumBoards,
   onChangeMode,
@@ -49,15 +49,9 @@ export default function MultiplayerGameView({
   onUpdateConfig,
 }) {
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const gameState = oneVOneGame.gameState;
+  const gameState = multiplayerGame?.gameState;
   const playersMap = gameState && gameState.players && typeof gameState.players === "object" ? gameState.players : null;
-  const playerCount = playersMap ? Object.keys(playersMap).length : (() => {
-    if (!gameState) return 0;
-    let count = 0;
-    if (gameState.hostId) count += 1;
-    if (gameState.guestId) count += 1;
-    return count;
-  })();
+  const playerCount = playersMap ? Object.keys(playersMap).length : 0;
 
   // If we're still resolving auth, show a simple loading state that includes the header.
   if (authLoading) {
@@ -213,7 +207,12 @@ export default function MultiplayerGameView({
 
   // Waiting room view
   if (gameState && gameState.status === "waiting") {
-    const isPlayerHost = authUser && gameState.hostId === authUser.uid;
+    // Determine host from players map for multiplayer rooms, fallback to hostId for legacy
+    const playersMapForHost = gameState.players && typeof gameState.players === "object" ? gameState.players : null;
+    const isPlayerHost = authUser && (
+      (playersMapForHost && playersMapForHost[authUser.uid]?.isHost) ||
+      gameState.hostId === authUser.uid
+    );
     const opponentId = isPlayerHost ? gameState.guestId : gameState.hostId;
     const isFriendWithOpponent =
       !!opponentId && Array.isArray(friends)
@@ -276,7 +275,7 @@ export default function MultiplayerGameView({
   }
 
   // Error view
-  if (oneVOneGame.error) {
+  if (multiplayerGame?.error) {
     return (
       <div
         style={{
@@ -292,7 +291,7 @@ export default function MultiplayerGameView({
         }}
       >
         <div style={{ color: "#f06272", textAlign: "center" }}>
-          Error: {oneVOneGame.error}
+          Error: {multiplayerGame.error}
         </div>
         <button
           onClick={onBack}
@@ -314,7 +313,7 @@ export default function MultiplayerGameView({
   }
 
   // Loading view while connecting or waiting for gameState
-  if (isLoading || oneVOneGame.loading || (gameCode && !gameState)) {
+  if (isLoading || multiplayerGame?.loading || (gameCode && !gameState)) {
     return (
       <div
         style={{
@@ -346,17 +345,16 @@ export default function MultiplayerGameView({
   }
 
   const isSpeedrun = gameState.speedrun || false;
-  const isPlayerHost = authUser && gameState.hostId === authUser.uid;
-  const opponentId =
-    authUser && gameState && playerCount === 2
-      ? authUser.uid === gameState.hostId
-        ? gameState.guestId
-        : gameState.hostId
-      : null;
-  const isFriendWithOpponent =
-    !!opponentId && Array.isArray(friends)
-      ? friends.some((f) => f.id === opponentId)
-      : false;
+  
+  // Determine if current player is host
+  const isPlayerHost = authUser && playersMap && playersMap[authUser.uid]
+    ? playersMap[authUser.uid].isHost
+    : false;
+  
+  // For multiplayer, we don't have a single "opponent" - it's a free-for-all
+  // opponentId is only for legacy 2-player compatibility
+  const opponentId = null;
+  const isFriendWithOpponent = false;
 
   const playerIds = playersMap ? Object.keys(playersMap) : [];
   const isMultiRoom = !!playersMap && playerIds.length > 2;
@@ -378,37 +376,33 @@ export default function MultiplayerGameView({
   }
 
   // Show all solution words in header (similar to multi-board daily)
-  const solutionList = Array.isArray(gameState.solutions) && gameState.solutions.length > 0
-    ? gameState.solutions
-    : gameState.solution
-    ? [gameState.solution]
-    : [];
+  const solutionList = getSolutionArray(gameState);
   const solutionsText = solutionList.map((w) => w.toUpperCase()).join(" · ");
   const numBoardsForHeader = solutionList.length || 1;
 
-  // 1v1 is no longer turn-based; all players can guess concurrently.
+  // Multiplayer is no longer turn-based; all players can guess concurrently.
   // We keep a single layout that always shows only the local player's boards.
 
   const myGuesses = (() => {
     if (playersMap && authUser) {
-      const me = playersMap[authUser.uid];
+      const me = authUser?.uid ? playersMap[authUser.uid] : null;
       if (me && Array.isArray(me.guesses)) return me.guesses;
     }
-    return isPlayerHost ? gameState.hostGuesses || [] : gameState.guestGuesses || [];
+    return [];
   })();
 
   const opponentGuesses = (() => {
-    if (playersMap && authUser && playerCount === 2) {
+    if (playersMap && authUser) {
       const others = Object.values(playersMap).filter((p) => p.id !== authUser.uid);
       if (others[0] && Array.isArray(others[0].guesses)) return others[0].guesses;
     }
-    return isPlayerHost ? gameState.guestGuesses || [] : gameState.hostGuesses || [];
+    return [];
   })();
 
   const mySolved = gameState.solution && myGuesses.includes(gameState.solution);
   const opponentSolved = gameState.solution && opponentGuesses.includes(gameState.solution);
 
-  // In multi-board 1v1, hide opponent guesses until the local player has
+  // In multi-board multiplayer, hide opponent guesses until the local player has
   // solved *all* boards. This applies only when there is more than one
   // solution/board.
   const isMultiBoard = solutionList.length > 1;
@@ -418,10 +412,6 @@ export default function MultiplayerGameView({
   const hideOpponentBoards = isMultiBoard && !mySolvedAllBoards;
   // When hiding, we still want to show colors but not letters.
   const hideOpponentLetters = hideOpponentBoards;
-
-  // Rematch flags for current player vs opponent
-  const myRematch = isPlayerHost ? gameState.hostRematch : gameState.guestRematch;
-  const opponentRematch = isPlayerHost ? gameState.guestRematch : gameState.hostRematch;
 
   const myGuessCount = myGuesses.length;
   const opponentGuessCount = opponentGuesses.length;
@@ -434,26 +424,20 @@ export default function MultiplayerGameView({
     ? "Multiplayer: everyone guessing"
     : "Standard: everyone guessing";
 
-  const renderSpeedrunTime = (isMine) => {
-    const timeMs = isMine
-      ? isPlayerHost
-        ? gameState.hostTimeMs || null
-        : gameState.guestTimeMs || null
-      : isPlayerHost
-      ? gameState.guestTimeMs || null
-      : gameState.hostTimeMs || null;
+  const renderSpeedrunTimeForPlayer = (playerId) => {
+    // For multiplayer games with players map, get the player's time
+    if (gameState?.players && playerId) {
+      const playerData = gameState.players[playerId];
+      const playerTimeMs = playerData?.timeMs || null;
 
-    if (timeMs !== null) return formatElapsedLib(timeMs);
+      if (playerTimeMs !== null) return formatElapsedLib(playerTimeMs);
 
-    const startTime = isMine
-      ? isPlayerHost
-        ? gameState.hostStartTime || gameState.startedAt
-        : gameState.guestStartTime || gameState.startedAt
-      : isPlayerHost
-      ? gameState.guestStartTime || gameState.startedAt
-      : gameState.hostStartTime || gameState.startedAt;
+      // If player hasn't finished yet, calculate elapsed time since game started
+      const startTime = playerData?.startTime || gameState.startedAt;
+      if (startTime) return formatElapsedLib(multiplayerNowMs - startTime);
+      return "0:00";
+    }
 
-    if (startTime) return formatElapsedLib(oneVOneNowMs - startTime);
     return "0:00";
   };
 
@@ -495,22 +479,7 @@ export default function MultiplayerGameView({
     if (playersMap && Object.keys(playersMap).length > 0) {
       return Object.values(playersMap);
     }
-    const list = [];
-    if (gameState.hostId || gameState.hostName) {
-      list.push({
-        id: gameState.hostId || "host",
-        name: gameState.hostName || "Host",
-        guesses: gameState.hostGuesses || [],
-      });
-    }
-    if (gameState.guestId || gameState.guestName) {
-      list.push({
-        id: gameState.guestId || "guest",
-        name: gameState.guestName || "Guest",
-        guesses: gameState.guestGuesses || [],
-      });
-    }
-    return list;
+    return [];
   })();
 
   return (
@@ -611,7 +580,7 @@ export default function MultiplayerGameView({
                 <span style={{ fontWeight: "bold" }}>{numBoardsForHeader}</span>
               </div>
 
-              {/* Center: big timer for speedrun, your guesses for standard */}
+              {/* Center: big timer for speedrun (shared timer that stops when any player finishes), your guesses for standard */}
               <div style={{ flex: 1, textAlign: "center" }}>
                 {isSpeedrun ? (
                   <div
@@ -622,7 +591,35 @@ export default function MultiplayerGameView({
                       color: "#ffffff",
                     }}
                   >
-                    {renderSpeedrunTime(true)}
+                    {(() => {
+                      // For speedrun mode, show THIS player's own time
+                      // If they've finished, show their final timeMs
+                      // Otherwise, show their elapsed time since they started
+                      if (gameState?.players && authUser) {
+                        const myPlayer = gameState.players[authUser.uid];
+                        if (myPlayer) {
+                          // If this player has finished, show their final time
+                          if (myPlayer.timeMs != null && typeof myPlayer.timeMs === 'number') {
+                            return formatElapsedLib(myPlayer.timeMs);
+                          }
+                          
+                          // Otherwise, calculate elapsed time for this player
+                          const startTime = myPlayer.startTime || gameState.startedAt;
+                          if (startTime) {
+                            const elapsed = multiplayerNowMs - startTime;
+                            return formatElapsedLib(elapsed);
+                          }
+                        }
+                      }
+
+                      // Fallback: show elapsed time since game started
+                      const startedAt = gameState?.startedAt;
+                      if (startedAt) {
+                        const elapsed = multiplayerNowMs - startedAt;
+                        return formatElapsedLib(elapsed);
+                      }
+                      return "0:00";
+                    })()}
                   </div>
                 ) : (
                   <div
@@ -674,7 +671,7 @@ export default function MultiplayerGameView({
                 >
                   <div>
                     <div style={{ fontSize: 12, color: "#818384" }}>
-                      {isSpeedrun ? "Your Time" : "Your Guesses"}
+                      Your Guesses
                     </div>
                     <div
                       style={{
@@ -683,145 +680,26 @@ export default function MultiplayerGameView({
                         color: "#ffffff",
                       }}
                     >
-                      {isSpeedrun ? renderSpeedrunTime(true) : myGuessCount}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 20, color: "#818384" }}>vs</div>
-                  <div>
-                    <div style={{ fontSize: 12, color: "#818384" }}>
-                      {isSpeedrun ? "Opponent's Time" : "Opponent's Guesses"}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 18,
-                        fontWeight: "bold",
-                        color: "#ffffff",
-                      }}
-                    >
-                      {isSpeedrun ? renderSpeedrunTime(false) : opponentGuessCount}
+                      {myGuessCount}
                     </div>
                   </div>
                 </div>
               ) : isSpeedrun ? (
-                <>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "center",
-                      gap: "24px",
-                      alignItems: "center",
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: 12, color: "#818384" }}>Your Time</div>
-                      <div
-                        style={{
-                          fontSize: 16,
-                          fontWeight: "bold",
-                          color: "#ffffff",
-                        }}
-                      >
-                        {renderSpeedrunTime(true)}
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 20, color: "#818384" }}>vs</div>
-                    <div>
-                      <div style={{ fontSize: 12, color: "#818384" }}>
-                        Opponent's Time
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 16,
-                          fontWeight: "bold",
-                          color: "#ffffff",
-                        }}
-                      >
-                        {renderSpeedrunTime(false)}
-                      </div>
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "#818384",
-                      marginTop: "8px",
-                      textAlign: "center",
-                    }}
-                  >
-                    {currentTurnLabel}
-                  </div>
-                </>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "#818384",
+                    textAlign: "center",
+                  }}
+                >
+                  {currentTurnLabel}
+                </div>
               ) : (
                 currentTurnLabel
               )}
             </div>
 
             {/* Rematch status text */}
-            {gameState.status === "finished" && (
-              <div
-                style={{
-                  textAlign: "center",
-                  fontSize: 13,
-                  color: "#c9b458",
-                  marginBottom: "4px",
-                  minHeight: 18,
-                }}
-              >
-                {myRematch && !opponentRematch && "Waiting for opponent to accept rematch..."}
-                {!myRematch && opponentRematch && "Opponent wants a rematch"}
-                {myRematch && opponentRematch && "Starting rematch..."}
-              </div>
-            )}
-
-            {/* Add Friend Button */}
-            {gameState && authUser && !isFriendWithOpponent && (
-              <div
-                style={{
-                  width: "100%",
-                  textAlign: "center",
-                  marginBottom: "12px",
-                }}
-              >
-                <button
-                  onClick={() => {
-                    if (friendRequestSent) return;
-                    const opponentName =
-                      authUser?.uid === gameState.hostId
-                        ? gameState.guestName
-                        : gameState.hostName;
-                    const opponentId =
-                      authUser?.uid === gameState.hostId
-                        ? gameState.guestId
-                        : gameState.hostId;
-                    if (opponentName && opponentId) {
-                      onAddFriendRequest(opponentName, opponentId);
-                    }
-                  }}
-                  disabled={friendRequestSent}
-                  style={{
-                    padding: "8px 14px",
-                    borderRadius: "8px",
-                    border: "1px solid #3a3a3c",
-                    background: "transparent",
-                    color: "#ffffff",
-                    fontSize: "12px",
-                    fontWeight: "bold",
-                    cursor: friendRequestSent ? "not-allowed" : "pointer",
-                    letterSpacing: "0.5px",
-                    transition: "all 0.2s ease",
-                    opacity: friendRequestSent ? 0.6 : 1,
-                  }}
-                >
-                  {friendRequestSent
-                    ? "Friend request sent"
-                    : `Add ${
-                        gameState.hostId === authUser?.uid
-                          ? gameState.guestName
-                          : gameState.hostName
-                      } as Friend`}
-                </button>
-              </div>
-            )}
 
             {/* Boards: local player only */}
             <div
@@ -942,14 +820,25 @@ export default function MultiplayerGameView({
                             {p.name || "Player"}
                             {isSelf ? " (You)" : ""}
                           </div>
-                          <div
-                            style={{
-                              fontSize: 11,
-                              color: "#9ca3af",
-                            }}
-                          >
-                            Total guesses: {guesses.length}
-                          </div>
+                          {isSpeedrun ? (
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color: isSelf ? "#6aaa64" : "#c9b458", // Highlight current player's time
+                              }}
+                            >
+                              {renderSpeedrunTimeForPlayer(p.id)}
+                            </div>
+                          ) : (
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color: "#9ca3af",
+                              }}
+                            >
+                              Total guesses: {guesses.length}
+                            </div>
+                          )}
                         </div>
                         <div
                           style={{
@@ -967,8 +856,8 @@ export default function MultiplayerGameView({
                                 : `${b.guessCount} guesses`;
                             const parts = [
                               `Board ${b.boardIndex}: ${guessLabel}`,
-                              `Green ${b.greens}`,
-                              `Yellow ${b.yellows}`,
+                              `Green ${b.greens} 🟩`,
+                              `Yellow ${b.yellows} 🟨`,
                             ];
                             if (b.solved) {
                               parts.push("Solved");
@@ -988,6 +877,7 @@ export default function MultiplayerGameView({
                               </div>
                             );
                           })}
+
                         </div>
                       </div>
                     );
@@ -1018,33 +908,14 @@ export default function MultiplayerGameView({
                 justifyContent: "center",
               }}
             >
-              <button
-                onClick={onRematch}
-                style={{
-                  padding: "12px 24px",
-                  borderRadius: 10,
-                  border: "none",
-                  background: "#6aaa64",
-                  color: "#ffffff",
-                  fontSize: 14,
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                  letterSpacing: 1,
-                  textTransform: "uppercase",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
-                }}
-              >
-                Rematch
-              </button>
-
-              {isPlayerHost && onChangeMode && (
+              {isPlayerHost && (
                 <button
-                  onClick={onChangeMode}
+                  onClick={onRematch}
                   style={{
-                    padding: "12px 18px",
+                    padding: "12px 24px",
                     borderRadius: 10,
-                    border: "1px solid #3a3a3c",
-                    background: "#18181a",
+                    border: "none",
+                    background: "#6aaa64",
                     color: "#ffffff",
                     fontSize: 14,
                     fontWeight: "bold",
@@ -1054,7 +925,28 @@ export default function MultiplayerGameView({
                     boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
                   }}
                 >
-                  Change mode
+                  Rematch
+                </button>
+              )}
+
+              {onChangeMode && (
+                <button
+                  onClick={onChangeMode}
+                  style={{
+                    padding: "12px 18px",
+                    borderRadius: 10,
+                    border: "1px solid #3a3a3c",
+                    background: isPlayerHost ? "#18181a" : "transparent",
+                    color: "#ffffff",
+                    fontSize: 14,
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                    letterSpacing: 1,
+                    textTransform: "uppercase",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+                  }}
+                >
+                  {isPlayerHost ? "Change mode" : "View config"}
                 </button>
               )}
             </div>

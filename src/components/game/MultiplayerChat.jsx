@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ref, onValue, push, set } from "firebase/database";
+import { ref, onValue, push, set, query, limitToLast } from "firebase/database";
 import { database } from "../../config/firebase";
 
 /**
  * Lightweight real-time chat tied to a specific multiplayer room.
- * Messages live under: onevone/<gameCode>/chat/<autoId>
+ * Messages live under: multiplayer/<gameCode>/chat/<autoId>
+ * Limits display to last 100 messages to prevent unbounded growth.
  */
 export default function MultiplayerChat({ gameCode, authUser }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -13,17 +14,21 @@ export default function MultiplayerChat({ gameCode, authUser }) {
   const [isSending, setIsSending] = useState(false);
   const listRef = useRef(null);
   const inputRef = useRef(null);
+  const lastViewedTimestampRef = useRef(Date.now());
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const canChat = useMemo(() => {
     return !!gameCode && !!authUser;
   }, [gameCode, authUser]);
 
-  // Subscribe to chat messages for this room.
+  // Subscribe to chat messages for this room, limited to last 100 messages.
   useEffect(() => {
     if (!gameCode) return undefined;
 
-    const chatRef = ref(database, `onevone/${gameCode}/chat`);
-    const unsubscribe = onValue(chatRef, (snapshot) => {
+    const chatRef = ref(database, `multiplayer/${gameCode}/chat`);
+    // Limit to last 100 messages to prevent unbounded growth
+    const chatQuery = query(chatRef, limitToLast(100));
+    const unsubscribe = onValue(chatQuery, (snapshot) => {
       if (!snapshot.exists()) {
         setMessages([]);
         return;
@@ -52,9 +57,43 @@ export default function MultiplayerChat({ gameCode, authUser }) {
     listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [messages.length, isOpen]);
 
+  // Track unread messages
+  useEffect(() => {
+    if (!authUser || messages.length === 0) {
+      setUnreadCount(0);
+      return;
+    }
+
+    if (isOpen) {
+      // When chat is open, mark all messages as read by updating the last viewed timestamp
+      // Use the most recent message timestamp, or current time if no messages
+      const mostRecentTime = messages.length > 0
+        ? Math.max(...messages.map(m => typeof m.createdAt === 'number' ? m.createdAt : 0))
+        : Date.now();
+      lastViewedTimestampRef.current = mostRecentTime;
+      setUnreadCount(0);
+    } else {
+      // Count messages that came after the last viewed timestamp (excluding own messages)
+      const unread = messages.filter((m) => {
+        if (m.uid === authUser.uid) return false; // Don't count own messages
+        const msgTime = typeof m.createdAt === 'number' ? m.createdAt : 0;
+        return msgTime > lastViewedTimestampRef.current;
+      });
+      setUnreadCount(unread.length);
+    }
+  }, [messages, isOpen, authUser]);
+
+  // Initialize last viewed timestamp when component mounts or gameCode changes
+  useEffect(() => {
+    if (gameCode && authUser) {
+      lastViewedTimestampRef.current = Date.now();
+    }
+  }, [gameCode, authUser]);
+
   const handleSend = async (e) => {
     if (e) {
       e.preventDefault();
+      e.stopPropagation();
     }
     if (!canChat) return;
     const trimmed = input.trim();
@@ -62,7 +101,7 @@ export default function MultiplayerChat({ gameCode, authUser }) {
 
     setIsSending(true);
     try {
-      const chatRef = ref(database, `onevone/${gameCode}/chat`);
+      const chatRef = ref(database, `multiplayer/${gameCode}/chat`);
       const newRef = push(chatRef);
       const displayName =
         authUser.displayName || authUser.email || "Player";
@@ -74,9 +113,12 @@ export default function MultiplayerChat({ gameCode, authUser }) {
       });
       setInput("");
       // Keep focus in the chat box so keyboard input does not go to the game.
-      if (inputRef.current) {
-        inputRef.current.focus();
-      }
+      // Use requestAnimationFrame to ensure focus happens after DOM update
+      requestAnimationFrame(() => {
+        if (inputRef.current && isOpen) {
+          inputRef.current.focus();
+        }
+      });
     } catch (err) {
       // Best-effort only; surface error via console for debugging.
       // Multiplayer gameplay should not break if chat fails.
@@ -88,10 +130,41 @@ export default function MultiplayerChat({ gameCode, authUser }) {
   };
 
   const handleKeyDown = (e) => {
+    // Stop all keyboard events from propagating to the game's keyboard handler
+    e.stopPropagation();
+    if (typeof e.stopImmediatePropagation === 'function') {
+      e.stopImmediatePropagation();
+    }
+    
     if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
       handleSend(e);
     }
   };
+
+  const handleKeyPress = (e) => {
+    // Stop all keypress events from propagating
+    e.stopPropagation();
+    if (typeof e.stopImmediatePropagation === 'function') {
+      e.stopImmediatePropagation();
+    }
+  };
+
+  const handleKeyUp = (e) => {
+    // Stop all keyup events from propagating
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+  };
+
+  // Auto-focus input when chat opens
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      // Small delay to ensure the input is rendered
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    }
+  }, [isOpen]);
 
   if (!gameCode || !authUser) {
     return null;
@@ -133,9 +206,34 @@ export default function MultiplayerChat({ gameCode, authUser }) {
             alignItems: "center",
             justifyContent: "center",
             fontSize: 10,
+            position: "relative",
           }}
         >
           💬
+          {unreadCount > 0 && (
+            <span
+              style={{
+                position: "absolute",
+                top: -6,
+                right: -6,
+                minWidth: 18,
+                height: 18,
+                borderRadius: "50%",
+                backgroundColor: "#ef4444",
+                color: "#ffffff",
+                fontSize: 10,
+                fontWeight: "bold",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "0 4px",
+                border: "2px solid #121213",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.5)",
+              }}
+            >
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
         </span>
         <span>{isOpen ? "Close chat" : "Room chat"}</span>
       </button>
@@ -143,6 +241,14 @@ export default function MultiplayerChat({ gameCode, authUser }) {
       {/* Chat panel */}
       {isOpen && (
         <div
+          onClick={(e) => {
+            // Stop click events on chat panel from propagating
+            e.stopPropagation();
+          }}
+          onKeyDown={(e) => {
+            // Stop keyboard events on chat panel from propagating
+            e.stopPropagation();
+          }}
           style={{
             position: "fixed",
             bottom: 190 + 90,
@@ -272,6 +378,14 @@ export default function MultiplayerChat({ gameCode, authUser }) {
 
           <form
             onSubmit={handleSend}
+            onClick={(e) => {
+              // Stop click events on form from propagating
+              e.stopPropagation();
+            }}
+            onKeyDown={(e) => {
+              // Stop keyboard events on form from propagating
+              e.stopPropagation();
+            }}
             style={{
               borderTop: "1px solid #2f2f31",
               padding: "6px 8px",
@@ -283,11 +397,49 @@ export default function MultiplayerChat({ gameCode, authUser }) {
             <input
               ref={inputRef}
               type="text"
+              data-chat-input="true"
               placeholder={canChat ? "Type a message" : "Sign in to chat"}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                e.stopPropagation();
+                setInput(e.target.value);
+              }}
               onKeyDown={handleKeyDown}
+              onKeyPress={handleKeyPress}
+              onKeyUp={handleKeyUp}
+              onFocus={(e) => {
+                // Stop focus event from bubbling
+                e.stopPropagation();
+              }}
+              onBlur={(e) => {
+                // Stop blur event from bubbling
+                e.stopPropagation();
+                // Only allow blur if chat is being closed, otherwise refocus
+                if (isOpen) {
+                  // Use requestAnimationFrame to check after any potential focus changes
+                  requestAnimationFrame(() => {
+                    if (isOpen && inputRef.current) {
+                      const activeElement = document.activeElement;
+                      // If chat is still open and input lost focus (and it's not the send button), refocus it
+                      if (activeElement !== inputRef.current && 
+                          activeElement?.tagName !== 'BUTTON' &&
+                          activeElement?.type !== 'submit') {
+                        inputRef.current.focus();
+                      }
+                    }
+                  });
+                }
+              }}
+              onClick={(e) => {
+                // Stop click events from propagating
+                e.stopPropagation();
+              }}
+              onMouseDown={(e) => {
+                // Stop mousedown to prevent any focus issues
+                e.stopPropagation();
+              }}
               disabled={!canChat || isSending}
+              autoFocus={isOpen}
               style={{
                 flex: 1,
                 padding: "6px 8px",
@@ -302,6 +454,19 @@ export default function MultiplayerChat({ gameCode, authUser }) {
             <button
               type="submit"
               disabled={!canChat || isSending || !input.trim()}
+              onMouseDown={(e) => {
+                // Prevent blur on input when clicking send button
+                e.preventDefault();
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                // After sending, refocus the input
+                requestAnimationFrame(() => {
+                  if (inputRef.current && isOpen) {
+                    inputRef.current.focus();
+                  }
+                });
+              }}
               style={{
                 padding: "6px 10px",
                 borderRadius: 999,

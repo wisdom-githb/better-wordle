@@ -11,8 +11,8 @@ export default function GameHeader({
     title = `MARATHON (${numBoards} boards)`;
   } else if (mode === "daily") {
     title = "DAILY GAME";
-  } else if (mode === "1v1") {
-    title = `1V1 DUEL (${numBoards} board${numBoards > 1 ? "s" : ""})`;
+  } else if (mode === "multiplayer") {
+    title = `MULTIPLAYER (${numBoards} board${numBoards > 1 ? "s" : ""})`;
   }
 
   if (speedrunEnabled) {

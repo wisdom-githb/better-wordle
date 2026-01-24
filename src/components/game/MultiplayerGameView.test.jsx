@@ -20,6 +20,33 @@ vi.mock('../AuthModal', () => ({
   ), // eslint-disable-line react/display-name
 }));
 
+vi.mock('../../lib/wordle', () => ({
+  KEYBOARD_HEIGHT: 200,
+  WORD_LENGTH: 5,
+  formatElapsed: (ms) => `${(ms / 1000).toFixed(1)}s`,
+  scoreGuess: (word, solution) => {
+    // Simple mock: return all greens if word matches solution, otherwise mix
+    if (word.toLowerCase() === solution.toLowerCase()) {
+      return ['green', 'green', 'green', 'green', 'green'];
+    }
+    // For OTHER vs apple, return some yellows/greys
+    return ['grey', 'grey', 'grey', 'grey', 'grey'];
+  },
+  getGreenPattern: (guesses) => {
+    // Return a simple pattern based on guesses
+    const pattern = Array(5).fill(false);
+    if (guesses && guesses.length > 0) {
+      const lastGuess = guesses[guesses.length - 1];
+      if (lastGuess && lastGuess.colors) {
+        lastGuess.colors.forEach((color, i) => {
+          if (color === 'green') pattern[i] = true;
+        });
+      }
+    }
+    return pattern;
+  },
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -27,7 +54,7 @@ beforeEach(() => {
 const baseProps = {
   mode: 'multiplayer',
   gameCode: '123456',
-  oneVOneGame: { gameState: null, error: null, loading: false },
+  multiplayerGame: { gameState: null, error: null, loading: false },
   isLoading: false,
   maxTurns: 6,
   currentGuess: '',
@@ -46,11 +73,13 @@ const baseProps = {
   onRematch: () => {},
   setShowFeedbackModal: () => {},
   setTimedMessage: () => {},
-  oneVOneNowMs: 0,
+  multiplayerNowMs: 0,
   initialNumBoards: 1,
   onChangeMode: () => {},
   friends: [],
   onCancelChallenge: () => {},
+  onUpdateConfig: () => {},
+  onInviteFriend: () => {},
 };
 
 describe('MultiplayerGameView unauthenticated multiplayer gating', () => {
@@ -119,7 +148,7 @@ describe('MultiplayerGameView connection / error handling', () => {
           authUser={{ uid: 'user-1' }}
           authLoading={false}
           onBack={onBack}
-          oneVOneGame={{ gameState: null, error: 'Game not found or has expired.', loading: false }}
+          multiplayerGame={{ gameState: null, error: 'Game not found or has expired.', loading: false }}
         />
       </Suspense>,
     );
@@ -153,7 +182,7 @@ describe('MultiplayerGameView waiting room', () => {
           authUser={{ uid: 'host-uid' }}
           authLoading={false}
           onBack={vi.fn()}
-          oneVOneGame={{ gameState, error: null, loading: false }}
+          multiplayerGame={{ gameState, error: null, loading: false }}
           waitingNowMs={gameState.createdAt + 5_000}
           initialNumBoards={1}
         />
@@ -192,7 +221,7 @@ describe('MultiplayerGameView in active multiplayer game', () => {
           {...baseProps}
           authUser={{ uid: 'host-uid' }}
           authLoading={false}
-          oneVOneGame={{ gameState, error: null, loading: false }}
+          multiplayerGame={{ gameState, error: null, loading: false }}
           boards={[
             {
               solution: 'apple',

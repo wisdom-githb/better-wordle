@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { ref, onValue, off } from 'firebase/database';
 import { database } from '../config/firebase';
+import { MULTIPLAYER_WAITING_TIMEOUT_MS } from '../lib/multiplayerConfig';
 
 /**
- * Subscribe to publicly visible waiting rooms under `onevone/*`.
+ * Subscribe to publicly visible waiting rooms under `multiplayer/*`.
  * Returns a sorted list of room metadata plus a loading flag.
  */
 export function useOpenRooms() {
@@ -11,7 +12,7 @@ export function useOpenRooms() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const roomsRef = ref(database, 'onevone');
+    const roomsRef = ref(database, 'multiplayer');
 
     const unsubscribe = onValue(
       roomsRef,
@@ -53,12 +54,15 @@ export function useOpenRooms() {
               createdAt: room.createdAt || 0,
             };
           })
-          .filter((room) =>
-            room &&
-            room.isPublic &&
-            room.status === 'waiting' &&
-            (room.createdAt || 0) > now - 24 * 60 * 60 * 1000
-          )
+          .filter((room) => {
+            if (!room) return false;
+            if (!room.isPublic) return false;
+            if (room.status !== 'waiting') return false;
+            if (!room.createdAt) return false;
+            // Only include rooms that are still within the same lifetime
+            // window used by joinGame/expireGame.
+            return now - room.createdAt <= MULTIPLAYER_WAITING_TIMEOUT_MS;
+          })
           .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
         setRooms(list);
@@ -70,10 +74,12 @@ export function useOpenRooms() {
     );
 
     return () => {
-      off(roomsRef);
+      // Cleanup: unsubscribe from the listener
       if (typeof unsubscribe === 'function') {
         unsubscribe();
       }
+      // Also call off() as a safety net, though unsubscribe() should handle it
+      off(roomsRef);
     };
   }, []);
 

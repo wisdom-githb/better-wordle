@@ -87,10 +87,16 @@ vi.mock('../../hooks/useKeyboard', () => ({
   },
 }));
 
-// Mock share-text helper; score helpers are no longer used.
-vi.mock('../../lib/gameUtils', () => ({
-  generateShareText: vi.fn(() => 'Play Better Wordle!'),
-}));
+// Mock share-text helper; score helpers are no longer used. Keep other
+// exports (like buildMarathonShareTotals) from the real module so marathon
+// aggregation behaviour can still be exercised.
+vi.mock('../../lib/gameUtils', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    generateShareText: vi.fn(() => 'Play Better Wordle!'),
+  };
+});
 
 import GameSinglePlayer from './GameSinglePlayer';
 import { generateShareText } from '../../lib/gameUtils';

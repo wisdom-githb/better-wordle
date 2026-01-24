@@ -15,8 +15,14 @@ describe('MultiplayerWaitingRoom', () => {
     render(
       <MultiplayerWaitingRoom
         gameCode="123456"
-        gameState={{ status: 'waiting', hostName: 'Host', guestName: null }}
+        gameState={{
+          status: 'waiting',
+          players: {
+            'host-id': { id: 'host-id', name: 'Host', isHost: true, ready: false },
+          },
+        }}
         isHost
+        authUserId="host-id"
         onShareCode={onShareCode}
       />,
     );
@@ -35,16 +41,22 @@ describe('MultiplayerWaitingRoom', () => {
         gameCode="123456"
         gameState={{
           status: 'waiting',
-          hostName: 'Alice',
-          guestName: 'Bob',
-          hostReady: true,
-          guestReady: false,
+          players: {
+            'alice-id': { id: 'alice-id', name: 'Alice', isHost: true, ready: true },
+            'bob-id': { id: 'bob-id', name: 'Bob', isHost: false, ready: false },
+          },
         }}
         isHost
+        authUserId="alice-id"
       />,
     );
 
-    expect(screen.getByText('Alice (Host)')).toBeInTheDocument();
+    // Text is split across text nodes but in same element: "Alice", " (Host)", " (You)"
+    const aliceElements = screen.getAllByText((content, element) => {
+      const text = element?.textContent || '';
+      return text.includes('Alice') && text.includes('(Host)');
+    });
+    expect(aliceElements.length).toBeGreaterThan(0);
     expect(screen.getAllByText('✓ Ready')[0]).toBeInTheDocument();
     expect(screen.getByText('Bob')).toBeInTheDocument();
     expect(screen.getAllByText('Not Ready')[0]).toBeInTheDocument();
@@ -56,18 +68,19 @@ describe('MultiplayerWaitingRoom', () => {
         gameCode="123456"
         gameState={{
           status: 'waiting',
-          hostName: 'Alice',
-          guestName: 'Bob',
-          hostReady: true,
-          guestReady: false,
+          players: {
+            'alice-id': { id: 'alice-id', name: 'Alice', isHost: true, ready: true },
+            'bob-id': { id: 'bob-id', name: 'Bob', isHost: false, ready: false },
+          },
         }}
         isHost={false}
+        authUserId="bob-id"
       />,
     );
 
     // Guest should see the host label on the host row.
     expect(screen.getByText('Alice (Host)')).toBeInTheDocument();
-    expect(screen.getByText('Bob')).toBeInTheDocument();
+    expect(screen.getByText('Bob (You)')).toBeInTheDocument();
   });
 
   it('calls onReady and disables Not Ready when both players are ready', () => {
@@ -80,14 +93,13 @@ describe('MultiplayerWaitingRoom', () => {
         gameCode="123456"
         gameState={{
           status: 'waiting',
-          hostName: 'Alice',
-          guestName: 'Bob',
-          hostReady: false,
-          guestReady: true,
+          players: {
+            'host-id': { id: 'host-id', name: 'Alice', isHost: true, ready: false },
+            'guest-id': { id: 'guest-id', name: 'Bob', isHost: false, ready: true },
+          },
         }}
         isHost
-        currentUserId="host-id"
-        maxPlayers={2}
+        authUserId="host-id"
         onReady={onReady}
         onStartGame={onStartGame}
       />,
@@ -102,14 +114,13 @@ describe('MultiplayerWaitingRoom', () => {
         gameCode="123456"
         gameState={{
           status: 'waiting',
-          hostName: 'Alice',
-          guestName: 'Bob',
-          hostReady: true,
-          guestReady: true,
+          players: {
+            'host-id': { id: 'host-id', name: 'Alice', isHost: true, ready: true },
+            'guest-id': { id: 'guest-id', name: 'Bob', isHost: false, ready: true },
+          },
         }}
         isHost
-        currentUserId="host-id"
-        maxPlayers={2}
+        authUserId="host-id"
         onReady={onReady}
         onStartGame={onStartGame}
       />,
@@ -126,45 +137,48 @@ describe('MultiplayerWaitingRoom', () => {
   it('handles Add Friend button label, disabled state, and callback', () => {
     const onAddFriend = vi.fn();
 
-    // friendRequestSent = false -> button enabled, label "Add {name} as Friend"
+    // friendRequestSent = false -> button enabled, title "Add {name} as friend"
     const { rerender } = render(
       <MultiplayerWaitingRoom
         gameCode="123456"
         gameState={{
           status: 'waiting',
-          hostName: 'Alice',
-          guestName: 'Bob',
-          hostReady: true,
-          guestReady: false,
+          players: {
+            'alice-id': { id: 'alice-id', name: 'Alice', isHost: true, ready: true },
+            'bob-id': { id: 'bob-id', name: 'Bob', isHost: false, ready: false },
+          },
         }}
         isHost
+        authUserId="alice-id"
         onAddFriend={onAddFriend}
         friendRequestSent={false}
       />,
     );
 
-    const addButton = screen.getByRole('button', { name: 'Add Bob as Friend' });
+    // The button has a "+" text but title attribute "Add Bob as friend"
+    const addButton = screen.getByTitle('Add Bob as friend');
     fireEvent.click(addButton);
     expect(onAddFriend).toHaveBeenCalledWith('Bob');
 
-    // friendRequestSent = true -> button disabled and text "Friend request sent"
+    // friendRequestSent = true -> button disabled and title "Friend request sent"
     rerender(
       <MultiplayerWaitingRoom
         gameCode="123456"
         gameState={{
           status: 'waiting',
-          hostName: 'Alice',
-          guestName: 'Bob',
-          hostReady: true,
-          guestReady: false,
+          players: {
+            'alice-id': { id: 'alice-id', name: 'Alice', isHost: true, ready: true },
+            'bob-id': { id: 'bob-id', name: 'Bob', isHost: false, ready: false },
+          },
         }}
         isHost
+        authUserId="alice-id"
         onAddFriend={onAddFriend}
         friendRequestSent
       />,
     );
 
-    const sentButton = screen.getByRole('button', { name: 'Friend request sent' });
+    const sentButton = screen.getByTitle('Friend request sent');
     expect(sentButton).toBeDisabled();
   });
 });

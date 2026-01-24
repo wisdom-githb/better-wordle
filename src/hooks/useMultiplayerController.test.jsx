@@ -23,7 +23,7 @@ beforeEach(() => {
 });
 
 function createCommonProps(overrides = {}) {
-  const oneVOneGame = overrides.oneVOneGame || {
+  const multiplayerGame = overrides.multiplayerGame || {
     gameState: null,
     createGame: vi.fn(),
     joinGame: vi.fn(),
@@ -32,10 +32,11 @@ function createCommonProps(overrides = {}) {
     startGame: vi.fn(),
     setFriendRequestStatus: vi.fn(),
     setReady: vi.fn(),
+    setNextGameConfig: vi.fn(),
   };
 
   return {
-    isOneVOne: true,
+    isMultiplayer: true,
     isHost: true,
     gameCode: '123456',
     speedrunEnabled: false,
@@ -43,7 +44,7 @@ function createCommonProps(overrides = {}) {
     numBoards: 1,
     authUser: { uid: 'host-uid' },
     isVerifiedUser: true,
-    oneVOneGame,
+    multiplayerGame,
     boards: [],
     setBoards: vi.fn(),
     maxTurns: 6,
@@ -64,7 +65,7 @@ function createCommonProps(overrides = {}) {
     shouldShowPopupAfterFlipRef: { current: false },
     sendFriendRequest: vi.fn(),
     cancelSentChallenge: vi.fn(),
-    maxOneVOneBoards: 8,
+    maxMultiplayerBoards: 8,
     ...overrides,
   };
 }
@@ -77,11 +78,11 @@ describe('useMultiplayerController', () => {
       guestFriendRequestSent: false,
     };
 
-    const hostGame = { ...createCommonProps().oneVOneGame, gameState };
+    const hostGame = { ...createCommonProps().multiplayerGame, gameState };
 
     const { result: hostView } = renderHook(() =>
       useMultiplayerController(
-        createCommonProps({ authUser: { uid: 'host-uid' }, oneVOneGame: hostGame })
+        createCommonProps({ authUser: { uid: 'host-uid' }, multiplayerGame: hostGame })
       )
     );
 
@@ -91,14 +92,14 @@ describe('useMultiplayerController', () => {
 
     const { result: guestView } = renderHook(() =>
       useMultiplayerController(
-        createCommonProps({ authUser: { uid: 'guest-uid' }, oneVOneGame: guestGame })
+        createCommonProps({ authUser: { uid: 'guest-uid' }, multiplayerGame: guestGame })
       )
     );
 
     expect(guestView.current.friendRequestSent).toBe(false);
   });
 
-  it('handleOneVOneReady toggles ready state via oneVOneGame.setReady', async () => {
+  it('handleMultiplayerReady toggles ready state via multiplayerGame.setReady', async () => {
     const setReady = vi.fn();
     const gameState = {
       hostId: 'host-uid',
@@ -106,16 +107,16 @@ describe('useMultiplayerController', () => {
       guestReady: false,
     };
 
-    const oneVOneGame = { ...createCommonProps().oneVOneGame, gameState, setReady };
+    const multiplayerGame = { ...createCommonProps().multiplayerGame, gameState, setReady };
 
     const { result } = renderHook(() =>
       useMultiplayerController(
-        createCommonProps({ authUser: { uid: 'host-uid' }, oneVOneGame })
+        createCommonProps({ authUser: { uid: 'host-uid' }, multiplayerGame })
       )
     );
 
     await act(async () => {
-      await result.current.handleOneVOneReady();
+      await result.current.handleMultiplayerReady();
     });
 
     expect(setReady).toHaveBeenCalledWith('123456', true);
@@ -129,8 +130,8 @@ describe('useMultiplayerController', () => {
       hostId: 'host-uid',
     };
 
-    const oneVOneGame = {
-      ...createCommonProps().oneVOneGame,
+    const multiplayerGame = {
+      ...createCommonProps().multiplayerGame,
       gameState,
       setFriendRequestStatus,
     };
@@ -139,7 +140,7 @@ describe('useMultiplayerController', () => {
       useMultiplayerController(
         createCommonProps({
           authUser: { uid: 'host-uid' },
-          oneVOneGame,
+          multiplayerGame,
           sendFriendRequest,
         })
       )
@@ -153,73 +154,99 @@ describe('useMultiplayerController', () => {
     expect(setFriendRequestStatus).toHaveBeenCalledWith('123456', 'pending');
   });
 
-  it('applyOneVOneConfig clamps boards and sets next config', () => {
+  it('applyMultiplayerConfig clamps boards and sets next config', async () => {
     const setTimedMessage = vi.fn();
-
-    const { result } = renderHook(() =>
-      useMultiplayerController(
-        createCommonProps({
-          maxOneVOneBoards: 4,
-          setTimedMessage,
-        })
-      )
-    );
-
-    act(() => {
-      // open config and set drafts via returned setters
-      result.current.setOneVOneConfigBoardsDraft(10);
-      result.current.setOneVOneConfigSpeedrunDraft(true);
-      result.current.applyOneVOneConfig();
+    const setNextGameConfig = vi.fn().mockResolvedValue(undefined);
+    const baseProps = createCommonProps({
+      maxMultiplayerBoards: 4,
+      setTimedMessage,
     });
 
-    expect(setTimedMessage).toHaveBeenCalled();
+    const { result } = renderHook(() =>
+      useMultiplayerController({
+        ...baseProps,
+        multiplayerGame: {
+          ...baseProps.multiplayerGame,
+          setNextGameConfig,
+        },
+      })
+    );
+
+    // Set draft values - React should batch these updates
+    act(() => {
+      result.current.setMultiplayerConfigBoardsDraft(10);
+      result.current.setMultiplayerConfigSpeedrunDraft(true);
+    });
+
+    // Wait for the hook to re-render with updated state
+    // The useMemo return value should update when the draft state changes
+    await waitFor(() => {
+      expect(result.current.multiplayerConfigBoardsDraft).toBe(10);
+      expect(result.current.multiplayerConfigSpeedrunDraft).toBe(true);
+    }, { timeout: 1000 });
+
+    // Now apply the config
+    await act(async () => {
+      await result.current.applyMultiplayerConfig();
+    });
+
+    // Should clamp boards from 10 to 4 (maxMultiplayerBoards)
+    expect(setNextGameConfig).toHaveBeenCalledWith('123456', {
+      numBoards: 4,
+      speedrun: true,
+    });
+    // Should show success message
+    expect(setTimedMessage).toHaveBeenCalledWith(
+      expect.stringContaining('Next rematch will use 4 board'),
+      5000
+    );
   });
 
-  it('can call handleOneVOneStart which loads word lists and starts a game', async () => {
+  it('can call handleMultiplayerStart which loads word lists and starts a game', async () => {
     const startGame = vi.fn();
-    const oneVOneGame = {
-      ...createCommonProps().oneVOneGame,
+    const multiplayerGame = {
+      ...createCommonProps().multiplayerGame,
       startGame,
     };
 
     const { result } = renderHook(() =>
       useMultiplayerController(
         createCommonProps({
-          oneVOneGame,
+          multiplayerGame,
           numBoards: 2,
         })
       )
     );
 
     await act(async () => {
-      await result.current.handleOneVOneStart();
+      await result.current.handleMultiplayerStart();
     });
 
     expect(loadWordLists).toHaveBeenCalled();
     expect(startGame).toHaveBeenCalled();
   });
 
-  it('uses boardsParam to determine board count for the initial 1v1 round', async () => {
+  it('uses boardsParam to determine board count for the initial multiplayer round', async () => {
     const startGame = vi.fn();
-    const oneVOneGame = {
-      ...createCommonProps().oneVOneGame,
+    const multiplayerGame = {
+      ...createCommonProps().multiplayerGame,
       startGame,
     };
 
     const { result } = renderHook(() =>
       useMultiplayerController(
         createCommonProps({
-          oneVOneGame,
+          multiplayerGame,
           // Host selected 5 boards on the modal; numBoards is still 1 before the first round.
           boardsParam: '5',
           numBoards: 1,
-          maxOneVOneBoards: 8,
+          maxMultiplayerBoards: 8,
         })
       )
     );
 
     await act(async () => {
-      await result.current.handleOneVOneStart();
+      await result.current.handleMultiplayerStart();
     });
 
     expect(loadWordLists).toHaveBeenCalled();
@@ -229,27 +256,27 @@ describe('useMultiplayerController', () => {
     expect(solutionsArg).toHaveLength(5);
   });
 
-  it('clamps boardsParam to maxOneVOneBoards and falls back to numBoards when missing', async () => {
+  it('clamps boardsParam to maxMultiplayerBoards and falls back to numBoards when missing', async () => {
     const startGame = vi.fn();
     const baseGame = {
-      ...createCommonProps().oneVOneGame,
+      ...createCommonProps().multiplayerGame,
       startGame,
     };
 
-    // Case 1: boardsParam larger than maxOneVOneBoards should be clamped.
+    // Case 1: boardsParam larger than maxMultiplayerBoards should be clamped.
     let hook = renderHook(() =>
       useMultiplayerController(
         createCommonProps({
-          oneVOneGame: baseGame,
+          multiplayerGame: baseGame,
           boardsParam: '99',
           numBoards: 1,
-          maxOneVOneBoards: 4,
+          maxMultiplayerBoards: 4,
         })
       )
     );
 
     await act(async () => {
-      await hook.result.current.handleOneVOneStart();
+      await hook.result.current.handleMultiplayerStart();
     });
 
     expect(startGame).toHaveBeenCalledTimes(1);
@@ -262,16 +289,16 @@ describe('useMultiplayerController', () => {
     hook = renderHook(() =>
       useMultiplayerController(
         createCommonProps({
-          oneVOneGame: baseGame,
+          multiplayerGame: baseGame,
           boardsParam: null,
           numBoards: 3,
-          maxOneVOneBoards: 8,
+          maxMultiplayerBoards: 8,
         })
       )
     );
 
     await act(async () => {
-      await hook.result.current.handleOneVOneStart();
+      await hook.result.current.handleMultiplayerStart();
     });
 
     expect(startGame).toHaveBeenCalledTimes(1);
@@ -279,7 +306,7 @@ describe('useMultiplayerController', () => {
     expect(solutionsArg).toHaveLength(3);
   });
 
-  it('syncs 1v1 guesses into local boards using scoreGuess colors', async () => {
+  it('syncs multiplayer guesses into local boards using scoreGuess colors', async () => {
     const setBoards = vi.fn();
     const gameState = {
       status: 'playing',
@@ -290,8 +317,8 @@ describe('useMultiplayerController', () => {
       guestGuesses: [],
     };
 
-    const oneVOneGame = {
-      ...createCommonProps().oneVOneGame,
+    const multiplayerGame = {
+      ...createCommonProps().multiplayerGame,
       gameState,
     };
 
@@ -301,7 +328,7 @@ describe('useMultiplayerController', () => {
       useMultiplayerController(
         createCommonProps({
           authUser: { uid: 'host-uid' },
-          oneVOneGame,
+          multiplayerGame,
           setBoards,
         })
       )

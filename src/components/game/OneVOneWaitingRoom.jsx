@@ -286,7 +286,7 @@ export default function OneVOneWaitingRoom({
               </button>
             ) : (
               <button
-                onClick={() => onReady(false)}
+                onClick={onReady}
                 disabled={allPlayersReady}
                 style={{
                   width: '100%',

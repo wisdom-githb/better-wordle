@@ -1,7 +1,8 @@
 import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { loadJSON, saveJSON, makeSolvedKey, makeDailyKey, makeMarathonKey, marathonMetaKey, makeStreakKey, loadStreak, updateStreakOnWin } from "../../lib/persist";
+import { loadJSON, saveJSON, makeSolvedKey, makeDailyKey, makeMarathonKey, makeStreakKey, loadStreak, updateStreakOnWin } from "../../lib/persist";
+import { loadMarathonMeta, saveMarathonMeta } from "../../lib/marathonMeta";
 import {
   WORD_LENGTH,
   scoreGuess,
@@ -11,7 +12,7 @@ import {
   sumMs,
 } from "../../lib/wordle";
 import { FLIP_COMPLETE_MS } from "../../lib/gameConstants";
-import { generateShareText } from "../../lib/gameUtils";
+import { generateShareText, buildMarathonShareTotals } from "../../lib/gameUtils";
 import { getCurrentDateString } from "../../lib/dailyWords";
 import { submitSpeedrunScore } from "../../hooks/useLeaderboard";
 import { useAuth } from "../../hooks/useAuth";
@@ -22,6 +23,8 @@ import { useShare } from "../../hooks/useShare";
 import { useSinglePlayerGame } from "../../hooks/useSinglePlayerGame";
 import { useKeyboard } from "../../hooks/useKeyboard";
 import { useBoardLayout } from "../../hooks/useBoardLayout";
+import { useStageTimer } from "../../hooks/useStageTimer";
+import { loadStreakRemoteAware, saveStreakRemoteAware, saveSolvedState } from "../../lib/singlePlayerStore";
 import SinglePlayerGameView from "./SinglePlayerGameView";
 import "../../Game.css";
 
@@ -69,11 +72,7 @@ export default function GameSinglePlayer({
   };
 
   // Load marathon meta for current speedrun/daily config.
-  const marathonMeta = loadJSON(marathonMetaKey(speedrunEnabled), {
-    index: 0,
-    cumulativeMs: 0,
-    stageTimes: [],
-  });
+  const marathonMeta = loadMarathonMeta(speedrunEnabled);
   const marathonIndex = marathonMeta.index || 0;
   const marathonCumulativeMs = marathonMeta.cumulativeMs || 0;
   const marathonStageTimes = marathonMeta.stageTimes || [];
@@ -124,12 +123,22 @@ export default function GameSinglePlayer({
   const boardRefs = useRef({});
   const [showBoardSelector, setShowBoardSelector] = useState(false);
 
-  const stageStartRef = useRef(null);
-  const stageEndRef = useRef(null);
-  const [nowMs, setNowMs] = useState(Date.now());
-
   const committedRef = useRef(false);
   const committedStageMsRef = useRef(0);
+  const hasStartedStageTimerRef = useRef(false);
+
+  // Seed object for the stage timer hook; populated by useSinglePlayerGame
+  // based on any saved game state or solved snapshot.
+  const [stageTimerSeed, setStageTimerSeed] = useState({ elapsedMs: 0, frozen: false });
+
+  const {
+    start: stageTimerStart,
+    freeze: stageTimerFreeze,
+    elapsedMs: timerElapsedMs,
+  } = useStageTimer(speedrunEnabled, 100, {
+    initialElapsedMs: stageTimerSeed.elapsedMs,
+    initiallyFrozen: stageTimerSeed.frozen,
+  });
 
   const isMarathonSpeedrun = speedrunEnabled && mode === "marathon";
 
@@ -156,30 +165,22 @@ export default function GameSinglePlayer({
   useEffect(() => {
     const tracksStreak = (mode === "daily" && numBoards === 1) || mode === "marathon";
     if (!tracksStreak) return;
-    if (!authUser) return;
 
     let isMounted = true;
-    const modeKey = mode === "daily" ? "daily" : "marathon";
-    const variantKey = speedrunEnabled ? "speedrun" : "standard";
-    const remoteKey = `${modeKey}_${variantKey}`;
 
     (async () => {
       try {
-        const streakRef = ref(database, `users/${authUser.uid}/streaks/${remoteKey}`);
-        const snap = await get(streakRef);
-        if (!snap.exists()) return;
-        const remote = snap.val() || null;
-        if (!remote) return;
-
-        // Keep local cache in sync so offline views still show the right data.
-        const localKey = makeStreakKey(mode, speedrunEnabled);
-        saveJSON(localKey, remote);
-
-        if (isMounted) {
-          setStreakLabel(buildStreakLabel(mode, speedrunEnabled, remote));
-        }
+        const remoteAware = await loadStreakRemoteAware({
+          authUser,
+          database,
+          mode,
+          speedrunEnabled,
+        });
+        if (!isMounted || !remoteAware) return;
+        setStreakLabel(buildStreakLabel(mode, speedrunEnabled, remoteAware));
       } catch (err) {
-        console.error("Failed to load remote streak for game", err);
+        // eslint-disable-next-line no-console
+        console.error("Failed to load streak for game", err);
       }
     })();
 
@@ -188,14 +189,30 @@ export default function GameSinglePlayer({
     };
   }, [authUser, mode, speedrunEnabled, numBoards]);
 
-  // Stage timer tick for speedrun modes.
+  // Stage timer ticks are now handled by useStageTimer; this component only
+  // passes an initial seed based on saved state.
+
+  // For fresh speedrun games (no saved elapsed time and not resumed from a
+  // solved snapshot), start the stage timer once boards are loaded.
   useEffect(() => {
     if (!speedrunEnabled) return;
-    const id = setInterval(() => {
-      setNowMs(Date.now());
-    }, 100);
-    return () => clearInterval(id);
-  }, [speedrunEnabled]);
+    if (hasStartedStageTimerRef.current) return;
+
+    const hasSeedElapsed = stageTimerSeed.elapsedMs > 0;
+    const isSeedFrozen = stageTimerSeed.frozen;
+
+    // Resumed games and solved snapshots rely on the seeding behaviour inside
+    // useStageTimer; they should not call start() again.
+    if (hasSeedElapsed || isSeedFrozen) {
+      hasStartedStageTimerRef.current = true;
+      return;
+    }
+
+    if (!isLoading && boards.length > 0) {
+      stageTimerStart();
+      hasStartedStageTimerRef.current = true;
+    }
+  }, [speedrunEnabled, stageTimerSeed, isLoading, boards.length, stageTimerStart]);
 
   // Keep an always-fresh ref of the current guess so that even callbacks
   // captured by mocks or older renders (e.g. in tests) see the latest value.
@@ -210,6 +227,11 @@ export default function GameSinglePlayer({
     return makeDailyKey(numBoards, speedrunEnabled);
   }, [mode, speedrunEnabled, numBoards]);
 
+  const stageElapsedMs =
+    savedSolvedStateRef.current?.stageElapsedMs !== undefined
+      ? savedSolvedStateRef.current.stageElapsedMs
+      : timerElapsedMs;
+
   const saveGameState = useCallback(() => {
     if (boards.length === 0) return;
     const allSolved = boards.every((b) => b.isSolved);
@@ -221,13 +243,9 @@ export default function GameSinglePlayer({
       currentGuess,
       isUnlimited,
       maxTurns,
-      stageStartTime: stageStartRef.current,
-      stageElapsedMs:
-        speedrunEnabled && stageStartRef.current != null
-          ? stageEndRef.current
-            ? stageEndRef.current - stageStartRef.current
-            : Date.now() - stageStartRef.current
-          : 0,
+      // Persist the current stage elapsed time directly from the timer hook so
+      // we no longer depend on legacy start/end refs.
+      stageElapsedMs: speedrunEnabled ? stageElapsedMs : 0,
       committedRef: committedRef.current,
       committedStageMs: committedStageMsRef.current,
       revealId,
@@ -236,7 +254,7 @@ export default function GameSinglePlayer({
     saveJSON(gameStateKey, gameState);
     // Mirror in-progress single-player state to Firebase for signed-in users.
     persistForUser(`singlePlayer/gameStates/${gameStateKey}`, gameState);
-  }, [boards, currentGuess, isUnlimited, maxTurns, speedrunEnabled, revealId, getGameStateKey, persistForUser]);
+  }, [boards, currentGuess, isUnlimited, maxTurns, speedrunEnabled, stageElapsedMs, revealId, getGameStateKey, persistForUser]);
 
   const clearGameState = useCallback(() => {
     const gameStateKey = getGameStateKey();
@@ -252,8 +270,6 @@ export default function GameSinglePlayer({
     marathonIndex,
     getGameStateKey,
     savedSolvedStateRef,
-    stageStartRef,
-    stageEndRef,
     committedRef,
     committedStageMsRef,
     setBoards,
@@ -270,16 +286,8 @@ export default function GameSinglePlayer({
     setIsLoading,
     setShowPopup,
     setTimedMessage,
+    setStageTimerSeed,
   });
-
-  const stageElapsedMs = (() => {
-    if (savedSolvedStateRef.current?.stageElapsedMs !== undefined) {
-      return savedSolvedStateRef.current.stageElapsedMs;
-    }
-    if (!speedrunEnabled || stageStartRef.current == null) return 0;
-    const end = stageEndRef.current ?? nowMs;
-    return end - stageStartRef.current;
-  })();
 
   const hasThisStageCommittedInProps =
     isMarathonSpeedrun && marathonStageTimes.some((x) => x.boards === numBoards);
@@ -301,12 +309,7 @@ export default function GameSinglePlayer({
     committedStageMsRef.current = ms;
 
     if (speedrunEnabled && mode === "marathon") {
-      const metaKey = marathonMetaKey(true);
-      const currentMeta = loadJSON(metaKey, {
-        index: marathonIndex,
-        cumulativeMs: 0,
-        stageTimes: [],
-      });
+      const currentMeta = loadMarathonMeta(true);
       const newStageTimes = [...(currentMeta.stageTimes || [])];
       const existing = newStageTimes.findIndex((st) => st.boards === numBoards);
       if (existing >= 0) {
@@ -321,9 +324,10 @@ export default function GameSinglePlayer({
         cumulativeMs: cumulative,
         stageTimes: newStageTimes,
       };
-      saveJSON(metaKey, updatedMeta);
+      const saved = saveMarathonMeta(true, updatedMeta);
+      const metaKey = marathonMetaKey(true);
       // Mirror marathon meta so cumulative times stay consistent across devices.
-      persistForUser(`singlePlayer/meta/${metaKey}`, updatedMeta);
+      persistForUser(`singlePlayer/meta/${metaKey}`, saved);
     }
   };
 
@@ -403,9 +407,10 @@ export default function GameSinglePlayer({
 
   const freezeStageTimer = () => {
     if (!speedrunEnabled) return 0;
-    const end = Date.now();
-    if (stageEndRef.current == null) stageEndRef.current = end;
-    return stageEndRef.current - stageStartRef.current;
+    // Delegate entirely to the stage timer hook; we no longer maintain
+    // separate start/end refs now that timing is fully encapsulated.
+    const ms = stageTimerFreeze();
+    return ms;
   };
 
   const submitGuess = async () => {
@@ -518,9 +523,7 @@ export default function GameSinglePlayer({
         popupTotalMs: savedPopupTotalMs,
         timestamp: Date.now(),
       };
-      saveJSON(solvedKey, solvedState);
-      // Mirror solved snapshot so completed stages can be replayed on other devices.
-      persistForUser(`singlePlayer/solvedStates/${solvedKey}`, solvedState);
+      saveSolvedState({ authUser, database, solvedKey, value: solvedState });
 
       const isMarathonComplete =
         mode === "marathon" && marathonIndex >= marathonLevels.length - 1;
@@ -535,39 +538,15 @@ export default function GameSinglePlayer({
       if (shouldUpdateStreak) {
         (async () => {
           try {
-            const modeKey = mode === "daily" ? "daily" : "marathon";
-            const variantKey = speedrunEnabled ? "speedrun" : "standard";
-            const remoteKey = `${modeKey}_${variantKey}`;
-
-            // If a signed-in user has a server streak, hydrate local storage
-            // from it before applying the usual update logic so streaks are
-            // consistent across devices.
-            if (authUser) {
-              try {
-                const streakRef = ref(database, `users/${authUser.uid}/streaks/${remoteKey}`);
-                const snap = await get(streakRef);
-                if (snap.exists()) {
-                  const remoteExisting = snap.val() || null;
-                  if (remoteExisting) {
-                    const localKey = makeStreakKey(mode, speedrunEnabled);
-                    saveJSON(localKey, remoteExisting);
-                  }
-                }
-              } catch (inner) {
-                console.error("Failed to hydrate local streak from server", inner);
-              }
-            }
-
             const streakInfo = updateStreakOnWin(mode, speedrunEnabled, dateString);
 
-            if (authUser) {
-              try {
-                const streakRef = ref(database, `users/${authUser.uid}/streaks/${remoteKey}`);
-                await set(streakRef, streakInfo);
-              } catch (inner) {
-                console.error("Failed to persist streak to server", inner);
-              }
-            }
+            await saveStreakRemoteAware({
+              authUser,
+              database,
+              mode,
+              speedrunEnabled,
+              streakInfo,
+            });
 
             setStreakLabel(buildStreakLabel(mode, speedrunEnabled, streakInfo));
           } catch (err) {
@@ -656,7 +635,7 @@ export default function GameSinglePlayer({
       : `Guesses used: ${turnsUsed}/${maxTurns}${isUnlimited ? " (unlimited)" : ""}`;
 
   // gridCols and gridRows are now provided by useBoardLayout so the layout
-  // logic stays consistent between single-player and 1v1.
+  // logic stays consistent between single-player and multiplayer.
 
   const marathonHasNext = useMemo(
     () => mode === "marathon" && marathonIndex < marathonLevels.length - 1,
@@ -682,16 +661,15 @@ export default function GameSinglePlayer({
   const goNextStage = useCallback(() => {
     if (marathonHasNext) {
       const newIndex = marathonIndex + 1;
+      const updatedMeta = saveMarathonMeta(speedrunEnabled, { index: newIndex });
       const metaKey = marathonMetaKey(speedrunEnabled);
-      const meta = loadJSON(metaKey, { index: marathonIndex });
-      const updatedMeta = { ...meta, index: newIndex };
-      saveJSON(metaKey, updatedMeta);
       // Keep marathon stage index in sync across devices for signed-in users.
       persistForUser(`singlePlayer/meta/${metaKey}`, updatedMeta);
-      navigate(`/game?mode=marathon&speedrun=${speedrunEnabled}`, { replace: true });
-      window.location.reload();
+      // Navigate to the next marathon stage. Use direct href navigation instead of
+      // navigate() + reload() to ensure the navigation happens before the page reload.
+      window.location.href = `/game?mode=marathon&speedrun=${speedrunEnabled}`;
     }
-  }, [marathonHasNext, marathonIndex, speedrunEnabled, navigate]);
+  }, [marathonHasNext, marathonIndex, speedrunEnabled]);
 
   const exitFromOutOfGuesses = () => {
     // Freeze the timer and immediately transition to the end-of-game popup
@@ -740,10 +718,7 @@ export default function GameSinglePlayer({
         timestamp: Date.now(),
       };
 
-      saveJSON(solvedKey, solvedState);
-      // Mirror out-of-guesses snapshot so the same end-of-stage view appears
-      // when resuming on another device.
-      persistForUser(`singlePlayer/solvedStates/${solvedKey}`, solvedState);
+      saveSolvedState({ authUser, database, solvedKey, value: solvedState });
     } catch (err) {
       // Best-effort only; failure to persist should not break gameplay.
       console.error("Failed to persist out-of-guesses exit state", err);
@@ -800,77 +775,7 @@ export default function GameSinglePlayer({
     if (marathonHasNext && !forceCanShareAfterPopup) return null;
 
     try {
-      const dateString = getCurrentDateString();
-      let totalTurnsUsed = 0;
-      let totalMaxTurns = 0;
-      let totalSolvedCount = 0;
-      let stagesWithData = 0;
-      const stages = [];
-
-      marathonLevels.forEach((boardsForStage, stageIndex) => {
-        const solvedKey = makeSolvedKey(
-          "marathon",
-          boardsForStage,
-          speedrunEnabled,
-          stageIndex,
-          dateString
-        );
-        const solvedState = loadJSON(solvedKey, null);
-
-        let stageTurns = 0;
-        let stageMaxTurns = maxTurns;
-        let stageSolvedCount = 0;
-        let stageElapsed = 0;
-
-        if (solvedState) {
-          stagesWithData += 1;
-
-          stageTurns =
-            typeof solvedState.turnsUsed === "number"
-              ? solvedState.turnsUsed
-              : getTurnsUsed(solvedState.boards || []);
-          stageMaxTurns =
-            typeof solvedState.maxTurns === "number"
-              ? solvedState.maxTurns
-              : maxTurns;
-          stageSolvedCount =
-            typeof solvedState.solvedCount === "number"
-              ? solvedState.solvedCount
-              : Array.isArray(solvedState.boards)
-              ? solvedState.boards.filter((b) => b && b.isSolved).length
-              : 0;
-          stageElapsed =
-            typeof solvedState.stageElapsedMs === "number"
-              ? solvedState.stageElapsedMs
-              : 0;
-
-          totalTurnsUsed += stageTurns;
-          totalMaxTurns += stageMaxTurns;
-          totalSolvedCount += stageSolvedCount;
-        }
-
-        stages.push({
-          boards: boardsForStage,
-          turnsUsed: stageTurns,
-          maxTurns: stageMaxTurns,
-          solvedCount: stageSolvedCount,
-          stageElapsedMs: stageElapsed,
-        });
-      });
-
-      if (stagesWithData === 0) {
-        return null;
-      }
-
-      const totalBoards = marathonLevels.reduce((sum, n) => sum + n, 0);
-
-      return {
-        totalBoards,
-        totalTurnsUsed,
-        totalMaxTurns,
-        totalSolvedCount,
-        stages,
-      };
+      return buildMarathonShareTotals(marathonLevels, speedrunEnabled, maxTurns);
     } catch (err) {
       // Fall back to current-stage numbers if aggregation fails for any reason.
       console.error("Failed to aggregate marathon share totals", err);
@@ -988,6 +893,8 @@ export default function GameSinglePlayer({
     import.meta.env &&
     (import.meta.env.MODE === "test" || import.meta.env.TEST === true);
 
+  const hasWordListError = !isLoading && boards.length === 0;
+
   if (isLoading && !isTestEnv) {
     return (
       <>
@@ -995,16 +902,7 @@ export default function GameSinglePlayer({
           <title>{pageTitle}</title>
           <meta name="description" content={pageDescription} />
         </Helmet>
-        <div
-          style={{
-            minHeight: "100vh",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "#121213",
-            color: "#ffffff",
-          }}
-        >
+        <div className="loadingContainer">
           Loading Wordle dictionaries...
         </div>
       </>
@@ -1068,6 +966,12 @@ export default function GameSinglePlayer({
         commentThreadId={commentsThreadId}
         canShare={canShare}
         streakLabel={streakLabel}
+        wordListError={
+          hasWordListError
+            ? "Failed to load word lists. Please check your connection and try again."
+            : null
+        }
+        onRetryWordLists={() => window.location.reload()}
       />
     </>
   );

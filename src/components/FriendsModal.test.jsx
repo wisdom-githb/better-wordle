@@ -122,7 +122,7 @@ describe('FriendsModal', () => {
     expect(removeFriend).toHaveBeenCalledWith('f1');
   });
 
-  it('creates a challenge and navigates to 1v1 when sendChallenge succeeds', async () => {
+  it('creates a challenge and navigates to multiplayer when sendChallenge succeeds', async () => {
     const sendChallenge = vi.fn().mockResolvedValue(true);
     const createGame = vi.fn().mockResolvedValue('654321');
 

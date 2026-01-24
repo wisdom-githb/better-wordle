@@ -9,6 +9,7 @@ import { useAuth } from "./hooks/useAuth";
 const FeedbackModal = lazy(() => import("./components/FeedbackModal"));
 const MultiplayerModal = lazy(() => import("./components/MultiplayerModal"));
 import { loadJSON, saveJSON, makeDailyKey, makeMarathonKey, marathonMetaKey, makeSolvedKey, removeKey } from "./lib/persist";
+import { loadMarathonMeta } from "./lib/marathonMeta";
 import { database } from "./config/firebase";
 import { ref, get, update } from "firebase/database";
 
@@ -93,7 +94,7 @@ export default function Home({
       }
 
       if (!meta) {
-        meta = loadJSON(metaKey, null);
+        meta = loadMarathonMeta(speedrunEnabledFlag);
       }
 
       return meta;
@@ -292,7 +293,7 @@ export default function Home({
               Once verified, you&apos;ll be able to play Multiplayer Mode and use friends.
               Check your Spam or Junk folder for the verification link.
             </p>
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <div className="flexRow justifyEnd">
               <button
                 type="button"
                 className="homeBtn homeBtnGreen homeBtnLg"

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { buildLetterMapFromGuesses } from "../lib/wordle";
 
 /**
- * Shared hook for multi-board layout concerns used by both single-player and 1v1.
+ * Shared hook for multi-board layout concerns used by both single-player and multiplayer.
  * - Computes per-board letter maps for keyboard coloring.
  * - Computes a square-ish grid (cols/rows) for board layout.
  */

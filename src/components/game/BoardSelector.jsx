@@ -62,7 +62,7 @@ export default function BoardSelector({
             minWidth: 200
           }}
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div className="flexColumn flexGap12">
             {/* Status text (only show if not speedrun mode) */}
             {!speedrunEnabled && statusText && (
               <div style={{ fontSize: 14, color: "#d7dadc", fontWeight: "bold", marginBottom: 4 }}>
@@ -71,7 +71,7 @@ export default function BoardSelector({
             )}
             
             {/* Board number buttons */}
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            <div className="flexRow flexGap6 flexWrap itemsCenter">
               {boards.map((board, index) => {
                 const isSelected = selectedBoardIndex === index;
                 const isSolved = board.isSolved;

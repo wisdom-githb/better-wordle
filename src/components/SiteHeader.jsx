@@ -110,7 +110,7 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete }) {
             BETTER WORDLE
           </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", minWidth: 32 }}>
+          <div className="flexRow justifyEnd" style={{ minWidth: 32 }}>
             <HamburgerMenu onOpenFeedback={onOpenFeedback || (() => {})} />
           </div>
         </div>

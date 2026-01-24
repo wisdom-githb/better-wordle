@@ -15,8 +15,35 @@ const firebaseConfig = {
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "your-storage-bucket",
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "your-messaging-sender-id",
   appId: import.meta.env.VITE_FIREBASE_APP_ID || "your-app-id",
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || `https://${import.meta.env.VITE_FIREBASE_PROJECT_ID || "your-project-id"}-default-rtdb.firebaseio.com`
+  databaseURL:
+    import.meta.env.VITE_FIREBASE_DATABASE_URL ||
+    `https://${import.meta.env.VITE_FIREBASE_PROJECT_ID || "your-project-id"}-default-rtdb.firebaseio.com`,
 };
+
+// In non-development builds, guard against accidentally shipping a build that
+// still uses placeholder Firebase configuration values. Failing fast here
+// makes misconfiguration obvious rather than causing confusing runtime errors.
+const mode = import.meta.env.MODE || 'development';
+if (mode !== 'development' && mode !== 'test') {
+  const placeholderTokens = [
+    'your-api-key',
+    'your-auth-domain',
+    'your-project-id',
+    'your-storage-bucket',
+    'your-messaging-sender-id',
+    'your-app-id',
+  ];
+
+  const hasPlaceholder = Object.values(firebaseConfig).some((value) =>
+    typeof value === 'string' && placeholderTokens.some((token) => value.includes(token)),
+  );
+
+  if (hasPlaceholder) {
+    throw new Error(
+      'Invalid Firebase configuration: one or more VITE_FIREBASE_* environment variables are missing or still use placeholder values.',
+    );
+  }
+}
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);

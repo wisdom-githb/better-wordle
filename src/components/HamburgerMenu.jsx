@@ -330,7 +330,7 @@ export default function HamburgerMenu({ onOpenFeedback }) {
         />
       </Suspense>
 
-      {/* Incoming 1v1 challenges modal */}
+      {/* Incoming multiplayer challenges modal */}
       <Modal
         isOpen={showChallengesModal}
         onRequestClose={() => setShowChallengesModal(false)}
