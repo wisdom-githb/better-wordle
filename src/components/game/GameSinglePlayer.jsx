@@ -635,7 +635,7 @@ export default function GameSinglePlayer({
       : `Guesses used: ${turnsUsed}/${maxTurns}${isUnlimited ? " (unlimited)" : ""}`;
 
   // gridCols and gridRows are now provided by useBoardLayout so the layout
-  // logic stays consistent between single-player and 1v1.
+  // logic stays consistent between single-player and multiplayer.
 
   const marathonHasNext = useMemo(
     () => mode === "marathon" && marathonIndex < marathonLevels.length - 1,

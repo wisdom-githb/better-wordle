@@ -9,6 +9,9 @@ const pushMock = vi.fn((refObj) => ({ key: 'auto-id', ref: refObj }));
 const setMock = vi.fn();
 const updateMock = vi.fn();
 
+const queryMock = vi.fn((refObj) => refObj);
+const limitToLastMock = vi.fn((n) => ({ limit: n }));
+
 vi.mock('firebase/database', () => ({
   ref: (...args) => refMock(...args),
   onValue: (refObj, cb) => {
@@ -18,6 +21,8 @@ vi.mock('firebase/database', () => ({
   push: (...args) => pushMock(...args),
   set: (...args) => setMock(...args),
   update: (...args) => updateMock(...args),
+  query: (...args) => queryMock(...args),
+  limitToLast: (...args) => limitToLastMock(...args),
 }));
 
 vi.mock('../../config/firebase', () => ({

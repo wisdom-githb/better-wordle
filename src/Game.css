@@ -316,7 +316,7 @@
   font-size: 13px;
 }
 
-/* Wordle-style flip animation for tiles (shared by single-player and 1v1) */
+/* Wordle-style flip animation for tiles (shared by single-player and multiplayer) */
 .mw-tile {
   flex-shrink: 0;
   perspective: 900px;

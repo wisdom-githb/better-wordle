@@ -41,7 +41,7 @@ export default function GameMultiplayer() {
   const rawMode = searchParams.get("mode");
   const isHost = searchParams.get("host") === "true";
   const speedrunEnabled = (() => {
-    if (rawMode === "multiplayer" || rawMode === "1v1") {
+    if (rawMode === "multiplayer") {
       return searchParams.get("speedrun") === "true";
     }
     return false;
@@ -58,7 +58,7 @@ export default function GameMultiplayer() {
   // friend opens a shared multiplayer link without being signed in.
   const effectiveGameCode = authUser ? gameCode : null;
 
-  const oneVOneGame = useMultiplayerGame(effectiveGameCode, isHost, speedrunEnabled);
+  const multiplayerGame = useMultiplayerGame(effectiveGameCode, isHost, speedrunEnabled);
 
   const [boards, setBoards] = useState([]);
   const [currentGuess, setCurrentGuess] = useState("");
@@ -82,22 +82,23 @@ export default function GameMultiplayer() {
   const boardRefs = useRef({});
   const [showBoardSelector, setShowBoardSelector] = useState(false);
 
-  const [oneVOneNowMs, setOneVOneNowMs] = useState(Date.now());
+  const [multiplayerNowMs, setMultiplayerNowMs] = useState(Date.now());
   const [waitingNowMs, setWaitingNowMs] = useState(Date.now());
   const waitingExpiredRef = useRef(false);
 
   // High-frequency timer for speedrun elapsed time.
   useEffect(() => {
-    if (!oneVOneGame.gameState?.speedrun) return;
+    if (!multiplayerGame.gameState?.speedrun) return;
     const id = setInterval(() => {
-      setOneVOneNowMs(Date.now());
+      setMultiplayerNowMs(Date.now());
     }, 100);
     return () => clearInterval(id);
-  }, [oneVOneGame.gameState]);
+  }, [multiplayerGame.gameState?.speedrun]);
 
   // Low-frequency timer for room lifetime / expiration countdown (waiting + playing).
   useEffect(() => {
-    if (!oneVOneGame.gameState || !oneVOneGame.gameState.createdAt) {
+    const createdAt = multiplayerGame.gameState?.createdAt;
+    if (!createdAt) {
       waitingExpiredRef.current = false;
       return;
     }
@@ -105,7 +106,7 @@ export default function GameMultiplayer() {
       setWaitingNowMs(Date.now());
     }, 1000);
     return () => clearInterval(id);
-  }, [oneVOneGame.gameState && oneVOneGame.gameState.createdAt]);
+  }, [multiplayerGame.gameState?.createdAt]);
 
   // Keep an always-fresh ref of the current guess so that even callbacks
   // captured by mocks or older renders (e.g. in tests) see the latest value.
@@ -118,7 +119,7 @@ export default function GameMultiplayer() {
     [boards]
   );
 
-  const gameState = oneVOneGame.gameState;
+  const gameState = multiplayerGame.gameState;
 
   // Boards configuration for lobby display and invites.
   const initialBoardsConfig = useMemo(() => {
@@ -140,7 +141,7 @@ export default function GameMultiplayer() {
 
   // Auto-close rooms that exceed the lifetime window (waiting + playing).
   useEffect(() => {
-    const gs = oneVOneGame.gameState;
+    const gs = multiplayerGame.gameState;
     if (!gs || !gameCode || !gs.createdAt) return;
     if (waitingExpiredRef.current) return;
 
@@ -149,31 +150,32 @@ export default function GameMultiplayer() {
       waitingExpiredRef.current = true;
       (async () => {
         try {
-          await oneVOneGame.expireGame(gameCode);
+          await multiplayerGame.expireGame(gameCode);
         } finally {
           navigate("/");
         }
       })();
     }
-  }, [waitingNowMs, oneVOneGame.gameState, gameCode, navigate, oneVOneGame]);
+  }, [waitingNowMs, multiplayerGame.gameState?.createdAt, gameCode, navigate, multiplayerGame.expireGame]);
 
   const {
     friendRequestSent,
-    hasPlayerSolvedAllOneVOneBoards,
-    isOneVOneConfigModalOpen,
-    oneVOneConfigBoardsDraft,
-    oneVOneConfigSpeedrunDraft,
-    setIsOneVOneConfigModalOpen,
-    setOneVOneConfigBoardsDraft,
-    setOneVOneConfigSpeedrunDraft,
-    handleOneVOneReady,
-    handleOneVOneStart,
+    hasPlayerSolvedAllMultiplayerBoards,
+    isMultiplayerConfigModalOpen,
+    multiplayerConfigBoardsDraft,
+    multiplayerConfigSpeedrunDraft,
+    setIsMultiplayerConfigModalOpen,
+    setMultiplayerConfigBoardsDraft,
+    setMultiplayerConfigSpeedrunDraft,
+    handleMultiplayerReady,
+    handleMultiplayerStart,
     handleCancelHostedChallenge,
     handleAddFriendRequest,
-    openOneVOneConfigFromEnd,
-    applyOneVOneConfig,
+    openMultiplayerConfigFromEnd,
+    applyMultiplayerConfig,
+    handleRematchStart,
   } = useMultiplayerController({
-    isOneVOne: true,
+    isMultiplayer: true,
     isHost,
     gameCode,
     speedrunEnabled,
@@ -183,7 +185,7 @@ export default function GameMultiplayer() {
     isPublicParam,
     authUser,
     isVerifiedUser,
-    oneVOneGame,
+    multiplayerGame,
     boards,
     setBoards,
     maxTurns,
@@ -204,7 +206,7 @@ export default function GameMultiplayer() {
     shouldShowPopupAfterFlipRef,
     sendFriendRequest,
     cancelSentChallenge,
-    maxOneVOneBoards: MULTIPLAYER_BOARD_OPTIONS.length,
+    maxMultiplayerBoards: MULTIPLAYER_BOARD_OPTIONS.length,
   });
 
   const { perBoardLetterMaps, focusedLetterMap, gridCols, gridRows } = useBoardLayout(
@@ -227,7 +229,7 @@ export default function GameMultiplayer() {
 
   const isInputBlocked = useCallback(() => {
     if (allSolved) return true;
-    if (hasPlayerSolvedAllOneVOneBoards) return true;
+    if (hasPlayerSolvedAllMultiplayerBoards) return true;
     if (showPopup || showOutOfGuesses) return true;
 
     if (typeof document !== "undefined") {
@@ -243,18 +245,18 @@ export default function GameMultiplayer() {
       }
     }
 
-    if (oneVOneGame.gameState) {
-      const gameState = oneVOneGame.gameState;
+    if (multiplayerGame.gameState) {
+      const gameState = multiplayerGame.gameState;
       if (gameState.status !== "playing") return true;
     }
 
     return false;
   }, [
     allSolved,
-    hasPlayerSolvedAllOneVOneBoards,
+    hasPlayerSolvedAllMultiplayerBoards,
     showPopup,
     showOutOfGuesses,
-    oneVOneGame.gameState,
+    multiplayerGame.gameState,
   ]);
 
   const addLetter = (letter) => {
@@ -300,8 +302,8 @@ export default function GameMultiplayer() {
       return;
     }
 
-    if (oneVOneGame.gameState) {
-      const gameState = oneVOneGame.gameState;
+    if (multiplayerGame.gameState) {
+      const gameState = multiplayerGame.gameState;
       const isSpeedrun = gameState.speedrun || false;
 
       const solutionArray =
@@ -337,9 +339,13 @@ export default function GameMultiplayer() {
           setIsFlipping(false);
         }, FLIP_COMPLETE_MS);
 
-        await oneVOneGame.submitGuess(gameCode, guessToSubmit, []);
+        await multiplayerGame.submitGuess(gameCode, guessToSubmit, []);
       } catch (error) {
+        // Reset flipping state on error
+        setIsFlipping(false);
         setTimedMessage(error.message || "Failed to submit guess", 5000);
+        // Restore the guess so user can retry
+        setCurrentGuess(guessToSubmit);
       }
       return;
     }
@@ -355,10 +361,10 @@ export default function GameMultiplayer() {
   const handleBack = useCallback(() => {
     if (gameCode) {
       // Best-effort cleanup so the player no longer appears in the room.
-      oneVOneGame.leaveGame(gameCode);
+      multiplayerGame.leaveGame(gameCode);
     }
     navigate("/");
-  }, [navigate, gameCode, oneVOneGame]);
+  }, [navigate, gameCode, multiplayerGame]);
 
   const handleVirtualKey = (key) => {
     if (isInputBlocked()) return;
@@ -375,13 +381,13 @@ export default function GameMultiplayer() {
     }
     try {
       // Delete the hosted room and clear any pending challenge metadata.
-      await oneVOneGame.leaveGame(gameCode);
+      await multiplayerGame.leaveGame(gameCode);
       await cancelSentChallenge(gameCode);
     } catch (error) {
       setTimedMessage(error.message || 'Failed to cancel challenge', 5000);
     }
     navigate('/');
-  }, [gameCode, navigate, oneVOneGame, cancelSentChallenge, setTimedMessage]);
+  }, [gameCode, navigate, multiplayerGame, cancelSentChallenge, setTimedMessage]);
 
   // As a final safety net, if this component unmounts while the player is still
   // associated with a room, attempt to leave that room so they are removed
@@ -390,10 +396,10 @@ export default function GameMultiplayer() {
   useEffect(() => {
     return () => {
       if (gameCode) {
-        oneVOneGame.leaveGame(gameCode);
+        multiplayerGame.leaveGame(gameCode);
       }
     };
-  }, [gameCode, oneVOneGame.leaveGame]);
+  }, [gameCode, multiplayerGame.leaveGame]);
 
   const solutionsText = useMemo(
     () => boards.map((b) => b.solution).filter(Boolean).map((w) => w.toUpperCase()).join(" · "),
@@ -415,8 +421,8 @@ export default function GameMultiplayer() {
   const popupTotalMs = 0;
   const isMarathonSpeedrun = false;
 
-  const gridCols1v1 = gridCols;
-  const gridRows1v1 = gridRows;
+  const gridColsMultiplayer = gridCols;
+  const gridRowsMultiplayer = gridRows;
 
   const shareText = useMemo(() => {
     if (!boards || boards.length === 0) {
@@ -431,13 +437,13 @@ export default function GameMultiplayer() {
     async (partialConfig) => {
       if (!gameCode) return;
       try {
-        await oneVOneGame.updateConfig(gameCode, partialConfig);
+        await multiplayerGame.updateConfig(gameCode, partialConfig);
         setTimedMessage("Room settings updated.", 3000);
       } catch (error) {
         setTimedMessage(error.message || "Failed to update room settings", 5000);
       }
     },
-    [gameCode, oneVOneGame, setTimedMessage]
+    [gameCode, multiplayerGame, setTimedMessage]
   );
 
   const pageTitle = "Multiplayer Wordle-Style Battles – Game | Better Wordle";
@@ -454,14 +460,15 @@ export default function GameMultiplayer() {
       <GameToast message={message} />
 
       <MultiplayerRoomConfigModal
-        isOpen={isOneVOneConfigModalOpen}
-        onRequestClose={() => setIsOneVOneConfigModalOpen(false)}
+        isOpen={isMultiplayerConfigModalOpen}
+        onRequestClose={() => setIsMultiplayerConfigModalOpen(false)}
         boardOptions={MULTIPLAYER_BOARD_OPTIONS}
-        boardsDraft={oneVOneConfigBoardsDraft}
-        onChangeBoardsDraft={(value) => setOneVOneConfigBoardsDraft(value)}
-        speedrunDraft={oneVOneConfigSpeedrunDraft}
-        onChangeSpeedrunDraft={(value) => setOneVOneConfigSpeedrunDraft(value)}
-        onSave={applyOneVOneConfig}
+        boardsDraft={multiplayerConfigBoardsDraft}
+        onChangeBoardsDraft={(value) => setMultiplayerConfigBoardsDraft(value)}
+        speedrunDraft={multiplayerConfigSpeedrunDraft}
+        onChangeSpeedrunDraft={(value) => setMultiplayerConfigSpeedrunDraft(value)}
+        onSave={applyMultiplayerConfig}
+        isHost={gameState && authUser ? gameState.hostId === authUser.uid : false}
       />
 
       <MultiplayerGameView
@@ -469,7 +476,7 @@ export default function GameMultiplayer() {
         gameCode={gameCode}
         authUser={authUser}
         authLoading={authLoading}
-        oneVOneGame={oneVOneGame}
+        multiplayerGame={multiplayerGame}
         isLoading={isLoading}
         initialNumBoards={initialBoardsConfig}
         maxTurns={maxTurns}
@@ -483,26 +490,17 @@ export default function GameMultiplayer() {
         friendRequestSent={friendRequestSent}
         onAddFriendRequest={handleAddFriendRequest}
         onShareCode={handleShareCode}
-        onReady={handleOneVOneReady}
-        onStartGame={handleOneVOneStart}
+        onReady={handleMultiplayerReady}
+        onStartGame={handleMultiplayerStart}
         onBack={handleBack}
         onOpenFeedback={() => setShowFeedbackModal(true)}
         onCancelChallenge={handleCancelHostedChallengeWithCleanup}
-        onRematch={async () => {
-          if (!gameCode) return;
-          try {
-            await oneVOneGame.requestRematch(gameCode);
-            setShowPopup(false);
-            popupClosedRef.current = true;
-          } catch (error) {
-            setTimedMessage(error.message || "Failed to request rematch", 5000);
-          }
-        }}
+        onRematch={handleRematchStart}
         setShowFeedbackModal={setShowFeedbackModal}
         setTimedMessage={setTimedMessage}
-        oneVOneNowMs={oneVOneNowMs}
+        multiplayerNowMs={multiplayerNowMs}
         waitingNowMs={waitingNowMs}
-        onChangeMode={openOneVOneConfigFromEnd}
+        onChangeMode={openMultiplayerConfigFromEnd}
         friends={friends}
         onUpdateConfig={handleUpdateConfig}
         onInviteFriend={async (friend) => {
@@ -549,31 +547,22 @@ export default function GameMultiplayer() {
           freezeStageTimer={() => 0}
           isMarathonSpeedrun={isMarathonSpeedrun}
           commitStageIfNeeded={() => {}}
-          isOneVOne={true}
-          oneVOneGameState={oneVOneGame.gameState}
-          winner={oneVOneGame.gameState ? oneVOneGame.gameState.winner : null}
+          isMultiplayer={true}
+          multiplayerGameState={multiplayerGame.gameState}
+          winner={multiplayerGame.gameState ? multiplayerGame.gameState.winner : null}
           isPlayerHost={
-            oneVOneGame.gameState && authUser
-              ? oneVOneGame.gameState.hostId === authUser.uid
+            multiplayerGame.gameState && authUser
+              ? multiplayerGame.gameState.hostId === authUser.uid
               : false
           }
           currentUserId={authUser ? authUser.uid : null}
           onAddFriend={handleAddFriendRequest}
           friendRequestSent={friendRequestSent}
-          onRematch={async () => {
-            if (!gameCode) return;
-            try {
-              await oneVOneGame.requestRematch(gameCode);
-              setShowPopup(false);
-              popupClosedRef.current = true;
-            } catch (error) {
-              setTimedMessage(error.message || "Failed to request rematch", 5000);
-            }
-          }}
+          onRematch={handleRematchStart}
           onChangeMode={() => {
             setShowPopup(false);
             popupClosedRef.current = true;
-            openOneVOneConfigFromEnd();
+            openMultiplayerConfigFromEnd();
           }}
         />
       )}
@@ -600,15 +589,15 @@ export default function GameMultiplayer() {
 
       {gameState &&
         gameState.status === "playing" &&
-        !hasPlayerSolvedAllOneVOneBoards && (
+        !hasPlayerSolvedAllMultiplayerBoards && (
           <footer className="keyboardFooter">
             <Keyboard
               numBoards={numBoards}
               selectedBoardIndex={selectedBoardIndex}
               perBoardLetterMaps={perBoardLetterMaps}
               focusedLetterMap={focusedLetterMap}
-              gridCols={gridCols1v1}
-              gridRows={gridRows1v1}
+              gridCols={gridColsMultiplayer}
+              gridRows={gridRowsMultiplayer}
               onVirtualKey={handleVirtualKey}
             />
           </footer>

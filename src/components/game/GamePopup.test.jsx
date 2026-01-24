@@ -38,7 +38,7 @@ describe('GamePopup - single player', () => {
         freezeStageTimer={() => 0}
         isMarathonSpeedrun={false}
         commitStageIfNeeded={() => {}}
-        isOneVOne={false}
+        isMultiplayer={false}
       />
     );
 
@@ -78,7 +78,7 @@ describe('GamePopup - single player', () => {
         freezeStageTimer={freezeStageTimer}
         isMarathonSpeedrun={true}
         commitStageIfNeeded={commitStageIfNeeded}
-        isOneVOne={false}
+        isMultiplayer={false}
       />
     );
 
@@ -120,7 +120,7 @@ describe('GamePopup - single player', () => {
         freezeStageTimer={freezeStageTimer}
         isMarathonSpeedrun={true}
         commitStageIfNeeded={commitStageIfNeeded}
-        isOneVOne={false}
+        isMultiplayer={false}
       />
     );
 
@@ -128,14 +128,14 @@ describe('GamePopup - single player', () => {
   });
 });
 
-describe('GamePopup - 1v1 mode', () => {
+describe('GamePopup - multiplayer mode', () => {
   const formatElapsed = (ms) => `${(ms / 1000).toFixed(1)}s`;
 
-  it('shows score summary and ranking header in non-speedrun 1v1', () => {
+  it('shows score summary and ranking header in non-speedrun multiplayer', () => {
     const onRematch = vi.fn();
     const onChangeMode = vi.fn();
 
-    const oneVOneGameState = {
+    const multiplayerGameState = {
       speedrun: false,
       status: 'finished',
       hostId: 'host-1',
@@ -145,8 +145,23 @@ describe('GamePopup - 1v1 mode', () => {
       hostGuesses: ['APPLE'],
       guestGuesses: ['OTHER', 'GUESS'],
       solution: 'APPLE',
-      hostRematch: true,
-      guestRematch: false,
+      solutions: ['APPLE'],
+      players: {
+        'host-1': { 
+          id: 'host-1', 
+          name: 'Host', 
+          rematch: true,
+          guesses: ['APPLE'],
+          isHost: true,
+        },
+        'guest-1': { 
+          id: 'guest-1', 
+          name: 'Guest', 
+          rematch: false,
+          guesses: ['OTHER', 'GUESS'],
+          isHost: false,
+        },
+      },
     };
 
     render(
@@ -167,8 +182,8 @@ describe('GamePopup - 1v1 mode', () => {
         freezeStageTimer={() => 0}
         isMarathonSpeedrun={false}
         commitStageIfNeeded={() => {}}
-        isOneVOne={true}
-        oneVOneGameState={oneVOneGameState}
+        isMultiplayer={true}
+        multiplayerGameState={multiplayerGameState}
         myScore={200}
         opponentScore={150}
         winner={null}
@@ -184,8 +199,9 @@ describe('GamePopup - 1v1 mode', () => {
     expect(screen.getByText(/Your Score/i)).toBeInTheDocument();
     expect(screen.getByText(/Opponent's Score/i)).toBeInTheDocument();
 
-    // Rematch and Change Mode buttons should be present for host
+    // Rematch button should be present for host
     expect(screen.getByRole('button', { name: /Rematch/i })).toBeInTheDocument();
+    // Change Mode button is also available for host
     expect(screen.getByRole('button', { name: /Change Mode/i })).toBeInTheDocument();
   });
 });

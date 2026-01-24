@@ -24,7 +24,7 @@ export default function OpenRoomsModal({ isOpen, onRequestClose, adminMode = fal
     if (!isOpen) return undefined;
 
     setLoading(true);
-    const roomsRef = ref(database, "onevone");
+    const roomsRef = ref(database, "multiplayer");
 
     const unsubscribe = onValue(
       roomsRef,
@@ -115,7 +115,7 @@ export default function OpenRoomsModal({ isOpen, onRequestClose, adminMode = fal
     if (!currentUser) return;
 
     try {
-      await remove(ref(database, `onevone/${code}`));
+      await remove(ref(database, `multiplayer/${code}`));
     } catch (e) {
       // best-effort; errors are silently ignored in UI
     }
@@ -133,7 +133,7 @@ export default function OpenRoomsModal({ isOpen, onRequestClose, adminMode = fal
     setClosingAll(true);
     try {
       await Promise.all(
-        allCodes.map((code) => remove(ref(database, `onevone/${code}`)))
+        allCodes.map((code) => remove(ref(database, `multiplayer/${code}`)))
       );
     } catch (e) {
       // best-effort; errors are silently ignored in UI

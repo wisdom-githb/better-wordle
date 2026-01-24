@@ -49,7 +49,7 @@ export function useAuth() {
   const [friends, setFriends] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
   const [incomingChallenges, setIncomingChallenges] = useState([]);
-  // Outgoing 1v1 challenges created by the current user ("Sent" tab in UI).
+  // Outgoing multiplayer challenges created by the current user ("Sent" tab in UI).
   const [sentChallenges, setSentChallenges] = useState([]);
 
   useEffect(() => {
@@ -186,7 +186,7 @@ export function useAuth() {
           }
         });
 
-        // Load incoming 1v1 challenges for this user
+        // Load incoming multiplayer challenges for this user
         const challengesRef = ref(database, `users/${authUser.uid}/challenges`);
         unsubscribeChallenges = onValue(challengesRef, (snapshot) => {
           if (snapshot.exists()) {
@@ -204,7 +204,7 @@ export function useAuth() {
           }
         });
 
-        // Load outgoing (sent) 1v1 challenges created by this user.
+        // Load outgoing (sent) multiplayer challenges created by this user.
         const sentRef = ref(database, `users/${authUser.uid}/sentChallenges`);
         unsubscribeSentChallenges = onValue(sentRef, (snapshot) => {
           if (snapshot.exists()) {
@@ -505,7 +505,7 @@ export function useAuth() {
     }
   }, []);
 
-  const declineFriendRequest = useCallback(async (fromUserId, gameCode = null, setFriendStatusIn1v1 = null) => {
+  const declineFriendRequest = useCallback(async (fromUserId, gameCode = null, setFriendStatusInMultiplayer = null) => {
     try {
       setError(null);
       if (!auth.currentUser) throw new Error('No user signed in');
@@ -516,14 +516,14 @@ export function useAuth() {
       const requestRef = ref(database, `users/${auth.currentUser.uid}/friendRequests/${fromUserId}`);
       await remove(requestRef);
 
-      // If this decline came from a 1v1 game context and we were given a helper,
-      // update the 1v1 game's friendRequestStatus so the waiting room button UI
+      // If this decline came from a multiplayer game context and we were given a helper,
+      // update the multiplayer game's friendRequestStatus so the waiting room button UI
       // can revert from "Friend request sent" back to "Add ... as Friend".
-      if (gameCode && typeof setFriendStatusIn1v1 === 'function') {
+      if (gameCode && typeof setFriendStatusInMultiplayer === 'function') {
         try {
-          await setFriendStatusIn1v1(gameCode, 'declined');
+          await setFriendStatusInMultiplayer(gameCode, 'declined');
         } catch (err) {
-          console.error('Failed to update 1v1 friendRequestStatus:', err);
+          console.error('Failed to update multiplayer friendRequestStatus:', err);
         }
       }
       
@@ -559,7 +559,7 @@ export function useAuth() {
     }
   }, []);
 
-  // Create or update a 1v1 challenge entry for a specific friend.
+  // Create or update a multiplayer challenge entry for a specific friend.
   // If a user has sent their friend a challenge, then neither the user nor
   // their friend should be able to send any more challenges to each other
   // until the existing challenge has been accepted or declined.
@@ -693,7 +693,7 @@ export function useAuth() {
       // message that their challenge was declined.
       if (effectiveGameCode) {
         try {
-          const gameRef = ref(database, `onevone/${effectiveGameCode}`);
+          const gameRef = ref(database, `multiplayer/${effectiveGameCode}`);
           const gameSnap = await get(gameRef);
           if (gameSnap.exists()) {
             const cancelledByName =
@@ -704,7 +704,7 @@ export function useAuth() {
             });
           }
         } catch (innerErr) {
-          console.error('Failed to mark 1v1 game as cancelled after dismissing challenge:', innerErr);
+          console.error('Failed to mark multiplayer game as cancelled after dismissing challenge:', innerErr);
         }
       }
 
@@ -754,10 +754,10 @@ export function useAuth() {
         }
       }
 
-      // Best-effort: mark the backing 1v1 game as cancelled so any listeners
+      // Best-effort: mark the backing multiplayer game as cancelled so any listeners
       // (e.g. the guest if they somehow joined directly) see a cancelled state.
       try {
-        const gameRef = ref(database, `onevone/${gameCode}`);
+        const gameRef = ref(database, `multiplayer/${gameCode}`);
         const gameSnap = await get(gameRef);
         if (gameSnap.exists()) {
           const cancelledByName =
@@ -768,7 +768,7 @@ export function useAuth() {
           });
         }
       } catch (innerErr) {
-        console.error('Failed to mark 1v1 game as cancelled after host cancelled sent challenge:', innerErr);
+        console.error('Failed to mark multiplayer game as cancelled after host cancelled sent challenge:', innerErr);
       }
 
       return true;

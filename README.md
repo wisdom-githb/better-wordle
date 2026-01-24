@@ -147,7 +147,7 @@ The head-to-head multiplayer mode requires Firebase Realtime Database to sync ga
    ```json
    {
      "rules": {
-       "onevone": {
+       "multiplayer": {
          "$gameCode": {
            ".read": "auth != null",
            ".write": "auth != null"
@@ -161,7 +161,7 @@ The head-to-head multiplayer mode requires Firebase Realtime Database to sync ga
    ```json
    {
      "rules": {
-       "onevone": {
+       "multiplayer": {
          "$gameCode": {
            ".read": "auth != null && (
              data.child('hostId').val() === auth.uid || 

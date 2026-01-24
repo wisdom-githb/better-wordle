@@ -11,13 +11,12 @@ function generateGameCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Multiplayer limits for 1v1 rooms generalized to N players.
+// Multiplayer limits for rooms generalized to N players.
 const DEFAULT_MAX_PLAYERS = 2;
 const ABSOLUTE_MAX_PLAYERS = 8;
 
 /**
  * Hook for managing multiplayer game state in Firebase Realtime Database
- * (backed by the legacy `onevone` Firebase path for now).
  */
 export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = false) {
   const [gameState, setGameState] = useState(null);
@@ -39,7 +38,7 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
   useEffect(() => {
     if (!gameCode) return;
 
-    const gamePath = `onevone/${gameCode}`;
+    const gamePath = `multiplayer/${gameCode}`;
     const dbRef = ref(database, gamePath);
     gameRef.current = dbRef;
 
@@ -111,7 +110,7 @@ const createGame = useCallback(async (options = {}) => {
     const configBoards = Math.max(1, Math.min(32, rawBoards));
 
     const code = generateGameCode();
-    const gamePath = `onevone/${code}`;
+    const gamePath = `multiplayer/${code}`;
 
     const hostName = user.displayName || user.email || 'Player 1';
     const now = Date.now();
@@ -165,7 +164,7 @@ const createGame = useCallback(async (options = {}) => {
   const joinGame = useCallback(async (code) => {
     if (!user) throw new Error('User must be signed in to join a game');
 
-    const gamePath = `onevone/${code}`;
+    const gamePath = `multiplayer/${code}`;
     const gameDataRef = ref(database, gamePath);
 
     try {
@@ -206,7 +205,7 @@ const createGame = useCallback(async (options = {}) => {
 
       const isMultiRoom = !!players && Object.keys(players).length > 2;
 
-      // For classic 2-player 1v1, do not allow joining games that have already started.
+      // For 2-player games, do not allow joining games that have already started.
       if (!isMultiRoom && status !== 'waiting') {
         throw new Error('Game has already started');
       }
@@ -257,7 +256,7 @@ const createGame = useCallback(async (options = {}) => {
   const setReady = useCallback(async (code, ready = true) => {
     if (!user) throw new Error('User must be signed in');
 
-    const gamePath = `onevone/${code}`;
+    const gamePath = `multiplayer/${code}`;
     const gameDataRef = ref(database, gamePath);
 
     try {
@@ -293,7 +292,7 @@ const createGame = useCallback(async (options = {}) => {
   const startGame = useCallback(async (code, solutionsOrSolution, options = {}) => {
     if (!user) throw new Error('User must be signed in');
 
-    const gamePath = `onevone/${code}`;
+    const gamePath = `multiplayer/${code}`;
     const gameDataRef = ref(database, gamePath);
 
     try {
@@ -322,9 +321,9 @@ const createGame = useCallback(async (options = {}) => {
           throw new Error('All players must be ready to start');
         }
       } else {
-        // Legacy 2-player ready check.
+        // Fallback ready check (should not happen with players map).
         if (!gameData.hostReady || !gameData.guestReady) {
-          throw new Error('Both players must be ready to start');
+          throw new Error('All players must be ready to start');
         }
       }
 
@@ -351,6 +350,7 @@ const createGame = useCallback(async (options = {}) => {
             guesses: [],
             timeMs: null,
             startTime: isSpeedrunRound ? now : null,
+            rematch: false, // Clear rematch flags when starting new game
             // keep existing ready flag as-is so lobby state is preserved in history
           };
         });
@@ -363,6 +363,11 @@ const createGame = useCallback(async (options = {}) => {
         speedrun: isSpeedrunRound,
         startedAt: now,
         winner: null,
+        // Clear legacy rematch flags
+        hostRematch: false,
+        guestRematch: false,
+        // Clear next game config when starting a new game
+        nextGameConfig: null,
       };
 
       if (updatedPlayers) {
@@ -386,7 +391,7 @@ const createGame = useCallback(async (options = {}) => {
   const submitGuess = useCallback(async (code, guess, colors) => {
     if (!user) throw new Error('User must be signed in');
 
-    const gamePath = `onevone/${code}`;
+    const gamePath = `multiplayer/${code}`;
     const gameDataRef = ref(database, gamePath);
 
     try {
@@ -447,7 +452,7 @@ const createGame = useCallback(async (options = {}) => {
   const switchTurn = useCallback(async (code) => {
     if (!user) throw new Error('User must be signed in');
 
-    const gamePath = `onevone/${code}`;
+    const gamePath = `multiplayer/${code}`;
     const gameDataRef = ref(database, gamePath);
 
     try {
@@ -491,7 +496,7 @@ const createGame = useCallback(async (options = {}) => {
   const setWinner = useCallback(async (code, winner) => {
     if (!user) throw new Error('User must be signed in');
 
-    const gamePath = `onevone/${code}`;
+    const gamePath = `multiplayer/${code}`;
     const gameDataRef = ref(database, gamePath);
 
     try {
@@ -513,7 +518,7 @@ const createGame = useCallback(async (options = {}) => {
   const setFriendRequestStatus = useCallback(async (code, status) => {
     if (!user) throw new Error('User must be signed in');
 
-    const gamePath = `onevone/${code}`;
+    const gamePath = `multiplayer/${code}`;
     const gameDataRef = ref(database, gamePath);
 
     try {
@@ -562,13 +567,13 @@ const createGame = useCallback(async (options = {}) => {
   }, [user]);
 
   /**
-   * Player requests a rematch. Sets their rematch flag; Game component
-   * is responsible for starting a new round when both flags are true.
+   * Player requests a rematch. Sets their rematch flag in the players map;
+   * Game component is responsible for starting a new round when all players have rematch set.
    */
   const requestRematch = useCallback(async (code) => {
     if (!user) throw new Error('User must be signed in');
 
-    const gamePath = `onevone/${code}`;
+    const gamePath = `multiplayer/${code}`;
     const gameDataRef = ref(database, gamePath);
 
     try {
@@ -579,10 +584,19 @@ const createGame = useCallback(async (options = {}) => {
       }
 
       const gameData = snapshot.val();
-      const isHost = gameData.hostId === user.uid;
+      const players = gameData.players || null;
 
-      const updateData = isHost ? { hostRematch: true } : { guestRematch: true };
-      await update(gameDataRef, updateData);
+      // Use players map for multiplayer rooms
+      if (players && players[user.uid]) {
+        await update(gameDataRef, {
+          [`players/${user.uid}/rematch`]: true,
+        });
+      } else {
+        // Fallback to legacy host/guest structure for 2-player games
+        const isHost = gameData.hostId === user.uid;
+        const updateData = isHost ? { hostRematch: true } : { guestRematch: true };
+        await update(gameDataRef, updateData);
+      }
     } catch (err) {
       setError(err.message);
       throw err;
@@ -595,7 +609,7 @@ const createGame = useCallback(async (options = {}) => {
   const setRoomName = useCallback(async (code, roomName) => {
     if (!user) throw new Error('User must be signed in');
 
-    const gamePath = `onevone/${code}`;
+    const gamePath = `multiplayer/${code}`;
     const gameDataRef = ref(database, gamePath);
 
     try {
@@ -610,13 +624,53 @@ const createGame = useCallback(async (options = {}) => {
   }, [user]);
 
   /**
+   * Update the next game configuration (for rematch).
+   * Only host can update this.
+   */
+  const setNextGameConfig = useCallback(async (code, config) => {
+    if (!user) throw new Error('User must be signed in');
+
+    const gamePath = `multiplayer/${code}`;
+    const gameDataRef = ref(database, gamePath);
+
+    try {
+      const snapshot = await get(gameDataRef);
+      if (!snapshot.exists()) {
+        throw new Error('Game not found');
+      }
+
+      const gameData = snapshot.val();
+      if (gameData.hostId !== user.uid) {
+        throw new Error('Only host can update game configuration');
+      }
+
+      const updateData = {};
+      if (config === null) {
+        // Clear the config
+        updateData.nextGameConfig = null;
+      } else {
+        // Set the config
+        updateData.nextGameConfig = {
+          numBoards: Number.isFinite(config.numBoards) ? Math.max(1, Math.min(32, config.numBoards)) : null,
+          speedrun: typeof config.speedrun === 'boolean' ? config.speedrun : null,
+        };
+      }
+
+      await update(gameDataRef, updateData);
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }, [user]);
+
+  /**
    * Reset game back to waiting state (used if players abandon or restart lobby).
    * NOTE: Normal rematch flow should prefer rematch flags + startGame instead of this.
    */
   const resetGame = useCallback(async (code) => {
     if (!user) throw new Error('User must be signed in');
 
-    const gamePath = `onevone/${code}`;
+    const gamePath = `multiplayer/${code}`;
     const gameDataRef = ref(database, gamePath);
 
     try {
@@ -672,7 +726,7 @@ const createGame = useCallback(async (options = {}) => {
   const leaveGame = useCallback(async (code) => {
     if (!code) return;
 
-    const gamePath = `onevone/${code}`;
+    const gamePath = `multiplayer/${code}`;
     const gameDataRef = ref(database, gamePath);
 
     try {
@@ -716,7 +770,7 @@ const createGame = useCallback(async (options = {}) => {
    */
   const expireGame = useCallback(async (code) => {
     if (!code) return;
-    const gamePath = `onevone/${code}`;
+    const gamePath = `multiplayer/${code}`;
     const gameDataRef = ref(database, gamePath);
     try {
       await remove(gameDataRef);
@@ -732,7 +786,7 @@ const createGame = useCallback(async (options = {}) => {
   const updateConfig = useCallback(async (code, config = {}) => {
     if (!user) throw new Error('User must be signed in');
 
-    const gamePath = `onevone/${code}`;
+    const gamePath = `multiplayer/${code}`;
     const gameDataRef = ref(database, gamePath);
 
     try {
@@ -804,12 +858,12 @@ const createGame = useCallback(async (options = {}) => {
     setWinner,
     setFriendRequestStatus,
     requestRematch,
+    setRoomName,
+    setNextGameConfig,
     resetGame,
     leaveGame,
     expireGame,
     updateConfig,
-  }), [gameState, error, loading, createGame, joinGame, setReady, startGame, submitGuess, switchTurn, setWinner, setFriendRequestStatus, requestRematch, resetGame, leaveGame, expireGame, updateConfig]);
+  }), [gameState, error, loading, createGame, joinGame, setReady, startGame, submitGuess, switchTurn, setWinner, setFriendRequestStatus, requestRematch, setRoomName, setNextGameConfig, resetGame, leaveGame, expireGame, updateConfig]);
 }
 
-// Backwards-compatible alias for existing imports.
-export const useOneVOneGame = useMultiplayerGame;

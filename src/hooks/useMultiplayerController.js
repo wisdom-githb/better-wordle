@@ -4,7 +4,7 @@ import { getMaxTurns, scoreGuess } from '../lib/wordle';
 import { SeededRandom } from '../lib/dailyWords';
 
 /**
- * Central controller for multiplayer mode (formerly 1v1). Encapsulates:
+ * Central controller for multiplayer mode. Encapsulates:
  * - initialisation/joining/hosting of games
  * - syncing local multi-board state from Firebase gameState
  * - winner + auto-rematch logic
@@ -13,7 +13,7 @@ import { SeededRandom } from '../lib/dailyWords';
  */
 export function useMultiplayerController({
   // Mode / routing
-  isOneVOne,
+  isMultiplayer,
   isHost,
   gameCode,
   speedrunEnabled,
@@ -26,8 +26,8 @@ export function useMultiplayerController({
   authUser,
   isVerifiedUser,
 
-  // 1v1 game hook instance
-  oneVOneGame,
+  // Multiplayer game hook instance
+  multiplayerGame,
 
   // Shared state & setters owned by Game.jsx
   boards,
@@ -48,7 +48,7 @@ export function useMultiplayerController({
   navigate,
   setTimedMessage,
 
-  // 1v1-only refs from Game.jsx (used for winner/popup coordination)
+  // Multiplayer-only refs from Game.jsx (used for winner/popup coordination)
   endingGameRef,
   popupClosedRef,
   shouldShowPopupAfterFlipRef,
@@ -58,21 +58,56 @@ export function useMultiplayerController({
   cancelSentChallenge,
 
   // Game config limits
-  maxOneVOneBoards,
+  maxMultiplayerBoards,
 }) {
   // Internal next-round configuration selected from the end-of-game UI.
   // When null, rematches reuse the previous board count & speedrun flag.
-  const [oneVOneNextConfig, setOneVOneNextConfig] = useState(null);
+  const [multiplayerNextConfig, setMultiplayerNextConfig] = useState(null);
 
   // Guard to ensure we only create a new room once per controller instance,
-  // even if React StrictMode or changing dependencies cause initOneVOne to
+  // even if React StrictMode or changing dependencies cause initMultiplayer to
   // run multiple times.
   const hasHostedGameRef = useRef(false);
 
-  // Host-only 1v1 configuration modal state.
-  const [isOneVOneConfigModalOpen, setIsOneVOneConfigModalOpen] = useState(false);
-  const [oneVOneConfigBoardsDraft, setOneVOneConfigBoardsDraft] = useState(1);
-  const [oneVOneConfigSpeedrunDraft, setOneVOneConfigSpeedrunDraft] = useState(false);
+  // Host-only multiplayer configuration modal state.
+  const [isMultiplayerConfigModalOpen, setIsMultiplayerConfigModalOpen] = useState(false);
+  const [multiplayerConfigBoardsDraft, setMultiplayerConfigBoardsDraft] = useState(1);
+  const [multiplayerConfigSpeedrunDraft, setMultiplayerConfigSpeedrunDraft] = useState(false);
+
+  // Sync modal draft values when Firebase config changes (so guests see host's updates)
+  useEffect(() => {
+    if (!isMultiplayer || !multiplayerGame.gameState) return;
+    const firebaseConfig = multiplayerGame.gameState.nextGameConfig;
+    
+    // Only update if modal is open (so we don't interfere with user's edits)
+    if (isMultiplayerConfigModalOpen && firebaseConfig) {
+      if (Number.isFinite(firebaseConfig.numBoards)) {
+        setMultiplayerConfigBoardsDraft(firebaseConfig.numBoards);
+      }
+      if (typeof firebaseConfig.speedrun === 'boolean') {
+        setMultiplayerConfigSpeedrunDraft(firebaseConfig.speedrun);
+      }
+    }
+  }, [
+    isMultiplayer,
+    multiplayerGame.gameState && multiplayerGame.gameState.nextGameConfig,
+    isMultiplayerConfigModalOpen,
+  ]);
+
+  // Close config modal when game starts (for guests who have it open)
+  useEffect(() => {
+    if (!isMultiplayer || !multiplayerGame.gameState) return;
+    const status = multiplayerGame.gameState.status;
+    
+    // Close modal when game status changes to 'playing'
+    if (status === 'playing' && isMultiplayerConfigModalOpen) {
+      setIsMultiplayerConfigModalOpen(false);
+    }
+  }, [
+    isMultiplayer,
+    multiplayerGame.gameState && multiplayerGame.gameState.status,
+    isMultiplayerConfigModalOpen,
+  ]);
 
   // Helper: derive a stable players array from gameState (or fall back to host/guest).
   const getPlayersArray = (gs) => {
@@ -157,16 +192,16 @@ export function useMultiplayerController({
 
   // Derived friend-request state based on live gameState.
   const friendRequestSent = useMemo(() => {
-    if (!isOneVOne || !oneVOneGame.gameState || !authUser) return false;
-    const gs = oneVOneGame.gameState;
+    if (!isMultiplayer || !multiplayerGame.gameState || !authUser) return false;
+    const gs = multiplayerGame.gameState;
     const isPlayerHost = gs.hostId === authUser.uid;
     return isPlayerHost ? !!gs.hostFriendRequestSent : !!gs.guestFriendRequestSent;
-  }, [isOneVOne, oneVOneGame.gameState, authUser]);
+  }, [isMultiplayer, multiplayerGame.gameState, authUser]);
 
-  // Track whether the LOCAL player has solved all of their boards in 1v1 / multiplayer.
-  const hasPlayerSolvedAllOneVOneBoards = useMemo(() => {
-    if (!isOneVOne || !oneVOneGame.gameState || !authUser) return false;
-    const gs = oneVOneGame.gameState;
+  // Track whether the LOCAL player has solved all of their boards in multiplayer.
+  const hasPlayerSolvedAllMultiplayerBoards = useMemo(() => {
+    if (!isMultiplayer || !multiplayerGame.gameState || !authUser) return false;
+    const gs = multiplayerGame.gameState;
 
     const solutionArray =
       Array.isArray(gs.solutions) && gs.solutions.length > 0
@@ -187,14 +222,14 @@ export function useMultiplayerController({
     }
 
     return solutionArray.every((sol) => myGuesses.includes(sol));
-  }, [isOneVOne, oneVOneGame.gameState, authUser]);
+  }, [isMultiplayer, multiplayerGame.gameState, authUser]);
 
   // Multiplayer mode initialization (host/join, load word lists, guard on verification).
   useEffect(() => {
-    async function initOneVOne() {
-      if (!isOneVOne || !authUser) {
+    async function initMultiplayer() {
+      if (!isMultiplayer || !authUser) {
         // If not multiplayer mode or not authenticated, don't block loading
-        if (!isOneVOne) return;
+        if (!isMultiplayer) return;
         // If multiplayer but not authenticated, wait for auth
         return;
       }
@@ -207,7 +242,7 @@ export function useMultiplayerController({
       try {
         setIsLoading(true);
 
-        // Load word lists early for 1v1 (needed for validation)
+        // Load word lists early for multiplayer (needed for validation)
         const { ALLOWED_GUESSES } = await loadWordLists();
         setAllowedSet(new Set(ALLOWED_GUESSES));
 
@@ -232,7 +267,7 @@ export function useMultiplayerController({
             }
           }
 
-          const code = await oneVOneGame.createGame({
+          const code = await multiplayerGame.createGame({
             speedrun: speedrunEnabled,
             maxPlayers: maxPlayersForRoom,
             isPublic: isPublicRoom,
@@ -241,7 +276,7 @@ export function useMultiplayerController({
           const boardsQuery = boardsParam ? `&boards=${boardsParam}` : '';
           const roomQuery = `&maxPlayers=${maxPlayersForRoom}&isPublic=${isPublicRoom}`;
           navigate(
-            `/game?mode=1v1&code=${code}&host=true&speedrun=${speedrunEnabled}${boardsQuery}${roomQuery}`,
+            `/game?mode=multiplayer&code=${code}&host=true&speedrun=${speedrunEnabled}${boardsQuery}${roomQuery}`,
             { replace: true }
           );
           setIsLoading(false);
@@ -251,9 +286,9 @@ export function useMultiplayerController({
         // If joining, join the game (only if not already joined)
         if (!isHost && gameCode) {
           // Check if user is already part of the game via gameState
-          if (oneVOneGame.gameState) {
-            const isAlreadyGuest = oneVOneGame.gameState.guestId === authUser.uid;
-            const isAlreadyHost = oneVOneGame.gameState.hostId === authUser.uid;
+          if (multiplayerGame.gameState) {
+            const isAlreadyGuest = multiplayerGame.gameState.guestId === authUser.uid;
+            const isAlreadyHost = multiplayerGame.gameState.hostId === authUser.uid;
 
             if (isAlreadyGuest || isAlreadyHost) {
               // User is already part of the game, no need to join
@@ -261,7 +296,7 @@ export function useMultiplayerController({
             } else {
               // User is not part of game, try to join
               try {
-                await oneVOneGame.joinGame(gameCode);
+                await multiplayerGame.joinGame(gameCode);
                 // Don't set loading to false yet - wait for gameState to load via the listener
               } catch (error) {
                 // Error joining - will be handled by error display
@@ -271,7 +306,7 @@ export function useMultiplayerController({
           } else {
             // No gameState yet, try to join (listener will load gameState)
             try {
-              await oneVOneGame.joinGame(gameCode);
+              await multiplayerGame.joinGame(gameCode);
               // Don't set loading to false yet - wait for gameState to load via the listener
             } catch (error) {
               // Error joining - will be handled by error display
@@ -293,44 +328,43 @@ export function useMultiplayerController({
       }
     }
 
-    initOneVOne();
+    initMultiplayer();
   }, [
-    isOneVOne,
+    isMultiplayer,
     isHost,
     gameCode,
     authUser,
     isVerifiedUser,
-    oneVOneGame,
-    navigate,
-    boardsParam,
     speedrunEnabled,
+    boardsParam,
     maxPlayersParam,
     isPublicParam,
-    maxOneVOneBoards,
+    multiplayerGame,
+    navigate,
+    setTimedMessage,
     setAllowedSet,
     setIsLoading,
-    setTimedMessage,
   ]);
 
-  // Handle 1v1 game state changes and initialization of local multi-board state.
+  // Handle multiplayer game state changes and initialization of local multi-board state.
   useEffect(() => {
-    async function handleOneVOneGame() {
-      if (!isOneVOne || !authUser) {
+    async function handleMultiplayerGame() {
+      if (!isMultiplayer || !authUser) {
         // If we have a gameCode but no gameState yet, keep loading
-        if (isOneVOne && gameCode && !oneVOneGame.gameState) {
+        if (isMultiplayer && gameCode && !multiplayerGame.gameState) {
           return;
         }
         return;
       }
 
       // Once we have gameState, ensure loading is false
-      if (oneVOneGame.gameState) {
+      if (multiplayerGame.gameState) {
         setIsLoading(false);
       }
 
-      if (!oneVOneGame.gameState) return;
+      if (!multiplayerGame.gameState) return;
 
-      const gameState = oneVOneGame.gameState;
+      const gameState = multiplayerGame.gameState;
       const {
         status,
         solution,
@@ -360,19 +394,20 @@ export function useMultiplayerController({
       // Initialize game boards when game starts
       if (status === 'playing' && solutionArray.length > 0) {
         if (boards.length === 0) {
-          // Word lists should already be loaded in initOneVOne, but ensure they're loaded
+          // Word lists should already be loaded in initMultiplayer, but ensure they're loaded
           if (allowedSet.size === 0) {
             setIsLoading(true);
             const { ALLOWED_GUESSES } = await loadWordLists();
             setAllowedSet(new Set(ALLOWED_GUESSES));
             setIsLoading(false);
           }
-
-          // Set maxTurns based on number of boards (same curve as daily mode).
-          const turns = isSpeedrun ? 999 : getMaxTurns(boardCount);
-          setMaxTurns(turns);
-          setIsUnlimited(isSpeedrun);
         }
+
+        // Always update maxTurns based on current game state (important for rematches and state changes)
+        // Set maxTurns based on number of boards (same curve as daily mode).
+        const turns = isSpeedrun ? 999 : getMaxTurns(boardCount);
+        setMaxTurns(turns);
+        setIsUnlimited(isSpeedrun);
 
         // Update boards with the LOCAL player's guesses (one board per solution).
         // For true multi-player rooms (3+), derive guesses from the players map.
@@ -403,7 +438,7 @@ export function useMultiplayerController({
 
           const prevGuessCount = prevBoard?.guesses?.length ?? 0;
           const hadNewGuess = guessesWithColors.length > prevGuessCount;
-          // In 1v1, revealId is already incremented by submitGuess before this runs,
+            // In multiplayer, revealId is already incremented by submitGuess before this runs,
           // so we record the current revealId for boards that just gained a row.
           const lastRevealId = hadNewGuess ? revealId : prevBoard?.lastRevealId ?? null;
 
@@ -463,20 +498,20 @@ export function useMultiplayerController({
           if (allFinished) {
             endingGameRef.current = true;
             // All games end with winner = null (no single winner in free-for-all)
-            await oneVOneGame.setWinner(gameCode || '', null);
+            await multiplayerGame.setWinner(gameCode || '', null);
           }
         }
       }
     }
 
-    handleOneVOneGame();
+    handleMultiplayerGame();
   }, [
-    isOneVOne,
-    oneVOneGame.gameState,
+    isMultiplayer,
+    multiplayerGame.gameState,
     authUser,
     maxTurns,
     gameCode,
-    oneVOneGame,
+    multiplayerGame,
     boards,
     allowedSet,
     revealId,
@@ -490,94 +525,37 @@ export function useMultiplayerController({
     shouldShowPopupAfterFlipRef,
   ]);
 
-  // Host-only effect: automatically start a new multiplayer round when both players
-  // have requested a rematch, skipping the ready screen. If the host has chosen
-  // a new configuration (boards/speedrun) from the end-of-game UI, that config
-  // is applied to the next round.
+  // Note: Auto-rematch effect removed. Host now manually starts rematch via handleRematchStart.
+  // This gives host control over when to start and allows using selected config immediately.
+
+  // Close popup when game status changes from 'finished' to 'playing' (rematch started)
+  // This ensures the popup closes immediately when rematch begins
+  const prevStatusRef = useRef(null);
   useEffect(() => {
-    if (!isOneVOne) return;
-    const gameState = oneVOneGame.gameState;
-    if (!gameState || !authUser) return;
-
-    const { hostId, hostRematch, guestRematch, status } = gameState;
-    const isPlayerHost = hostId === authUser.uid;
-
-    // Only host orchestrates starting the next round.
-    if (!isPlayerHost) return;
-
-    // Only trigger from a finished game where both players have clicked rematch.
-    if (status !== 'finished' || !hostRematch || !guestRematch) return;
-
-    (async () => {
-      try {
-        // Select random word(s) based on game code and timestamp (not daily word).
-        const { ANSWER_WORDS } = await loadWordLists();
-        const previousSolutions = Array.isArray(gameState.solutions)
-          ? gameState.solutions
-          : gameState.solution
-          ? [gameState.solution]
-          : [];
-
-        // Default: reuse previous board count and speedrun flag.
-        let boardsForThisGame = Math.max(previousSolutions.length || 1, 1);
-        let speedrunForNextRound = !!gameState.speedrun;
-
-        // If host configured a custom next-round mode, apply it.
-        if (oneVOneNextConfig) {
-          if (Number.isFinite(oneVOneNextConfig.numBoards)) {
-            const upper = Number.isFinite(maxOneVOneBoards) ? maxOneVOneBoards : 32;
-            const clampedBoards = Math.max(1, Math.min(upper, oneVOneNextConfig.numBoards));
-            boardsForThisGame = clampedBoards;
-          }
-          if (typeof oneVOneNextConfig.speedrun === 'boolean') {
-            speedrunForNextRound = oneVOneNextConfig.speedrun;
-          }
-        }
-
-        // Use game code + timestamp as seed to get different words each game
-        const seed = parseInt(gameCode, 10) + Date.now();
-        const rng = new SeededRandom(seed);
-        const solutions = Array.from({ length: boardsForThisGame }).map(() => {
-          const index = Math.floor(rng.next() * ANSWER_WORDS.length);
-          return ANSWER_WORDS[index];
-        });
-
-        await oneVOneGame.startGame(gameCode, solutions, { speedrun: speedrunForNextRound });
-
-        // Local UI reset for new round
-        setBoards([]);
-        setCurrentGuess('');
-        setShowPopup(false);
-        shouldShowPopupAfterFlipRef.current = false;
-        popupClosedRef.current = false;
-        setIsLoading(false);
-      } catch (err) {
-        console.error('Failed to auto-start multiplayer rematch:', err);
-      }
-    })();
+    if (!isMultiplayer) return;
+    const status = multiplayerGame.gameState && multiplayerGame.gameState.status;
+    const prevStatus = prevStatusRef.current;
+    prevStatusRef.current = status;
+    
+    // If status changed from 'finished' to 'playing', close popup immediately
+    if (prevStatus === 'finished' && status === 'playing') {
+      setShowPopup(false);
+      popupClosedRef.current = true;
+      shouldShowPopupAfterFlipRef.current = false;
+    }
   }, [
-    isOneVOne,
-    oneVOneGame.gameState,
-    authUser,
-    gameCode,
-    oneVOneGame,
-    oneVOneNextConfig,
-    maxOneVOneBoards,
-    setBoards,
-    setCurrentGuess,
+    isMultiplayer,
+    multiplayerGame.gameState && multiplayerGame.gameState.status,
     setShowPopup,
-    setIsLoading,
-    shouldShowPopupAfterFlipRef,
-    popupClosedRef,
   ]);
 
-  // Handle showing popup after flip animation completes for 1v1.
+  // Handle showing popup after flip animation completes for multiplayer.
   // Mirrors the original Game.jsx behavior, keyed off the flip animation flag
   // and current game status.
   useEffect(() => {
-    const status = oneVOneGame.gameState && oneVOneGame.gameState.status;
+    const status = multiplayerGame.gameState && multiplayerGame.gameState.status;
     if (
-      isOneVOne &&
+      isMultiplayer &&
       shouldShowPopupAfterFlipRef.current &&
       !isFlipping &&
       !popupClosedRef.current
@@ -592,22 +570,22 @@ export function useMultiplayerController({
     }
   }, [
     isFlipping,
-    isOneVOne,
-    oneVOneGame.gameState && oneVOneGame.gameState.status,
+    isMultiplayer,
+    multiplayerGame.gameState?.status,
     popupClosedRef,
     setShowPopup,
     shouldShowPopupAfterFlipRef,
   ]);
 
   // Multiplayer mode handlers
-  const handleOneVOneReady = useCallback(async () => {
+  const handleMultiplayerReady = useCallback(async () => {
     if (!gameCode) return;
     if (!isVerifiedUser) {
       setTimedMessage('You must verify your email or sign in with Google to play Multiplayer Mode.', 8000);
       return;
     }
     try {
-      const gameState = oneVOneGame.gameState;
+      const gameState = multiplayerGame.gameState;
       let currentReady = false;
 
       // For multiplayer rooms with players map, check per-player ready status.
@@ -621,13 +599,13 @@ export function useMultiplayerController({
         currentReady = gameState.guestReady || false;
       }
 
-      await oneVOneGame.setReady(gameCode, !currentReady);
+      await multiplayerGame.setReady(gameCode, !currentReady);
     } catch (error) {
       setTimedMessage(error.message || 'Failed to set ready status', 5000);
     }
-  }, [gameCode, oneVOneGame, authUser, isVerifiedUser, setTimedMessage]);
+  }, [gameCode, multiplayerGame, authUser, isVerifiedUser, setTimedMessage]);
 
-  const handleOneVOneStart = useCallback(async () => {
+  const handleMultiplayerStart = useCallback(async () => {
     if (!gameCode) return;
     if (!isVerifiedUser) {
       setTimedMessage('You must verify your email or sign in with Google to play Multiplayer Mode.', 8000);
@@ -635,19 +613,19 @@ export function useMultiplayerController({
     }
     try {
       const { ANSWER_WORDS } = await loadWordLists();
-      // For the initial 1v1 round, respect the boards count stored on the room
+      // For the initial multiplayer round, respect the boards count stored on the room
       // (configBoards) when available. Fall back to the boards selected on the
       // host screen (boardsParam), then to the current numBoards.
       let boardsForThisGame = 1;
 
-      const gs = oneVOneGame.gameState;
+      const gs = multiplayerGame.gameState;
       if (gs && Number.isFinite(gs.configBoards)) {
-        const upper = Number.isFinite(maxOneVOneBoards) ? maxOneVOneBoards : 32;
+        const upper = Number.isFinite(maxMultiplayerBoards) ? maxMultiplayerBoards : 32;
         boardsForThisGame = Math.max(1, Math.min(upper, gs.configBoards));
       } else if (boardsParam != null) {
         const parsed = parseInt(boardsParam, 10);
         if (Number.isFinite(parsed)) {
-          const upper = Number.isFinite(maxOneVOneBoards) ? maxOneVOneBoards : 32;
+          const upper = Number.isFinite(maxMultiplayerBoards) ? maxMultiplayerBoards : 32;
           boardsForThisGame = Math.max(1, Math.min(upper, parsed));
         }
       } else {
@@ -660,11 +638,11 @@ export function useMultiplayerController({
         return ANSWER_WORDS[index];
       });
 
-      await oneVOneGame.startGame(gameCode, solutions);
+      await multiplayerGame.startGame(gameCode, solutions);
     } catch (error) {
       setTimedMessage(error.message || 'Failed to start game', 5000);
     }
-  }, [gameCode, oneVOneGame, numBoards, isVerifiedUser, setTimedMessage]);
+  }, [gameCode, multiplayerGame, numBoards, isVerifiedUser, setTimedMessage]);
 
   const handleCancelHostedChallenge = useCallback(async () => {
     if (!gameCode) {
@@ -688,103 +666,210 @@ export function useMultiplayerController({
     }
     try {
       await sendFriendRequest(opponentName, opponentId);
-      if (isOneVOne && gameCode && oneVOneGame) {
-        // Mark as pending in 1v1 game state so both players see live status.
+      if (isMultiplayer && gameCode && multiplayerGame) {
+        // Mark as pending in multiplayer game state so both players see live status.
         try {
-          await oneVOneGame.setFriendRequestStatus(gameCode, 'pending');
+          await multiplayerGame.setFriendRequestStatus(gameCode, 'pending');
         } catch (e) {
-          console.error('Failed to mark 1v1 friend request pending:', e);
+          console.error('Failed to mark multiplayer friend request pending:', e);
         }
       }
     } catch (err) {
       console.error('Failed to send friend request:', err);
     }
-  }, [authUser, sendFriendRequest, isOneVOne, gameCode, oneVOneGame]);
+  }, [authUser, sendFriendRequest, isMultiplayer, gameCode, multiplayerGame]);
 
-  const openOneVOneConfigFromEnd = useCallback(() => {
-    if (!isOneVOne) return;
-    if (!oneVOneGame.gameState || !authUser) return;
-    const gs = oneVOneGame.gameState;
+  const openMultiplayerConfigFromEnd = useCallback(() => {
+    if (!isMultiplayer) return;
+    if (!multiplayerGame.gameState || !authUser) return;
+    const gs = multiplayerGame.gameState;
 
-    // Prefer any previously-saved next config; otherwise, mirror the current round.
+    // Prefer Firebase-stored next config; fallback to local state; otherwise, mirror the current round.
+    const firebaseConfig = gs.nextGameConfig || null;
+    const localConfig = multiplayerNextConfig;
+    const effectiveConfig = firebaseConfig || localConfig;
+
     const multiBoardCount = Math.max(
       (Array.isArray(gs.solutions) && gs.solutions.length) || boards.length || 0,
       1
     );
-    const defaultBoards = (oneVOneNextConfig && oneVOneNextConfig.numBoards) ||
-      (Array.isArray(gs.solutions) && gs.solutions.length > 0
+    const defaultBoards = (effectiveConfig && Number.isFinite(effectiveConfig.numBoards))
+      ? effectiveConfig.numBoards
+      : (Array.isArray(gs.solutions) && gs.solutions.length > 0
         ? gs.solutions.length
         : gs.solution
         ? 1
         : multiBoardCount);
-    const defaultSpeedrun =
-      (oneVOneNextConfig && typeof oneVOneNextConfig.speedrun === 'boolean')
-        ? oneVOneNextConfig.speedrun
-        : !!gs.speedrun;
+    const defaultSpeedrun = (effectiveConfig && typeof effectiveConfig.speedrun === 'boolean')
+      ? effectiveConfig.speedrun
+      : !!gs.speedrun;
 
-    setOneVOneConfigBoardsDraft(defaultBoards);
-    setOneVOneConfigSpeedrunDraft(defaultSpeedrun);
-    setIsOneVOneConfigModalOpen(true);
+    setMultiplayerConfigBoardsDraft(defaultBoards);
+    setMultiplayerConfigSpeedrunDraft(defaultSpeedrun);
+    setIsMultiplayerConfigModalOpen(true);
   }, [
-    isOneVOne,
-    oneVOneGame.gameState,
+    isMultiplayer,
+    multiplayerGame.gameState,
     authUser,
-    oneVOneNextConfig,
+    multiplayerNextConfig,
     boards,
   ]);
 
-  const applyOneVOneConfig = useCallback(() => {
-    const upper = Number.isFinite(maxOneVOneBoards) ? maxOneVOneBoards : 32;
-    const clampedBoards = Math.max(1, Math.min(upper, oneVOneConfigBoardsDraft));
-    setOneVOneNextConfig({
+  const applyMultiplayerConfig = useCallback(async () => {
+    if (!gameCode) return;
+    
+    const upper = Number.isFinite(maxMultiplayerBoards) ? maxMultiplayerBoards : 32;
+    const clampedBoards = Math.max(1, Math.min(upper, multiplayerConfigBoardsDraft));
+    const config = {
       numBoards: clampedBoards,
-      speedrun: !!oneVOneConfigSpeedrunDraft,
-    });
-    setIsOneVOneConfigModalOpen(false);
-    const modeLabel = oneVOneConfigSpeedrunDraft ? 'speedrun' : 'standard';
+      speedrun: !!multiplayerConfigSpeedrunDraft,
+    };
+    
+    // Save to local state for immediate UI updates
+    setMultiplayerNextConfig(config);
+    
+    // Save to Firebase so all players can see it
+    try {
+      await multiplayerGame.setNextGameConfig(gameCode, config);
+    } catch (err) {
+      console.error('Failed to save config to Firebase:', err);
+      setTimedMessage('Failed to save configuration', 3000);
+      return;
+    }
+    
+    setIsMultiplayerConfigModalOpen(false);
+    const modeLabel = multiplayerConfigSpeedrunDraft ? 'speedrun' : 'standard';
     setTimedMessage(
       `Next rematch will use ${clampedBoards} board${clampedBoards > 1 ? 's' : ''} (${modeLabel} mode).`,
       5000
     );
   }, [
-    maxOneVOneBoards,
-    oneVOneConfigBoardsDraft,
-    oneVOneConfigSpeedrunDraft,
+    gameCode,
+    maxMultiplayerBoards,
+    multiplayerConfigBoardsDraft,
+    multiplayerConfigSpeedrunDraft,
+    multiplayerGame,
     setTimedMessage,
+  ]);
+
+  // Handler for host to immediately start a rematch with selected config
+  const handleRematchStart = useCallback(async () => {
+    if (!gameCode || !authUser) return;
+    const gameState = multiplayerGame.gameState;
+    if (!gameState) return;
+    
+    const isPlayerHost = gameState.hostId === authUser.uid;
+    if (!isPlayerHost) {
+      setTimedMessage('Only the host can start a rematch', 5000);
+      return;
+    }
+    
+    try {
+      const { ANSWER_WORDS } = await loadWordLists();
+      
+      // Get config from Firebase (nextGameConfig) or local state or use current game settings
+      const firebaseConfig = gameState.nextGameConfig || null;
+      const localConfig = multiplayerNextConfig;
+      const effectiveConfig = firebaseConfig || localConfig;
+      
+      let boardsForRematch = 1;
+      let speedrunForRematch = false;
+      
+      if (effectiveConfig) {
+        if (Number.isFinite(effectiveConfig.numBoards)) {
+          const upper = Number.isFinite(maxMultiplayerBoards) ? maxMultiplayerBoards : 32;
+          boardsForRematch = Math.max(1, Math.min(upper, effectiveConfig.numBoards));
+        }
+        if (typeof effectiveConfig.speedrun === 'boolean') {
+          speedrunForRematch = effectiveConfig.speedrun;
+        }
+      } else {
+        // Use current game settings
+        const previousSolutions = Array.isArray(gameState.solutions)
+          ? gameState.solutions
+          : gameState.solution
+          ? [gameState.solution]
+          : [];
+        boardsForRematch = Math.max(previousSolutions.length || 1, 1);
+        speedrunForRematch = !!gameState.speedrun;
+      }
+      
+      // Generate new solutions
+      const seed = parseInt(gameCode, 10) + Date.now();
+      const rng = new SeededRandom(seed);
+      const solutions = Array.from({ length: boardsForRematch }).map(() => {
+        const index = Math.floor(rng.next() * ANSWER_WORDS.length);
+        return ANSWER_WORDS[index];
+      });
+      
+      // Start the new game immediately
+      await multiplayerGame.startGame(gameCode, solutions, { speedrun: speedrunForRematch });
+      
+      // Clear the config for next time (both local and Firebase)
+      setMultiplayerNextConfig(null);
+      try {
+        await multiplayerGame.setNextGameConfig(gameCode, null);
+      } catch (err) {
+        console.error('Failed to clear config from Firebase:', err);
+      }
+      
+      // Reset UI state - close popup first
+      popupClosedRef.current = true;
+      shouldShowPopupAfterFlipRef.current = false;
+      setShowPopup(false);
+      setBoards([]);
+      setCurrentGuess('');
+      setIsLoading(false);
+    } catch (err) {
+      console.error('Failed to start rematch:', err);
+      setTimedMessage(err.message || 'Failed to start rematch', 5000);
+    }
+  }, [
+    gameCode,
+    authUser,
+    multiplayerGame,
+    multiplayerNextConfig,
+    maxMultiplayerBoards,
+    setBoards,
+    setCurrentGuess,
+    setShowPopup,
+    setIsLoading,
+    setTimedMessage,
+    shouldShowPopupAfterFlipRef,
+    popupClosedRef,
   ]);
 
   return useMemo(() => ({
     friendRequestSent,
-    hasPlayerSolvedAllOneVOneBoards,
-    isOneVOneConfigModalOpen,
-    oneVOneConfigBoardsDraft,
-    oneVOneConfigSpeedrunDraft,
-    setIsOneVOneConfigModalOpen,
-    setOneVOneConfigBoardsDraft,
-    setOneVOneConfigSpeedrunDraft,
-    handleOneVOneReady,
-    handleOneVOneStart,
+    hasPlayerSolvedAllMultiplayerBoards,
+    isMultiplayerConfigModalOpen,
+    multiplayerConfigBoardsDraft,
+    multiplayerConfigSpeedrunDraft,
+    setIsMultiplayerConfigModalOpen,
+    setMultiplayerConfigBoardsDraft,
+    setMultiplayerConfigSpeedrunDraft,
+    handleMultiplayerReady,
+    handleMultiplayerStart,
     handleCancelHostedChallenge,
     handleAddFriendRequest,
-    openOneVOneConfigFromEnd,
-    applyOneVOneConfig,
+    openMultiplayerConfigFromEnd,
+    applyMultiplayerConfig,
+    handleRematchStart,
   }), [
     friendRequestSent,
-    hasPlayerSolvedAllOneVOneBoards,
-    isOneVOneConfigModalOpen,
-    oneVOneConfigBoardsDraft,
-    oneVOneConfigSpeedrunDraft,
-    setIsOneVOneConfigModalOpen,
-    setOneVOneConfigBoardsDraft,
-    setOneVOneConfigSpeedrunDraft,
-    handleOneVOneReady,
-    handleOneVOneStart,
+    hasPlayerSolvedAllMultiplayerBoards,
+    isMultiplayerConfigModalOpen,
+    multiplayerConfigBoardsDraft,
+    multiplayerConfigSpeedrunDraft,
+    setIsMultiplayerConfigModalOpen,
+    setMultiplayerConfigBoardsDraft,
+    setMultiplayerConfigSpeedrunDraft,
+    handleMultiplayerReady,
+    handleMultiplayerStart,
     handleCancelHostedChallenge,
     handleAddFriendRequest,
-    openOneVOneConfigFromEnd,
-    applyOneVOneConfig,
+    openMultiplayerConfigFromEnd,
+    applyMultiplayerConfig,
+    handleRematchStart,
   ]);
 }
-
-// Backwards-compatible alias for existing imports.
-export const useOneVOneController = useMultiplayerController;

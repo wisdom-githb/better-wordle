@@ -4,7 +4,7 @@ import { database } from '../config/firebase';
 import { MULTIPLAYER_WAITING_TIMEOUT_MS } from '../lib/multiplayerConfig';
 
 /**
- * Subscribe to publicly visible waiting rooms under `onevone/*`.
+ * Subscribe to publicly visible waiting rooms under `multiplayer/*`.
  * Returns a sorted list of room metadata plus a loading flag.
  */
 export function useOpenRooms() {
@@ -12,7 +12,7 @@ export function useOpenRooms() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const roomsRef = ref(database, 'onevone');
+    const roomsRef = ref(database, 'multiplayer');
 
     const unsubscribe = onValue(
       roomsRef,
@@ -74,10 +74,12 @@ export function useOpenRooms() {
     );
 
     return () => {
-      off(roomsRef);
+      // Cleanup: unsubscribe from the listener
       if (typeof unsubscribe === 'function') {
         unsubscribe();
       }
+      // Also call off() as a safety net, though unsubscribe() should handle it
+      off(roomsRef);
     };
   }, []);
 

@@ -51,7 +51,7 @@ function applySavedGameCommitState({ speedrunEnabled, savedGameState, committedR
 }
 
 /**
- * Encapsulates single-player (non-1v1) game initialization and resume logic.
+ * Encapsulates single-player (non-multiplayer) game initialization and resume logic.
  */
 export function useSinglePlayerGame({
   isOneVOne,
@@ -87,7 +87,7 @@ export function useSinglePlayerGame({
     if (authLoading) return;
 
     async function initGame() {
-      // Skip regular init for 1v1 mode
+      // Skip regular init for multiplayer mode
       if (isOneVOne) return;
 
       try {

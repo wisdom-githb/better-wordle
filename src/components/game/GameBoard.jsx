@@ -14,7 +14,7 @@ export default function GameBoard({
   onToggleSelect,
   boardRef,
   speedrunEnabled,
-  // Optional: highlight this board when it's the active turn (1v1 mode)
+  // Optional: highlight this board when it's the active turn (multiplayer mode)
   isCurrentTurn = false,
 }) {
   const safeGuesses = Array.isArray(board?.guesses) ? board.guesses : [];

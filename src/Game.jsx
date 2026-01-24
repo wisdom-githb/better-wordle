@@ -15,8 +15,8 @@ const Game = ({
     useParams();
 
   const rawMode = searchParams.get("mode");
-  const isMultiplayerQueryMode = rawMode === "multiplayer" || rawMode === "1v1";
-  const isMultiplayerRoute = modeParam === "multiplayer" || modeParam === "1v1" || !!codeParam;
+  const isMultiplayerQueryMode = rawMode === "multiplayer";
+  const isMultiplayerRoute = modeParam === "multiplayer" || !!codeParam;
 
   let mode = "daily";
   if (modeParam === "daily" || modeParam === "marathon") {

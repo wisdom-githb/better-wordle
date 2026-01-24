@@ -161,7 +161,7 @@
 }
 
 .modeRow--pvp {
-  /* 1v1: warm red accent + subtle glow */
+  /* Multiplayer: warm red accent + subtle glow */
   border-color: #ef4444;
   box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.32);
   background: linear-gradient(0deg, rgba(239, 68, 68, 0.06), #18181b);

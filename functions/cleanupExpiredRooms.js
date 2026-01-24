@@ -54,8 +54,8 @@ exports.cleanupExpiredRooms = functions.https.onRequest(async (req, res) => {
     const now = Date.now();
     const cutoffTime = now - ROOM_TIMEOUT_MS;
 
-    // Query all rooms in onevone/*
-    const roomsSnapshot = await database.ref('onevone').once('value');
+    // Query all rooms in multiplayer/*
+    const roomsSnapshot = await database.ref('multiplayer').once('value');
     const allRooms = roomsSnapshot.val() || {};
 
     let deletedCount = 0;
@@ -73,7 +73,7 @@ exports.cleanupExpiredRooms = functions.https.onRequest(async (req, res) => {
 
         // Delete the room and all its associated data (chat, comments are stored separately)
         deletePromises.push(
-          database.ref(`onevone/${code}`).remove()
+          database.ref(`multiplayer/${code}`).remove()
             .catch((err) => {
               console.error(`Failed to delete room ${code}:`, err);
             })
@@ -81,7 +81,7 @@ exports.cleanupExpiredRooms = functions.https.onRequest(async (req, res) => {
 
         // Optionally also delete the chat messages for this room
         deletePromises.push(
-          database.ref(`onevone/${code}/chat`).remove()
+          database.ref(`multiplayer/${code}/chat`).remove()
             .catch((err) => {
               console.error(`Failed to delete chat for room ${code}:`, err);
             })
@@ -114,7 +114,7 @@ exports.cleanupExpiredRooms = functions.https.onRequest(async (req, res) => {
  * This can be used alongside or instead of the scheduled function.
  */
 exports.cleanupExpiredRoomsOnWrite = functions.database
-  .ref('onevone/{roomCode}')
+  .ref('multiplayer/{roomCode}')
   .onWrite(async (change, context) => {
     const roomCode = context.params.roomCode;
     const roomData = change.after.val();
@@ -128,7 +128,7 @@ exports.cleanupExpiredRoomsOnWrite = functions.database
     // If room exceeds timeout, delete it
     if (age > ROOM_TIMEOUT_MS) {
       try {
-        await database.ref(`onevone/${roomCode}`).remove();
+        await database.ref(`multiplayer/${roomCode}`).remove();
         console.log(`Deleted expired room: ${roomCode}`);
       } catch (error) {
         console.error(`Failed to delete room ${roomCode}:`, error);
