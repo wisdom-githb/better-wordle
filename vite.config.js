@@ -32,6 +32,20 @@ export default defineConfig({
     // This only affects warnings, not the actual bundle or runtime behavior.
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
+      onwarn(warning, warn) {
+        // Suppress warning about Firebase database being both dynamically and statically imported.
+        // This is intentional: dynamic imports in singlePlayerStore.js enable code splitting
+        // (only load Firebase for signed-in users), while static imports elsewhere are needed
+        // for components that always require Firebase.
+        if (
+          warning.message && 
+          warning.message.includes('dynamically imported') && 
+          warning.message.includes('firebase/database')
+        ) {
+          return;
+        }
+        warn(warning);
+      },
       output: {
         // Put large libraries into a separate "vendor" chunk so that your app code
         // and third‑party code are split. This does not change your React code;

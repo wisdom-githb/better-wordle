@@ -7,6 +7,11 @@ import { defaultStateSync } from "./stateSync";
  * Load a solved snapshot for a given key, preferring server when signed in.
  * Implements conflict resolution: uses the state with the most recent timestamp.
  * Uses StateSync for conflict resolution.
+ * 
+ * NOTE: Firebase database is dynamically imported here (await import("firebase/database"))
+ * to enable code splitting - only load Firebase when needed for signed-in users.
+ * This causes a Vite warning because Firebase is also statically imported elsewhere,
+ * but this is intentional for performance optimization.
  */
 export async function loadSolvedState({ authUser, database, solvedKey }) {
   let remoteState = null;

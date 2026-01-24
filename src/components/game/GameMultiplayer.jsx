@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
+import React, { useCallback, useMemo, useRef, useState, useEffect, Suspense, lazy } from "react";
 import { useSearchParams, useNavigate, useParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { WORD_LENGTH, buildLetterMapFromGuesses, getTurnsUsed, formatElapsed } from "../../lib/wordle";
@@ -16,7 +16,7 @@ import MultiplayerRoomConfigModal from "./MultiplayerRoomConfigModal";
 import MultiplayerGameView from "./MultiplayerGameView";
 import GamePopup from "./GamePopup";
 import BoardSelector from "./BoardSelector";
-import FeedbackModal from "../FeedbackModal";
+const FeedbackModal = lazy(() => import("../FeedbackModal"));
 import Keyboard from "../Keyboard";
 import "../../Game.css";
 import { MULTIPLAYER_WAITING_TIMEOUT_MS } from "../../lib/multiplayerConfig";
@@ -591,10 +591,12 @@ export default function GameMultiplayer() {
         />
       )}
 
-      <FeedbackModal
-        isOpen={showFeedbackModal}
-        onRequestClose={() => setShowFeedbackModal(false)}
-      />
+      <Suspense fallback={null}>
+        <FeedbackModal
+          isOpen={showFeedbackModal}
+          onRequestClose={() => setShowFeedbackModal(false)}
+        />
+      </Suspense>
 
       {gameState && gameState.status === "playing" && (
         <BoardSelector

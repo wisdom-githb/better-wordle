@@ -1,12 +1,11 @@
-import React, { useState, Suspense, lazy } from "react";
+import React, { useState } from "react";
 import GameHeader from "./GameHeader";
 import MultiplayerWaitingRoom from "./MultiplayerWaitingRoom";
 import GameBoard from "./GameBoard";
 import SiteHeader from "../SiteHeader";
 import MultiplayerChat from "./MultiplayerChat";
 import UserCardWithBadges from "../UserCardWithBadges";
-
-const AuthModal = lazy(() => import("../AuthModal"));
+import AuthModal from "../AuthModal";
 import { KEYBOARD_HEIGHT, formatElapsed as formatElapsedLib, scoreGuess } from "../../lib/wordle";
 import { FLIP_MS } from "../../lib/gameConstants";
 import { MULTIPLAYER_WAITING_TIMEOUT_MS, getSolutionArray } from "../../lib/multiplayerConfig";
@@ -155,12 +154,10 @@ export default function MultiplayerGameView({
           </main>
         </div>
 
-        <Suspense fallback={null}>
-          <AuthModal
-            isOpen={showAuthModal}
-            onRequestClose={() => setShowAuthModal(false)}
-          />
-        </Suspense>
+        <AuthModal
+          isOpen={showAuthModal}
+          onRequestClose={() => setShowAuthModal(false)}
+        />
       </>
     );
   }

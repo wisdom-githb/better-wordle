@@ -1,7 +1,7 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { Helmet } from "react-helmet-async";
 import SiteHeader from "./components/SiteHeader";
-import FeedbackModal from "./components/FeedbackModal";
+const FeedbackModal = lazy(() => import("./components/FeedbackModal"));
 import "./Faq.css";
 
 export default function Faq() {
@@ -135,10 +135,12 @@ export default function Faq() {
           </section>
         </main>
 
-        <FeedbackModal
-          isOpen={showFeedbackModal}
-          onRequestClose={() => setShowFeedbackModal(false)}
-        />
+        <Suspense fallback={null}>
+          <FeedbackModal
+            isOpen={showFeedbackModal}
+            onRequestClose={() => setShowFeedbackModal(false)}
+          />
+        </Suspense>
       </div>
     </div>
   );
