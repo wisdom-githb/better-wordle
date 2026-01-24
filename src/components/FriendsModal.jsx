@@ -1,13 +1,15 @@
 import React from "react";
 import Modal from "./Modal";
+import UserCardWithBadges from "./UserCardWithBadges";
 import { useAuth } from "../hooks/useAuth";
 import { useMultiplayerGame } from "../hooks/useMultiplayerGame";
 import { useTimedMessage } from "../hooks/useTimedMessage";
 import GameToast from "./game/GameToast";
 import { useNavigate } from "react-router-dom";
 import "./FriendsModal.css";
+import { MAX_BOARDS } from "../lib/gameConstants";
 
-const ONE_V_ONE_BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
+const ONE_V_ONE_BOARD_OPTIONS = Array.from({ length: MAX_BOARDS }, (_, i) => i + 1);
 
 export default function FriendsModal({ isOpen, onRequestClose }) {
   const navigate = useNavigate();
@@ -235,9 +237,11 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                     gap: "8px"
                   }}
                 >
-                  <span style={{ color: "#ffffff", fontWeight: "600" }}>
-                    {friend.name}
-                  </span>
+                  <UserCardWithBadges
+                    userId={friend.id}
+                    username={friend.name}
+                    size="sm"
+                  />
                   <div style={{ display: "flex", gap: "6px" }}>
                     <button
                       onClick={() => {

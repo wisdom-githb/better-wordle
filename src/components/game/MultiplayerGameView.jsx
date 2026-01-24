@@ -4,6 +4,7 @@ import MultiplayerWaitingRoom from "./MultiplayerWaitingRoom";
 import GameBoard from "./GameBoard";
 import SiteHeader from "../SiteHeader";
 import MultiplayerChat from "./MultiplayerChat";
+import UserCardWithBadges from "../UserCardWithBadges";
 
 const AuthModal = lazy(() => import("../AuthModal"));
 import { KEYBOARD_HEIGHT, formatElapsed as formatElapsedLib, scoreGuess } from "../../lib/wordle";
@@ -47,6 +48,7 @@ export default function MultiplayerGameView({
   onCancelChallenge,
   onInviteFriend,
   onUpdateConfig,
+  onUpdateRoomName,
 }) {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const gameState = multiplayerGame?.gameState;
@@ -256,6 +258,7 @@ export default function MultiplayerGameView({
           waitingTimeoutMs={MULTIPLAYER_WAITING_TIMEOUT_MS}
           initialBoards={initialNumBoards || 1}
           onUpdateConfig={isPlayerHost ? onUpdateConfig : undefined}
+          onUpdateRoomName={isPlayerHost ? onUpdateRoomName : undefined}
           onAddFriend={
             !isFriendWithOpponent
               ? (opponentName) => {
@@ -810,16 +813,12 @@ export default function MultiplayerGameView({
                             alignItems: "center",
                           }}
                         >
-                          <div
-                            style={{
-                              color: "#ffffff",
-                              fontSize: 13,
-                              fontWeight: "bold",
-                            }}
-                          >
-                            {p.name || "Player"}
-                            {isSelf ? " (You)" : ""}
-                          </div>
+                          <UserCardWithBadges
+                            userId={p.id}
+                            username={p.name || "Player"}
+                            isYou={isSelf}
+                            size="sm"
+                          />
                           {isSpeedrun ? (
                             <div
                               style={{

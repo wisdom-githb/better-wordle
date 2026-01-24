@@ -2,10 +2,13 @@ import React, { useState, useEffect, Suspense, lazy } from "react";
 import { useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "./hooks/useAuth";
+import { useUserBadges } from "./hooks/useUserBadges";
 import SiteHeader from "./components/SiteHeader";
 import { loadStreak } from "./lib/persist";
 import { database } from "./config/firebase";
 import { ref, get } from "firebase/database";
+import { ALL_BADGES, getEarnedBadgeDefs } from "./lib/badges";
+import BadgeIcon from "./components/BadgeIcon";
 
 const FeedbackModal = lazy(() => import("./components/FeedbackModal"));
 import "./Profile.css";
@@ -22,6 +25,8 @@ export default function Profile() {
   const [sendingVerification, setSendingVerification] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [streaks, setStreaks] = useState(null);
+  const { userBadges, loading: badgesLoading } = useUserBadges(user);
+  const earnedBadges = getEarnedBadgeDefs(userBadges);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -235,6 +240,52 @@ export default function Profile() {
                     </div>
                   )}
                 </div>
+
+                {!badgesLoading && (
+                  <div className="profileSection profileSectionSpacing">
+                    <details className="profileDetails">
+                      <summary className="profileDetailsSummary">Your badges</summary>
+                      <div className="profileBadgesList">
+                        {earnedBadges.length === 0 ? (
+                          <p className="profileBadgesEmpty">You haven&apos;t earned any badges yet.</p>
+                        ) : (
+                          earnedBadges.map((b) => (
+                            <div key={b.id} className="profileBadgeCard profileBadgeCardEarned">
+                              <div className="profileBadgeCardHeader">
+                                <BadgeIcon size="md" title={b.name} />
+                                <div className="profileBadgeName">{b.name}</div>
+                              </div>
+                              <div className="profileBadgeDesc">{b.description}</div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </details>
+                    <details className="profileDetails">
+                      <summary className="profileDetailsSummary">All badges</summary>
+                      <div className="profileBadgesList">
+                        {ALL_BADGES.map((b) => {
+                          const earned = earnedBadges.some((eb) => eb.id === b.id);
+                          return (
+                            <div
+                              key={b.id}
+                              className={`profileBadgeCard ${earned ? 'profileBadgeCardEarned' : 'profileBadgeCardLocked'}`}
+                            >
+                              <div className="profileBadgeCardHeader">
+                                <BadgeIcon size="md" title={b.name} />
+                                <div className="profileBadgeName">
+                                  {b.name}
+                                  {earned && <span className="profileBadgeEarnedLabel"> · Earned</span>}
+                                </div>
+                              </div>
+                              <div className="profileBadgeDesc">{b.description}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </details>
+                  </div>
+                )}
 
                 {streaks && (
                   <div className="profileSection profileSectionSpacing">

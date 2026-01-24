@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { ref, set, onValue, off, remove, update, get } from 'firebase/database';
+import { ref, set, onValue, off, remove, update, get, runTransaction } from 'firebase/database';
 import { database } from '../config/firebase';
 import { auth } from '../config/firebase';
 import { MULTIPLAYER_WAITING_TIMEOUT_MS, getSolutionArray } from '../lib/multiplayerConfig';
+import { clampBoards, clampPlayers, validateGameCode } from '../lib/validation';
+import { MAX_BOARDS, ABSOLUTE_MAX_PLAYERS, DEFAULT_MAX_PLAYERS } from '../lib/gameConstants';
+import { logError } from '../lib/errorUtils';
 
 /**
  * Generate a random 6-digit game code
@@ -12,8 +15,7 @@ function generateGameCode() {
 }
 
 // Multiplayer limits for rooms generalized to N players.
-const DEFAULT_MAX_PLAYERS = 2;
-const ABSOLUTE_MAX_PLAYERS = 8;
+// Constants are now imported from gameConstants.js
 
 /**
  * Hook for managing multiplayer game state in Firebase Realtime Database
@@ -98,7 +100,7 @@ const createGame = useCallback(async (options = {}) => {
     const rawMaxPlayers = Number.isFinite(options.maxPlayers)
       ? options.maxPlayers
       : DEFAULT_MAX_PLAYERS;
-    const maxPlayers = Math.max(2, Math.min(ABSOLUTE_MAX_PLAYERS, rawMaxPlayers));
+    const maxPlayers = clampPlayers(rawMaxPlayers, DEFAULT_MAX_PLAYERS, ABSOLUTE_MAX_PLAYERS);
     const isPublic = Object.prototype.hasOwnProperty.call(options, 'isPublic')
       ? !!options.isPublic
       : true;
@@ -107,7 +109,7 @@ const createGame = useCallback(async (options = {}) => {
     const rawBoards = Number.isFinite(options.boards)
       ? options.boards
       : 1;
-    const configBoards = Math.max(1, Math.min(32, rawBoards));
+    const configBoards = clampBoards(rawBoards);
 
     const code = generateGameCode();
     const gamePath = `multiplayer/${code}`;
@@ -164,6 +166,12 @@ const createGame = useCallback(async (options = {}) => {
   const joinGame = useCallback(async (code) => {
     if (!user) throw new Error('User must be signed in to join a game');
 
+    // Validate game code format
+    const codeValidation = validateGameCode(code);
+    if (!codeValidation.isValid) {
+      throw new Error(`Invalid game code: ${codeValidation.errors.join(', ')}`);
+    }
+
     const gamePath = `multiplayer/${code}`;
     const gameDataRef = ref(database, gamePath);
 
@@ -176,21 +184,23 @@ const createGame = useCallback(async (options = {}) => {
       }
 
       const gameData = snapshot.val();
+      const players = gameData.players || null;
 
-      // If user is already part of the room (host/guest or in players map), allow them to continue.
-      if (gameData.hostId === user.uid || gameData.guestId === user.uid) {
+      // If user is already part of the room (in players map), allow them to continue.
+      if (players && players[user.uid]) {
         return code;
       }
-      if (gameData.players && gameData.players[user.uid]) {
+      
+      // Backward compatibility: check if user is host (hostId is still needed for host checks)
+      if (gameData.hostId === user.uid) {
         return code;
       }
 
       const status = gameData.status || 'waiting';
-      const players = gameData.players || null;
       const rawMaxPlayers = Number.isFinite(gameData.maxPlayers)
         ? gameData.maxPlayers
         : DEFAULT_MAX_PLAYERS;
-      const maxPlayers = Math.max(2, Math.min(ABSOLUTE_MAX_PLAYERS, rawMaxPlayers));
+      const maxPlayers = clampPlayers(rawMaxPlayers, DEFAULT_MAX_PLAYERS, ABSOLUTE_MAX_PLAYERS);
       const createdAt = typeof gameData.createdAt === 'number' ? gameData.createdAt : null;
 
       // Expire stale rooms (waiting or playing) after the total lifetime window.
@@ -203,26 +213,42 @@ const createGame = useCallback(async (options = {}) => {
         throw new Error('Game code has expired');
       }
 
-      const isMultiRoom = !!players && Object.keys(players).length > 2;
-
-      // For 2-player games, do not allow joining games that have already started.
-      if (!isMultiRoom && status !== 'waiting') {
-        throw new Error('Game has already started');
-      }
-
-      // New-style multiplayer room using players map.
-      if (players) {
-        const activeIds = Object.keys(players);
-        if (activeIds.length >= maxPlayers) {
-          throw new Error('Game is full');
+      // Use transaction to prevent race conditions when multiple players join simultaneously
+      await runTransaction(gameDataRef, (currentData) => {
+        if (!currentData) {
+          throw new Error('Game not found');
         }
 
+        const currentPlayers = currentData.players || null;
+        const currentStatus = currentData.status || 'waiting';
+
+        // Check if user is already in the game
+        if (currentPlayers && currentPlayers[user.uid]) {
+          return currentData; // Already joined, return current data
+        }
+
+        // Check if game is full
+        if (currentPlayers) {
+          const activeIds = Object.keys(currentPlayers);
+          if (activeIds.length >= maxPlayers) {
+            throw new Error('Game is full');
+          }
+        }
+
+        // Check if game has started (for 2-player games)
+        const isMultiRoom = currentPlayers && Object.keys(currentPlayers).length > 2;
+        if (!isMultiRoom && currentStatus !== 'waiting') {
+          throw new Error('Game has already started');
+        }
+
+        // Add player to game
         const now = Date.now();
         const displayName = user.displayName || user.email || 'Player';
 
-        const updateData = {
+        return {
+          ...currentData,
           players: {
-            ...players,
+            ...(currentPlayers || {}),
             [user.uid]: {
               id: user.uid,
               name: displayName,
@@ -235,13 +261,9 @@ const createGame = useCallback(async (options = {}) => {
             },
           },
         };
+      });
 
-        await update(gameDataRef, updateData);
-        return code;
-      }
-
-      // All games now use the players map - no legacy mode.
-      throw new Error('Game is full or invalid');
+      return code;
     } catch (err) {
       setError(err.message);
       throw err;
@@ -256,29 +278,45 @@ const createGame = useCallback(async (options = {}) => {
   const setReady = useCallback(async (code, ready = true) => {
     if (!user) throw new Error('User must be signed in');
 
+    // Validate game code
+    const codeValidation = validateGameCode(code);
+    if (!codeValidation.isValid) {
+      throw new Error(`Invalid game code: ${codeValidation.errors.join(', ')}`);
+    }
+
     const gamePath = `multiplayer/${code}`;
     const gameDataRef = ref(database, gamePath);
 
     try {
-      const snapshot = await get(gameDataRef);
+      // Use transaction to prevent race conditions when multiple players click ready simultaneously
+      await runTransaction(gameDataRef, (currentData) => {
+        if (!currentData) {
+          throw new Error('Game not found');
+        }
 
-      if (!snapshot.exists()) {
-        throw new Error('Game not found');
-      }
+        const players = currentData.players || null;
 
-      const gameData = snapshot.val();
-      const players = gameData.players || null;
+        // All games now use the players map for ready status.
+        if (!players || !players[user.uid]) {
+          throw new Error('Player not in game');
+        }
 
-      // All games now use the players map for ready status.
-      if (!players || !players[user.uid]) {
-        throw new Error('Player not in game');
-      }
-
-      await update(gameDataRef, {
-        [`players/${user.uid}/ready`]: ready,
+        // Update ready status atomically
+        return {
+          ...currentData,
+          players: {
+            ...players,
+            [user.uid]: {
+              ...players[user.uid],
+              ready,
+            },
+          },
+        };
       });
     } catch (err) {
-      setError(err.message);
+      const errorMessage = err.message || 'Failed to set ready status';
+      setError(errorMessage);
+      logError(err, 'useMultiplayerGame.setReady');
       throw err;
     }
   }, [user]);
@@ -292,27 +330,34 @@ const createGame = useCallback(async (options = {}) => {
   const startGame = useCallback(async (code, solutionsOrSolution, options = {}) => {
     if (!user) throw new Error('User must be signed in');
 
+    // Validate game code
+    const codeValidation = validateGameCode(code);
+    if (!codeValidation.isValid) {
+      throw new Error(`Invalid game code: ${codeValidation.errors.join(', ')}`);
+    }
+
     const gamePath = `multiplayer/${code}`;
     const gameDataRef = ref(database, gamePath);
 
     try {
-      const snapshot = await get(gameDataRef);
+      // Use transaction to prevent race conditions when host clicks start multiple times
+      // or when multiple players become ready simultaneously
+      await runTransaction(gameDataRef, (currentData) => {
+        if (!currentData) {
+          throw new Error('Game not found');
+        }
 
-      if (!snapshot.exists()) {
-        throw new Error('Game not found');
-      }
+        const isHost = currentData.hostId === user.uid;
+        if (!isHost) {
+          throw new Error('Only host can start the game');
+        }
 
-      const gameData = snapshot.val();
-      const isHost = gameData.hostId === user.uid;
+        const players = currentData.players || null;
+        if (!players) {
+          throw new Error('Invalid game state: no players map found');
+        }
 
-      if (!isHost) {
-        throw new Error('Only host can start the game');
-      }
-
-      const players = gameData.players || null;
-
-      // If we have a players map, require all players to be ready.
-      if (players) {
+        // Check if all players are ready
         const playerValues = Object.values(players);
         const allReady =
           playerValues.length > 0 &&
@@ -320,31 +365,27 @@ const createGame = useCallback(async (options = {}) => {
         if (!allReady) {
           throw new Error('All players must be ready to start');
         }
-      } else {
-        // Fallback ready check (should not happen with players map).
-        if (!gameData.hostReady || !gameData.guestReady) {
-          throw new Error('All players must be ready to start');
+
+        // Check if game is already started
+        if (currentData.status === 'playing') {
+          throw new Error('Game has already started');
         }
-      }
 
-      // Decide whether this round is speedrun or standard. Allow an explicit
-      // override via `options.speedrun` so hosts can change modes between rounds.
-      const hasOverrideSpeedrun = Object.prototype.hasOwnProperty.call(options, 'speedrun');
-      const isSpeedrunRound = hasOverrideSpeedrun ? !!options.speedrun : !!gameData.speedrun;
+        // Decide whether this round is speedrun or standard. Allow an explicit
+        // override via `options.speedrun` so hosts can change modes between rounds.
+        const hasOverrideSpeedrun = Object.prototype.hasOwnProperty.call(options, 'speedrun');
+        const isSpeedrunRound = hasOverrideSpeedrun ? !!options.speedrun : !!currentData.speedrun;
 
-      const now = Date.now();
+        const now = Date.now();
 
-      const solutionsArray = Array.isArray(solutionsOrSolution)
-        ? solutionsOrSolution
-        : [solutionsOrSolution];
+        const solutionsArray = Array.isArray(solutionsOrSolution)
+          ? solutionsOrSolution
+          : [solutionsOrSolution];
 
-      const playersMap = players || null;
-
-      let updatedPlayers = playersMap || null;
-      if (playersMap) {
-        updatedPlayers = {};
-        Object.keys(playersMap).forEach((pid) => {
-          const p = playersMap[pid] || {};
+        // Update players map - clear guesses and reset timers
+        const updatedPlayers = {};
+        Object.keys(players).forEach((pid) => {
+          const p = players[pid] || {};
           updatedPlayers[pid] = {
             ...p,
             guesses: [],
@@ -354,27 +395,21 @@ const createGame = useCallback(async (options = {}) => {
             // keep existing ready flag as-is so lobby state is preserved in history
           };
         });
-      }
 
-      const updatePayload = {
-        status: 'playing',
-        solution: solutionsArray[0],
-        solutions: solutionsArray,
-        speedrun: isSpeedrunRound,
-        startedAt: now,
-        winner: null,
-        // Clear legacy rematch flags
-        hostRematch: false,
-        guestRematch: false,
-        // Clear next game config when starting a new game
-        nextGameConfig: null,
-      };
-
-      if (updatedPlayers) {
-        updatePayload.players = updatedPlayers;
-      }
-
-      await update(gameDataRef, updatePayload);
+        // Return updated game state
+        return {
+          ...currentData,
+          status: 'playing',
+          solution: solutionsArray[0],
+          solutions: solutionsArray,
+          speedrun: isSpeedrunRound,
+          startedAt: now,
+          winner: null,
+          players: updatedPlayers,
+          // Clear next game config when starting a new game
+          nextGameConfig: null,
+        };
+      });
     } catch (err) {
       setError(err.message);
       throw err;
@@ -403,9 +438,12 @@ const createGame = useCallback(async (options = {}) => {
 
       const gameData = snapshot.val();
       const players = gameData.players || null;
-      const playerCount = players
-        ? Object.keys(players).length
-        : (gameData.hostId ? 1 : 0) + (gameData.guestId ? 1 : 0);
+      
+      if (!players) {
+        throw new Error('Invalid game state: no players map found');
+      }
+      
+      const playerCount = Object.keys(players).length;
 
       const isHost = gameData.hostId === user.uid;
       const isSpeedrun = gameData.speedrun || false;
@@ -538,10 +576,13 @@ const createGame = useCallback(async (options = {}) => {
           // vs recipient if needed.
           friendRequestFrom: user.uid,
         };
+        // Set the appropriate flag based on whether the user is host or guest
         if (isHost) {
           updateData.hostFriendRequestSent = true;
+          updateData.guestFriendRequestSent = false;
         } else {
           updateData.guestFriendRequestSent = true;
+          updateData.hostFriendRequestSent = false;
         }
         await update(gameDataRef, updateData);
       } else if (status === 'declined') {
@@ -556,8 +597,6 @@ const createGame = useCallback(async (options = {}) => {
         await update(gameDataRef, {
           friendRequestStatus: null,
           friendRequestFrom: null,
-          hostFriendRequestSent: false,
-          guestFriendRequestSent: false,
         });
       }
     } catch (err) {
@@ -586,17 +625,14 @@ const createGame = useCallback(async (options = {}) => {
       const gameData = snapshot.val();
       const players = gameData.players || null;
 
-      // Use players map for multiplayer rooms
-      if (players && players[user.uid]) {
-        await update(gameDataRef, {
-          [`players/${user.uid}/rematch`]: true,
-        });
-      } else {
-        // Fallback to legacy host/guest structure for 2-player games
-        const isHost = gameData.hostId === user.uid;
-        const updateData = isHost ? { hostRematch: true } : { guestRematch: true };
-        await update(gameDataRef, updateData);
+      // All games now use the players map
+      if (!players || !players[user.uid]) {
+        throw new Error('Player not in game');
       }
+      
+      await update(gameDataRef, {
+        [`players/${user.uid}/rematch`]: true,
+      });
     } catch (err) {
       setError(err.message);
       throw err;
@@ -651,7 +687,7 @@ const createGame = useCallback(async (options = {}) => {
       } else {
         // Set the config
         updateData.nextGameConfig = {
-          numBoards: Number.isFinite(config.numBoards) ? Math.max(1, Math.min(32, config.numBoards)) : null,
+          numBoards: Number.isFinite(config.numBoards) ? clampBoards(config.numBoards) : null,
           speedrun: typeof config.speedrun === 'boolean' ? config.speedrun : null,
         };
       }
@@ -810,10 +846,8 @@ const createGame = useCallback(async (options = {}) => {
       const updatePayload = {};
 
       if (Object.prototype.hasOwnProperty.call(config, 'boards')) {
-        let rawBoards = parseInt(config.boards, 10);
-        if (!Number.isFinite(rawBoards)) rawBoards = 1;
-        rawBoards = Math.max(1, Math.min(32, rawBoards));
-        updatePayload.configBoards = rawBoards;
+        const rawBoards = parseInt(config.boards, 10);
+        updatePayload.configBoards = Number.isFinite(rawBoards) ? clampBoards(rawBoards) : 1;
       }
 
       if (Object.prototype.hasOwnProperty.call(config, 'speedrun')) {
@@ -821,13 +855,15 @@ const createGame = useCallback(async (options = {}) => {
       }
 
       if (Object.prototype.hasOwnProperty.call(config, 'maxPlayers')) {
-        let rawMax = parseInt(config.maxPlayers, 10);
-        if (!Number.isFinite(rawMax)) rawMax = DEFAULT_MAX_PLAYERS;
-        rawMax = Math.max(2, Math.min(ABSOLUTE_MAX_PLAYERS, rawMax));
-        if (rawMax < playerCount) {
+        const rawMax = parseInt(config.maxPlayers, 10);
+        if (!Number.isFinite(rawMax)) {
+          throw new Error('Invalid maxPlayers value');
+        }
+        const clampedMax = clampPlayers(rawMax, DEFAULT_MAX_PLAYERS, ABSOLUTE_MAX_PLAYERS);
+        if (clampedMax < playerCount) {
           throw new Error('Max players cannot be less than current players in room');
         }
-        updatePayload.maxPlayers = rawMax;
+        updatePayload.maxPlayers = clampedMax;
       }
 
       if (Object.prototype.hasOwnProperty.call(config, 'isPublic')) {

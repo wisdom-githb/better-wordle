@@ -10,6 +10,11 @@ vi.mock('../hooks/useMultiplayerGame', () => ({
   useMultiplayerGame: vi.fn(),
 }));
 
+vi.mock('../hooks/useUserBadges', () => ({
+  useUserBadges: () => ({ userBadges: {}, loading: false, error: null }),
+  useBadgesForUser: () => ({ userBadges: {}, loading: false }),
+}));
+
 vi.mock('../hooks/useTimedMessage', () => ({
   useTimedMessage: vi.fn(() => ({
     message: '',

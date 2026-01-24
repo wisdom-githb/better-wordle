@@ -20,6 +20,11 @@ vi.mock('../AuthModal', () => ({
   ), // eslint-disable-line react/display-name
 }));
 
+vi.mock('../../hooks/useUserBadges', () => ({
+  useUserBadges: () => ({ userBadges: {}, loading: false, error: null }),
+  useBadgesForUser: () => ({ userBadges: {}, loading: false }),
+}));
+
 vi.mock('../../lib/wordle', () => ({
   KEYBOARD_HEIGHT: 200,
   WORD_LENGTH: 5,
@@ -189,9 +194,9 @@ describe('MultiplayerGameView waiting room', () => {
       </Suspense>,
     );
 
-    // The waiting room should show the "Multiplayer Room" heading and game code box,
+    // The waiting room should show the room name heading and game code box,
     // not the generic "Connecting to game..." loader.
-    expect(screen.getByText('Multiplayer Room')).toBeInTheDocument();
+    expect(screen.getByText('My Room')).toBeInTheDocument();
     expect(screen.getByText('Game Code:')).toBeInTheDocument();
   });
 });

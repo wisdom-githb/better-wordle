@@ -164,6 +164,16 @@ vi.mock('firebase/database', () => {
     dbState.notifyListeners(refObj.path);
   });
 
+  const runTransaction = vi.fn(async (refObj, transactionUpdate) => {
+    const currentData = dbState.getPath(refObj.path) || null;
+    const newData = transactionUpdate(currentData);
+    if (newData !== null) {
+      dbState.setPath(refObj.path, newData);
+      dbState.notifyListeners(refObj.path);
+    }
+    return { committed: true, snapshot: dbState.buildSnapshot(dbState.getPath(refObj.path)) };
+  });
+
   const __resetDb = () => {
     dbState.listeners.clear();
     Object.keys(dbState.data).forEach((k) => delete dbState.data[k]);
@@ -177,6 +187,7 @@ vi.mock('firebase/database', () => {
     remove,
     get,
     update,
+    runTransaction,
     __resetDb,
   };
 });

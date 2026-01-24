@@ -2,6 +2,11 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
+vi.mock('../../hooks/useUserBadges', () => ({
+  useUserBadges: () => ({ userBadges: {}, loading: false, error: null }),
+  useBadgesForUser: () => ({ userBadges: {}, loading: false }),
+}));
+
 import MultiplayerWaitingRoom from './MultiplayerWaitingRoom';
 
 beforeEach(() => {
@@ -51,12 +56,13 @@ describe('MultiplayerWaitingRoom', () => {
       />,
     );
 
-    // Text is split across text nodes but in same element: "Alice", " (Host)", " (You)"
-    const aliceElements = screen.getAllByText((content, element) => {
-      const text = element?.textContent || '';
-      return text.includes('Alice') && text.includes('(Host)');
-    });
+    // UserCard shows Alice with Host badge and (You); Bob as guest
+    // Note: UserCard renders name and (You) separately, so we need to check for partial match
+    // Also note: "Alice" appears in both the room title and the user card
+    const aliceElements = screen.getAllByText(/Alice/);
     expect(aliceElements.length).toBeGreaterThan(0);
+    expect(screen.getByText('Host')).toBeInTheDocument();
+    expect(screen.getByText(/\(You\)/)).toBeInTheDocument();
     expect(screen.getAllByText('✓ Ready')[0]).toBeInTheDocument();
     expect(screen.getByText('Bob')).toBeInTheDocument();
     expect(screen.getAllByText('Not Ready')[0]).toBeInTheDocument();
@@ -78,8 +84,11 @@ describe('MultiplayerWaitingRoom', () => {
       />,
     );
 
-    // Guest should see the host label on the host row.
-    expect(screen.getByText('Alice (Host)')).toBeInTheDocument();
+    // Guest should see UserCards: Alice with Host badge, Bob with (You)
+    // Note: "Alice" appears in both the room title and the user card
+    const aliceElements = screen.getAllByText(/Alice/);
+    expect(aliceElements.length).toBeGreaterThan(0);
+    expect(screen.getByText('Host')).toBeInTheDocument();
     expect(screen.getByText('Bob (You)')).toBeInTheDocument();
   });
 
@@ -174,7 +183,7 @@ describe('MultiplayerWaitingRoom', () => {
         isHost
         authUserId="alice-id"
         onAddFriend={onAddFriend}
-        friendRequestSent
+        friendRequestSent={true}
       />,
     );
 

@@ -1,4 +1,5 @@
 import React from 'react';
+import UserCardWithBadges from '../UserCardWithBadges';
 
 export default function OneVOneWaitingRoom({
   gameCode,
@@ -252,9 +253,13 @@ export default function OneVOneWaitingRoom({
                       alignItems: 'center'
                     }}
                   >
-                    <span style={{ color: '#ffffff', fontWeight: 'bold' }}>
-                      {p.name} {p.isHost ? '(Host)' : ''}
-                    </span>
+                    <UserCardWithBadges
+                      userId={p.id}
+                      username={p.name || 'Player'}
+                      isYou={currentUserId && p.id === currentUserId}
+                      badges={p.isHost ? [{ id: 'host', label: 'Host' }] : []}
+                      size="sm"
+                    />
                     <span style={{
                       color: p.ready ? '#6aaa64' : '#818384',
                       fontSize: 12,
@@ -382,9 +387,11 @@ export default function OneVOneWaitingRoom({
                           border: '1px solid #3a3a3c',
                         }}
                       >
-                        <span style={{ color: '#ffffff', fontSize: 14, fontWeight: 500 }}>
-                          {friend.name}
-                        </span>
+                        <UserCardWithBadges
+                          userId={friend.id}
+                          username={friend.name}
+                          size="sm"
+                        />
                         <button
                           type="button"
                           disabled={roomFull}

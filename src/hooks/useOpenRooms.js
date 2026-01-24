@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ref, onValue, off } from 'firebase/database';
+import { ref, onValue, off, query, orderByChild, startAt, limitToLast } from 'firebase/database';
 import { database } from '../config/firebase';
 import { MULTIPLAYER_WAITING_TIMEOUT_MS } from '../lib/multiplayerConfig';
 
@@ -13,12 +13,21 @@ export function useOpenRooms() {
 
   useEffect(() => {
     const roomsRef = ref(database, 'multiplayer');
+    const now = Date.now();
+    const minCreatedAt = now - MULTIPLAYER_WAITING_TIMEOUT_MS;
+    
+    // Optimize: Use Firebase query to filter by createdAt and isPublic
+    // This requires a composite index on (isPublic, createdAt) or (status, createdAt)
+    // For now, we still fetch all and filter client-side, but we can optimize with:
+    // query(roomsRef, orderByChild('createdAt'), startAt(minCreatedAt), limitToLast(100))
+    // Note: Firebase Realtime Database doesn't support multiple where clauses easily
+    // So we fetch and filter client-side, but limit the data transfer
+    const roomsQuery = query(roomsRef, orderByChild('createdAt'), startAt(minCreatedAt), limitToLast(200));
 
     const unsubscribe = onValue(
-      roomsRef,
+      roomsQuery,
       (snapshot) => {
         const data = snapshot.val() || {};
-        const now = Date.now();
         const list = Object.entries(data)
           .map(([code, room]) => {
             if (!room) return null;
@@ -59,8 +68,7 @@ export function useOpenRooms() {
             if (!room.isPublic) return false;
             if (room.status !== 'waiting') return false;
             if (!room.createdAt) return false;
-            // Only include rooms that are still within the same lifetime
-            // window used by joinGame/expireGame.
+            // Double-check the time window (query should handle this, but verify)
             return now - room.createdAt <= MULTIPLAYER_WAITING_TIMEOUT_MS;
           })
           .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -79,7 +87,7 @@ export function useOpenRooms() {
         unsubscribe();
       }
       // Also call off() as a safety net, though unsubscribe() should handle it
-      off(roomsRef);
+      off(roomsQuery);
     };
   }, []);
 

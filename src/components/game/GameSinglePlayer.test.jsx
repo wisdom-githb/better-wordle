@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, act } from '@testing-library/react';
+import { render, act, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 let latestViewProps = null;
@@ -113,7 +113,7 @@ describe('GameSinglePlayer partial and full guess handling on Enter', () => {
     submitSpeedrunScoreMock.mockReset();
   });
 
-  function renderGame() {
+  async function renderGame() {
     render(
       <MemoryRouter
         initialEntries={['/game']}
@@ -123,12 +123,16 @@ describe('GameSinglePlayer partial and full guess handling on Enter', () => {
       </MemoryRouter>,
     );
 
-    expect(latestViewProps).not.toBeNull();
+    // Wait for component to initialize and props to be set
+    await waitFor(() => {
+      expect(latestViewProps).not.toBeNull();
+    });
+
     return latestViewProps;
   }
 
-  it('does nothing when Enter is pressed with 0 letters', () => {
-    const { handleVirtualKey } = renderGame();
+  it('does nothing when Enter is pressed with 0 letters', async () => {
+    const { handleVirtualKey } = await renderGame();
     expect(typeof handleVirtualKey).toBe('function');
     expect(latestViewProps.currentGuess).toBe('');
 
@@ -141,8 +145,8 @@ describe('GameSinglePlayer partial and full guess handling on Enter', () => {
     expect(mockSetTimedMessage).not.toHaveBeenCalled();
   });
 
-  it('clears currentGuess when Enter is pressed with fewer than 5 letters via virtual keyboard', () => {
-    const { handleVirtualKey } = renderGame();
+  it('clears currentGuess when Enter is pressed with fewer than 5 letters via virtual keyboard', async () => {
+    const { handleVirtualKey } = await renderGame();
 
     act(() => {
       handleVirtualKey('A');
@@ -160,8 +164,8 @@ describe('GameSinglePlayer partial and full guess handling on Enter', () => {
     expect(latestViewProps.currentGuess).toBe('');
   });
 
-  it('follows normal submit path (not partial-clear) when Enter is pressed with 5 letters', () => {
-    const { handleVirtualKey } = renderGame();
+  it('follows normal submit path (not partial-clear) when Enter is pressed with 5 letters', async () => {
+    const { handleVirtualKey } = await renderGame();
 
     // Simulate a 5-letter guess.
     act(() => {
@@ -184,8 +188,8 @@ describe('GameSinglePlayer partial and full guess handling on Enter', () => {
     expect(latestViewProps.currentGuess).toBe('');
   });
 
-  it('treats physical Enter via useKeyboard onEnter the same as virtual Enter', () => {
-    const { handleVirtualKey } = renderGame();
+  it('treats physical Enter via useKeyboard onEnter the same as virtual Enter', async () => {
+    const { handleVirtualKey } = await renderGame();
 
     expect(latestUseKeyboardArgs).not.toBeNull();
     const { onEnter } = latestUseKeyboardArgs;
@@ -226,8 +230,8 @@ describe('GameSinglePlayer partial and full guess handling on Enter', () => {
     expect(latestViewProps.currentGuess).toBe('');
   });
 
-  it('passes turnsUsed equal to global max guess rows across multiple boards', () => {
-    renderGame();
+  it('passes turnsUsed equal to global max guess rows across multiple boards', async () => {
+    await renderGame();
 
     expect(latestUseSinglePlayerGameArgs).not.toBeNull();
     const { setBoards, setIsLoading } = latestUseSinglePlayerGameArgs;
@@ -266,8 +270,8 @@ describe('GameSinglePlayer partial and full guess handling on Enter', () => {
     expect(latestViewProps.turnsUsed).toBe(3);
   });
 
-  it('marks finished true when all boards are dead (out of guesses) so UI can hide controls', () => {
-    renderGame();
+  it('marks finished true when all boards are dead (out of guesses) so UI can hide controls', async () => {
+    await renderGame();
 
     expect(latestUseSinglePlayerGameArgs).not.toBeNull();
     const { setBoards, setIsLoading, setIsUnlimited } = latestUseSinglePlayerGameArgs;
@@ -305,10 +309,10 @@ describe('GameSinglePlayer partial and full guess handling on Enter', () => {
     expect(latestViewProps.finished).toBe(true);
   });
 
-  it('exitFromOutOfGuesses shows popup immediately without adding a new timer', () => {
+  it('exitFromOutOfGuesses shows popup immediately without adding a new timer', async () => {
     const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
 
-    const viewProps = renderGame();
+    const viewProps = await renderGame();
     expect(typeof viewProps.exitFromOutOfGuesses).toBe('function');
 
     const callsBefore = setTimeoutSpy.mock.calls.length;
@@ -349,7 +353,7 @@ describe('GameSinglePlayer marathon share gating and totals', () => {
     makeSolvedKey.mockImplementation(() => 'SOLVED_KEY');
   });
 
-  function renderMarathon({ speedrunEnabled }) {
+  async function renderMarathon({ speedrunEnabled }) {
     render(
       <MemoryRouter
         initialEntries={['/game?mode=marathon']}
@@ -364,13 +368,17 @@ describe('GameSinglePlayer marathon share gating and totals', () => {
       </MemoryRouter>,
     );
 
-    expect(latestUseSinglePlayerGameArgs).not.toBeNull();
-    expect(latestViewProps).not.toBeNull();
+    // Wait for component to initialize
+    await waitFor(() => {
+      expect(latestUseSinglePlayerGameArgs).not.toBeNull();
+      expect(latestViewProps).not.toBeNull();
+    });
+
     return latestUseSinglePlayerGameArgs;
   }
 
-  it('keeps canShare false on non-final marathon stage (standard)', () => {
-    const { setBoards, setIsLoading } = renderMarathon({ speedrunEnabled: false });
+  it('keeps canShare false on non-final marathon stage (standard)', async () => {
+    const { setBoards, setIsLoading } = await renderMarathon({ speedrunEnabled: false });
 
     act(() => {
       // First stage: one board, initially unsolved.
@@ -404,8 +412,8 @@ describe('GameSinglePlayer marathon share gating and totals', () => {
     expect(latestViewProps.canShare).toBe(false);
   });
 
-  it('keeps canShare false on non-final marathon stage (speedrun)', () => {
-    const { setBoards, setIsLoading } = renderMarathon({ speedrunEnabled: true });
+  it('keeps canShare false on non-final marathon stage (speedrun)', async () => {
+    const { setBoards, setIsLoading } = await renderMarathon({ speedrunEnabled: true });
 
     act(() => {
       setBoards([
@@ -630,8 +638,8 @@ describe('GameSinglePlayer marathon share gating and totals', () => {
     expect(marathonStagesArg.some((st) => st.boards === 4)).toBe(true);
   });
 
-  it('disables Next Stage after exiting out-of-guesses in marathon', () => {
-    const { setBoards, setIsLoading } = renderMarathon({ speedrunEnabled: false });
+  it('disables Next Stage after exiting out-of-guesses in marathon', async () => {
+    const { setBoards, setIsLoading } = await renderMarathon({ speedrunEnabled: false });
 
     // Initial render: allowNextStageAfterPopup should be true.
     expect(latestViewProps.allowNextStageAfterPopup).toBe(true);
@@ -654,8 +662,8 @@ describe('GameSinglePlayer marathon share gating and totals', () => {
     expect(latestViewProps.allowNextStageAfterPopup).toBe(false);
   });
 
-  it('enables sharing after exiting out-of-guesses in marathon', () => {
-    const { setBoards, setIsLoading } = renderMarathon({ speedrunEnabled: false });
+  it('enables sharing after exiting out-of-guesses in marathon', async () => {
+    const { setBoards, setIsLoading } = await renderMarathon({ speedrunEnabled: false });
 
     // Non-final marathon stage should not be shareable initially.
     expect(latestViewProps.canShare).toBe(false);
@@ -751,8 +759,8 @@ describe('GameSinglePlayer marathon share gating and totals', () => {
     expect(marathonStagesArg.map((st) => st.boards)).toEqual([1, 2]);
   });
 
-  it('shows comments after exiting out-of-guesses in marathon', () => {
-    const { setBoards, setIsLoading } = renderMarathon({ speedrunEnabled: false });
+  it('shows comments after exiting out-of-guesses in marathon', async () => {
+    const { setBoards, setIsLoading } = await renderMarathon({ speedrunEnabled: false });
 
     act(() => {
       setBoards([
@@ -828,7 +836,7 @@ describe('GameSinglePlayer speedrun leaderboard submission', () => {
     submitSpeedrunScoreMock.mockReset();
   });
 
-  function renderDailySpeedrun() {
+  async function renderDailySpeedrun() {
     // Default auth: signed-in, verified user.
     mockUseAuth.mockReturnValue({
       user: {
@@ -852,13 +860,17 @@ describe('GameSinglePlayer speedrun leaderboard submission', () => {
       </MemoryRouter>,
     );
 
-    expect(latestUseSinglePlayerGameArgs).not.toBeNull();
-    expect(latestViewProps).not.toBeNull();
+    // Wait for component to initialize
+    await waitFor(() => {
+      expect(latestUseSinglePlayerGameArgs).not.toBeNull();
+      expect(latestViewProps).not.toBeNull();
+    });
+
     return latestUseSinglePlayerGameArgs;
   }
 
-  it('submits daily speedrun score for verified user when all boards are solved', () => {
-    const { setBoards, setIsLoading, setAllowedSet } = renderDailySpeedrun();
+  it('submits daily speedrun score for verified user when all boards are solved', async () => {
+    const { setBoards, setIsLoading, setAllowedSet } = await renderDailySpeedrun();
 
     act(() => {
       // Single board with known solution; start unsolved so the normal submit
@@ -899,7 +911,7 @@ describe('GameSinglePlayer speedrun leaderboard submission', () => {
     expect(scoreArg).toBe(0);
   });
 
-  it('does not submit speedrun score when user is not verified', () => {
+  it('does not submit speedrun score when user is not verified', async () => {
     mockUseAuth.mockReturnValue({
       user: {
         uid: 'uid-unverified',

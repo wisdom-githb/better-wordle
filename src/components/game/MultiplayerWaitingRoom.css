@@ -24,6 +24,85 @@
   color: #ffffff;
 }
 
+.waitingRoomTitleInput {
+  width: 100%;
+  margin: 0 0 24px 0;
+  padding: 8px 12px;
+  font-size: 24px;
+  font-weight: bold;
+  color: #ffffff;
+  background: #1a1a1b;
+  border: 1px solid #3a3a3c;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.waitingRoomTitleInput:hover {
+  border-color: #565758;
+}
+
+.waitingRoomTitleInput:focus {
+  outline: none;
+  border-color: #6aaa64;
+  box-shadow: 0 0 0 2px rgba(106, 170, 100, 0.25);
+}
+
+.waitingRoomTitleInput::placeholder {
+  color: #818384;
+}
+
+.waitingRoomTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.waitingRoomTitleRow .waitingRoomTitle {
+  margin: 0;
+}
+
+.waitingRoomTitleEditLink {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 4px 8px;
+}
+
+.waitingRoomTitleEditLink:hover {
+  color: #d7dadc;
+}
+
+.waitingRoomTitleEdit {
+  width: 100%;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.waitingRoomTitleEdit .waitingRoomTitleInput {
+  margin: 0;
+}
+
+.waitingRoomTitleEditActions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.waitingRoomTitleEditBtn {
+  padding: 8px 16px;
+  font-size: 13px;
+  min-width: 80px;
+}
+
 .waitingRoomSubtitle {
   color: #d7dadc;
   margin-bottom: 12px;

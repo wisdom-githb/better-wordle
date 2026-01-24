@@ -70,7 +70,13 @@ export function useLeaderboard(mode, numBoards = null, limit = 100) {
     
     // Query: order by score descending, then by timeMs ascending (for same score, faster is better)
     // Firebase doesn't support multiple orderBy, so we'll fetch all and sort in JS
-    const leaderboardQuery = query(leaderboardRef, limitToLast(limit * 2)); // Fetch more to account for filtering
+    // Optimize: Use orderBy('score') with limitToLast for better performance
+    // Note: This requires a Firebase index on leaderboard/{mode}/score
+    // For now, we fetch limit * 2 to account for filtering, but ideally we'd use orderBy('score')
+    const leaderboardQuery = query(
+      leaderboardRef,
+      limitToLast(Math.min(limit * 3, 500)) // Cap at 500 to prevent excessive data transfer
+    );
 
     const unsubscribe = onValue(
       leaderboardQuery,

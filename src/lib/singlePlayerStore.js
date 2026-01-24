@@ -1,11 +1,18 @@
 import { loadJSON, saveJSON, makeStreakKey } from "./persist";
+import { logError } from "./errorUtils";
+import { validateGameState } from "./validation";
+import { defaultStateSync } from "./stateSync";
 
 /**
  * Load a solved snapshot for a given key, preferring server when signed in.
+ * Implements conflict resolution: uses the state with the most recent timestamp.
+ * Uses StateSync for conflict resolution.
  */
 export async function loadSolvedState({ authUser, database, solvedKey }) {
-  let solvedState = null;
+  let remoteState = null;
+  let localState = null;
 
+  // Load remote state if available
   if (authUser && database) {
     try {
       const { ref, get } = await import("firebase/database");
@@ -15,52 +22,87 @@ export async function loadSolvedState({ authUser, database, solvedKey }) {
       );
       const snap = await get(solvedRef);
       if (snap.exists()) {
-        solvedState = snap.val() || null;
+        remoteState = snap.val() || null;
       }
     } catch (err) {
       // Remote failures should never block local play; fall back to local.
-      // eslint-disable-next-line no-console
-      console.error(
-        "Failed to load remote solved state, falling back to local",
-        err,
-      );
+      logError(err, 'singlePlayerStore.loadSolvedState');
     }
   }
 
-  if (!solvedState) {
-    solvedState = loadJSON(solvedKey, null);
+  // Load local state
+  localState = loadJSON(solvedKey, null);
+
+  // Use StateSync for conflict resolution
+  const syncedState = await defaultStateSync.sync(solvedKey, localState, remoteState);
+
+  // If synced state is from remote (newer), save it locally
+  if (syncedState && syncedState === remoteState && syncedState !== localState) {
+    saveJSON(solvedKey, syncedState);
   }
 
-  return solvedState;
+  // If synced state is from local (newer), sync it to remote
+  if (syncedState && syncedState === localState && syncedState !== remoteState && authUser && database) {
+    // Queue the sync (will retry if offline)
+    defaultStateSync.queueUpdate(
+      `sync-${solvedKey}`,
+      async () => {
+        const { ref, set } = await import("firebase/database");
+        const solvedRef = ref(
+          database,
+          `users/${authUser.uid}/singlePlayer/solvedStates/${solvedKey}`,
+        );
+        await set(solvedRef, syncedState);
+      },
+      { type: 'solvedState', key: solvedKey }
+    );
+  }
+
+  return syncedState;
 }
 
 /**
  * Save a solved snapshot locally and on the server (when signed in).
+ * Uses StateSync for offline queuing and retry logic.
  */
 export async function saveSolvedState({ authUser, database, solvedKey, value }) {
-  saveJSON(solvedKey, value);
+  // Always save locally first
+  const stateWithTimestamp = value ? { ...value, timestamp: Date.now() } : null;
+  saveJSON(solvedKey, stateWithTimestamp);
 
-  if (authUser && database) {
-    try {
-      const { ref, set } = await import("firebase/database");
-      const solvedRef = ref(
-        database,
-        `users/${authUser.uid}/singlePlayer/solvedStates/${solvedKey}`,
-      );
-      await set(solvedRef, value);
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("Failed to persist solved state to server", err);
+  if (authUser && database && value) {
+    // Use StateSync to queue the update (handles offline and retries)
+    defaultStateSync.queueUpdate(
+      `save-${solvedKey}`,
+      async () => {
+        const { ref, set } = await import("firebase/database");
+        const solvedRef = ref(
+          database,
+          `users/${authUser.uid}/singlePlayer/solvedStates/${solvedKey}`,
+        );
+        await set(solvedRef, stateWithTimestamp);
+      },
+      { type: 'solvedState', key: solvedKey }
+    );
+    
+    // Try to process immediately if online
+    if (defaultStateSync.getConnectionStatus()) {
+      defaultStateSync.processQueue();
     }
   }
 }
 
 /**
- * Load an in-progress game state with server-first semantics.
+ * Load an in-progress game state with server-first semantics and conflict resolution.
+ * Validates state structure and resolves conflicts using timestamps.
  */
 export async function loadGameState({ authUser, database, gameStateKey }) {
-  let savedGameState = null;
+  let remoteState = null;
+  let remoteTimestamp = 0;
+  let localState = null;
+  let localTimestamp = 0;
 
+  // Load remote state if available
   if (authUser && database) {
     try {
       const { ref, get } = await import("firebase/database");
@@ -70,42 +112,92 @@ export async function loadGameState({ authUser, database, gameStateKey }) {
       );
       const snap = await get(stateRef);
       if (snap.exists()) {
-        savedGameState = snap.val() || null;
+        remoteState = snap.val() || null;
+        // Validate remote state
+        if (remoteState) {
+          const validation = validateGameState(remoteState);
+          if (!validation.isValid) {
+            logError(`Invalid remote game state: ${validation.errors.join(', ')}`, 'singlePlayerStore.loadGameState');
+            remoteState = null;
+          } else if (typeof remoteState.timestamp === 'number') {
+            remoteTimestamp = remoteState.timestamp;
+          }
+        }
       }
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error(
-        "Failed to load remote game state, falling back to local",
-        err,
-      );
+      logError(err, 'singlePlayerStore.loadGameState');
     }
   }
 
-  if (!savedGameState) {
-    savedGameState = loadJSON(gameStateKey, null);
+  // Load local state
+  localState = loadJSON(gameStateKey, null);
+  if (localState) {
+    // Validate local state
+    const validation = validateGameState(localState);
+    if (!validation.isValid) {
+      logError(`Invalid local game state: ${validation.errors.join(', ')}`, 'singlePlayerStore.loadGameState');
+      localState = null;
+    } else if (typeof localState.timestamp === 'number') {
+      localTimestamp = localState.timestamp;
+    }
   }
 
-  return savedGameState;
+  // Conflict resolution: prefer state with most recent timestamp
+  if (remoteState && localState) {
+    if (remoteTimestamp >= localTimestamp) {
+      // Remote is newer or equal - use remote and sync to local
+      saveJSON(gameStateKey, remoteState);
+      return remoteState;
+    } else {
+      // Local is newer - use local and sync to remote
+      if (authUser && database) {
+        try {
+          const { ref, set } = await import("firebase/database");
+          const stateRef = ref(
+            database,
+            `users/${authUser.uid}/singlePlayer/gameStates/${gameStateKey}`,
+          );
+          await set(stateRef, localState);
+        } catch (err) {
+          logError(err, 'singlePlayerStore.loadGameState.sync');
+        }
+      }
+      return localState;
+    }
+  }
+
+  // Return whichever exists and is valid
+  return remoteState || localState;
 }
 
 /**
  * Save an in-progress game state locally and on the server (when signed in).
  * Pass value = null to clear.
+ * Uses StateSync for offline queuing and retry logic.
  */
 export async function saveGameState({ authUser, database, gameStateKey, value }) {
-  saveJSON(gameStateKey, value);
+  // Always save locally first
+  const stateWithTimestamp = value ? { ...value, timestamp: Date.now() } : null;
+  saveJSON(gameStateKey, stateWithTimestamp);
 
   if (authUser && database) {
-    try {
-      const { ref, set } = await import("firebase/database");
-      const stateRef = ref(
-        database,
-        `users/${authUser.uid}/singlePlayer/gameStates/${gameStateKey}`,
-      );
-      await set(stateRef, value);
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("Failed to persist game state to server", err);
+    // Use StateSync to queue the update (handles offline and retries)
+    defaultStateSync.queueUpdate(
+      `save-${gameStateKey}`,
+      async () => {
+        const { ref, set } = await import("firebase/database");
+        const stateRef = ref(
+          database,
+          `users/${authUser.uid}/singlePlayer/gameStates/${gameStateKey}`,
+        );
+        await set(stateRef, stateWithTimestamp);
+      },
+      { type: 'gameState', key: gameStateKey }
+    );
+    
+    // Try to process immediately if online
+    if (defaultStateSync.getConnectionStatus()) {
+      defaultStateSync.processQueue();
     }
   }
 }
@@ -136,8 +228,7 @@ export async function loadStreakRemoteAware({ authUser, database, mode, speedrun
     saveJSON(localKey, remote);
     return remote;
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error("Failed to load remote streak, falling back to local", err);
+    logError(err, 'singlePlayerStore.loadStreakRemoteAware');
     return loadJSON(localKey, null);
   }
 }
@@ -166,7 +257,6 @@ export async function saveStreakRemoteAware({
     const streakRef = ref(database, `users/${authUser.uid}/streaks/${remoteKey}`);
     await set(streakRef, streakInfo);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error("Failed to persist streak to server", err);
+    logError(err, 'singlePlayerStore.saveStreakRemoteAware');
   }
 }

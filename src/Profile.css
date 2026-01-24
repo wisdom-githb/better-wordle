@@ -211,6 +211,109 @@
   color: #9ca3af;
 }
 
+/* Badges section (collapsible) */
+.profileDetails {
+  border: 1px solid #3a3a3c;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.profileDetails:last-child {
+  margin-bottom: 0;
+}
+
+.profileDetailsSummary {
+  padding: 12px 14px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  list-style: none;
+  background: rgba(255, 255, 255, 0.03);
+  color: #ffffff;
+  user-select: none;
+}
+
+.profileDetailsSummary::-webkit-details-marker {
+  display: none;
+}
+
+.profileDetailsSummary::before {
+  content: "▸ ";
+  display: inline-block;
+  width: 1em;
+  transition: transform 0.2s ease;
+}
+
+.profileDetails[open] .profileDetailsSummary::before {
+  transform: rotate(90deg);
+}
+
+.profileDetailsSummary:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.profileBadgesList {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid #3a3a3c;
+}
+
+.profileBadgesEmpty {
+  margin: 0;
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+.profileBadgeCard {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #3a3a3c;
+  background: #1a1a1b;
+}
+
+.profileBadgeCardEarned {
+  border-color: rgba(106, 170, 100, 0.4);
+  background: rgba(106, 170, 100, 0.08);
+}
+
+.profileBadgeCardLocked {
+  opacity: 0.75;
+}
+
+.profileBadgeCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.profileBadgeCardHeader .badgeIcon {
+  color: #c9b458;
+  flex-shrink: 0;
+}
+
+.profileBadgeName {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.profileBadgeEarnedLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6aaa64;
+}
+
+.profileBadgeDesc {
+  font-size: 12px;
+  color: #9ca3af;
+  line-height: 1.4;
+}
+
 @media (max-width: 768px) {
   .profileRoot {
     padding: 16px;

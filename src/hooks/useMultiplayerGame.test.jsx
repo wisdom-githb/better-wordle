@@ -90,7 +90,18 @@ vi.mock('firebase/database', () => {
 
   const get = async (refObj) => makeSnapshot(refObj.path);
 
-  return { ref, set, update, remove, onValue, off, get, __dbData: dbData };
+  const runTransaction = async (refObj, transactionUpdate) => {
+    // Simple transaction mock - just call the update function
+    const currentData = dbData[refObj.path] || null;
+    const newData = transactionUpdate(currentData);
+    if (newData !== null) {
+      dbData[refObj.path] = newData;
+      trigger(refObj.path);
+    }
+    return { committed: true, snapshot: makeSnapshot(refObj.path) };
+  };
+
+  return { ref, set, update, remove, onValue, off, get, runTransaction, __dbData: dbData };
 });
 
 // Auth/database config mock so the hook can read currentUser
@@ -185,19 +196,14 @@ describe('useMultiplayerGame – DB operations', () => {
   });
 
   it('startGame (standard) sets status, solution(s) and clears round fields', async () => {
-    __dbData['multiplayer/ABC123'] = {
+    __dbData['multiplayer/123456'] = {
       hostId: 'host-1',
-      guestId: 'guest-1',
-      hostReady: true,
-      guestReady: true,
       status: 'waiting',
       speedrun: false,
       winner: 'host',
-      hostRematch: true,
-      guestRematch: true,
       players: {
-        'host-1': { id: 'host-1', name: 'Host', isHost: true, ready: true, guesses: ['OLD'] },
-        'guest-1': { id: 'guest-1', name: 'Guest', isHost: false, ready: true, guesses: ['OLD'] },
+        'host-1': { id: 'host-1', name: 'Host', isHost: true, ready: true, guesses: ['OLD'], rematch: true },
+        'guest-1': { id: 'guest-1', name: 'Guest', isHost: false, ready: true, guesses: ['OLD'], rematch: true },
       },
     };
 
@@ -206,17 +212,15 @@ describe('useMultiplayerGame – DB operations', () => {
     render(<HookWrapper />);
 
     await act(async () => {
-      await hookResult.startGame('ABC123', 'apple');
+      await hookResult.startGame('123456', 'apple');
     });
 
-    const stored = __dbData['multiplayer/ABC123'];
+    const stored = __dbData['multiplayer/123456'];
     expect(stored.status).toBe('playing');
     expect(stored.solution).toBe('apple');
     expect(stored.solutions).toEqual(['apple']);
     expect(stored.speedrun).toBe(false);
     expect(stored.winner).toBeNull();
-    expect(stored.hostRematch).toBe(false);
-    expect(stored.guestRematch).toBe(false);
     // Players map guesses should be cleared
     expect(stored.players['host-1'].guesses).toEqual([]);
     expect(stored.players['guest-1'].guesses).toEqual([]);
@@ -225,11 +229,8 @@ describe('useMultiplayerGame – DB operations', () => {
   });
 
   it('startGame respects explicit speedrun override and nulls currentTurn', async () => {
-    __dbData['multiplayer/SPRUN1'] = {
+    __dbData['multiplayer/234567'] = {
       hostId: 'host-1',
-      guestId: 'guest-1',
-      hostReady: true,
-      guestReady: true,
       status: 'waiting',
       speedrun: false,
       players: {
@@ -243,10 +244,10 @@ describe('useMultiplayerGame – DB operations', () => {
     render(<HookWrapper />);
 
     await act(async () => {
-      await hookResult.startGame('SPRUN1', ['apple', 'other'], { speedrun: true });
+      await hookResult.startGame('234567', ['apple', 'other'], { speedrun: true });
     });
 
-    const stored = __dbData['multiplayer/SPRUN1'];
+    const stored = __dbData['multiplayer/234567'];
     expect(stored.speedrun).toBe(true);
     expect(stored.currentTurn).toBeUndefined();
     expect(stored.solutions).toEqual(['apple', 'other']);
@@ -286,7 +287,7 @@ describe('useMultiplayerGame – DB operations', () => {
   it('submitGuess (speedrun) sets per-player time only after all solutions solved', async () => {
     vi.useFakeTimers();
 
-    __dbData['multiplayer/SPRUN2'] = {
+    __dbData['multiplayer/012345'] = {
       hostId: 'host-1',
       guestId: 'guest-1',
       status: 'playing',
@@ -307,23 +308,23 @@ describe('useMultiplayerGame – DB operations', () => {
     // First correct word – should not yet mark time because not all boards solved
     vi.setSystemTime(10_000);
     await act(async () => {
-      await hookResult.submitGuess('SPRUN2', 'APPLE', [2, 2, 2, 2, 2]);
+      await hookResult.submitGuess('012345', 'APPLE', [2, 2, 2, 2, 2]);
     });
-    expect(__dbData['multiplayer/SPRUN2'].players['host-1'].timeMs).toBeNull();
+    expect(__dbData['multiplayer/012345'].players['host-1'].timeMs).toBeNull();
 
     // Second correct word – now all boards solved, hostTimeMs should be set
     vi.setSystemTime(20_000);
     await act(async () => {
-      await hookResult.submitGuess('SPRUN2', 'OTHER', [2, 2, 2, 2, 2]);
+      await hookResult.submitGuess('012345', 'OTHER', [2, 2, 2, 2, 2]);
     });
 
-    const stored = __dbData['multiplayer/SPRUN2'];
+    const stored = __dbData['multiplayer/012345'];
     expect(stored.players['host-1'].guesses).toEqual(['APPLE', 'OTHER']);
     expect(stored.players['host-1'].timeMs).toBe(19_000); // now - startTime
   });
 
   it('switchTurn toggles between host and guest in non-speedrun mode', async () => {
-    __dbData['multiplayer/SWITCH'] = {
+    __dbData['multiplayer/901234'] = {
       hostId: 'host-1',
       guestId: 'guest-1',
       status: 'playing',
@@ -336,13 +337,13 @@ describe('useMultiplayerGame – DB operations', () => {
     render(<HookWrapper />);
 
     await act(async () => {
-      await hookResult.switchTurn('SWITCH');
+      await hookResult.switchTurn('901234');
     });
-    expect(__dbData['multiplayer/SWITCH'].currentTurn).toBe('guest');
+    expect(__dbData['multiplayer/901234'].currentTurn).toBe('guest');
   });
 
   it('setWinner marks winner and finished status', async () => {
-    __dbData['multiplayer/RESULT'] = {
+    __dbData['multiplayer/890123'] = {
       hostId: 'host-1',
       guestId: 'guest-1',
       status: 'playing',
@@ -354,17 +355,17 @@ describe('useMultiplayerGame – DB operations', () => {
     render(<HookWrapper />);
 
     await act(async () => {
-      await hookResult.setWinner('RESULT', 'host');
+      await hookResult.setWinner('890123', 'host');
     });
 
-    expect(__dbData['multiplayer/RESULT']).toMatchObject({
+    expect(__dbData['multiplayer/890123']).toMatchObject({
       status: 'finished',
       winner: 'host',
     });
   });
 
   it('requestRematch sets player rematch flag in players map', async () => {
-    __dbData['multiplayer/REM1'] = {
+    __dbData['multiplayer/456789'] = {
       hostId: 'host-1',
       guestId: 'guest-1',
       players: {
@@ -377,9 +378,9 @@ describe('useMultiplayerGame – DB operations', () => {
     auth.currentUser = { uid: 'host-1', displayName: 'Host' };
     render(<HookWrapper />);
     await act(async () => {
-      await hookResult.requestRematch('REM1');
+      await hookResult.requestRematch('456789');
     });
-    expect(__dbData['multiplayer/REM1'].players['host-1'].rematch).toBe(true);
+    expect(__dbData['multiplayer/456789'].players['host-1'].rematch).toBe(true);
 
     cleanup();
 
@@ -387,17 +388,16 @@ describe('useMultiplayerGame – DB operations', () => {
     auth.currentUser = { uid: 'guest-1', displayName: 'Guest' };
     render(<HookWrapper />);
     await act(async () => {
-      await hookResult.requestRematch('REM1');
+      await hookResult.requestRematch('456789');
     });
-    expect(__dbData['multiplayer/REM1'].players['guest-1'].rematch).toBe(true);
+    expect(__dbData['multiplayer/456789'].players['guest-1'].rematch).toBe(true);
   });
 
   it('setFriendRequestStatus sets pending and clears on declined', async () => {
-    __dbData['multiplayer/FRIEND1'] = {
+    __dbData['multiplayer/345678'] = {
       hostId: 'host-1',
-      guestId: 'guest-1',
       friendRequestStatus: null,
-      hostFriendRequestSent: false,
+      friendRequestFrom: null,
       guestFriendRequestSent: false,
     };
 
@@ -405,9 +405,9 @@ describe('useMultiplayerGame – DB operations', () => {
     auth.currentUser = { uid: 'host-1', displayName: 'Host' };
     render(<HookWrapper />);
     await act(async () => {
-      await hookResult.setFriendRequestStatus('FRIEND1', 'pending');
+      await hookResult.setFriendRequestStatus('345678', 'pending');
     });
-    expect(__dbData['multiplayer/FRIEND1']).toMatchObject({
+    expect(__dbData['multiplayer/345678']).toMatchObject({
       friendRequestStatus: 'pending',
       hostFriendRequestSent: true,
       guestFriendRequestSent: false,
@@ -419,9 +419,9 @@ describe('useMultiplayerGame – DB operations', () => {
     auth.currentUser = { uid: 'guest-1', displayName: 'Guest' };
     render(<HookWrapper />);
     await act(async () => {
-      await hookResult.setFriendRequestStatus('FRIEND1', 'declined');
+      await hookResult.setFriendRequestStatus('345678', 'declined');
     });
-    expect(__dbData['multiplayer/FRIEND1']).toMatchObject({
+    expect(__dbData['multiplayer/345678']).toMatchObject({
       friendRequestStatus: null,
       hostFriendRequestSent: false,
       guestFriendRequestSent: false,
@@ -437,7 +437,7 @@ describe('useMultiplayerGame – subscription / connection behaviour', () => {
       email: 'host@example.com',
     };
 
-    render(<HookWrapper gameCode="NOEXIST" isHost={true} speedrun={false} />);
+    render(<HookWrapper gameCode="999999" isHost={true} speedrun={false} />);
 
     // Our firebase/database mock calls onValue synchronously on subscribe,
     // so the hook should immediately reflect the missing-game error.
@@ -463,15 +463,15 @@ describe('useMultiplayerGame – error paths', () => {
   });
 
   it('joinGame throws when game is already full', async () => {
-    __dbData['multiplayer/FULL01'] = {
+    __dbData['multiplayer/567890'] = {
       hostId: 'host-1',
       hostName: 'Host',
-      guestId: 'someone-else',
-      guestName: 'Other Guest',
-      hostReady: false,
-      guestReady: false,
       status: 'waiting',
       speedrun: false,
+      players: {
+        'host-1': { id: 'host-1', name: 'Host', isHost: true, ready: false },
+        'someone-else': { id: 'someone-else', name: 'Other Guest', isHost: false, ready: false },
+      },
     };
 
     auth.currentUser = {
@@ -483,18 +483,19 @@ describe('useMultiplayerGame – error paths', () => {
     render(<HookWrapper />);
 
     await act(async () => {
-      await expect(hookResult.joinGame('FULL01')).rejects.toThrow('Game is full');
+      await expect(hookResult.joinGame('567890')).rejects.toThrow('Game is full');
     });
   });
 
   it('startGame throws when called by non-host', async () => {
-    __dbData['multiplayer/START1'] = {
+    __dbData['multiplayer/678901'] = {
       hostId: 'host-1',
-      guestId: 'guest-1',
-      hostReady: true,
-      guestReady: true,
       status: 'waiting',
       speedrun: false,
+      players: {
+        'host-1': { id: 'host-1', name: 'Host', isHost: true, ready: true },
+        'guest-1': { id: 'guest-1', name: 'Guest', isHost: false, ready: true },
+      },
     };
 
     auth.currentUser = { uid: 'guest-1', displayName: 'Guest' };
@@ -502,18 +503,15 @@ describe('useMultiplayerGame – error paths', () => {
     render(<HookWrapper />);
 
     await act(async () => {
-      await expect(hookResult.startGame('START1', 'apple')).rejects.toThrow(
+      await expect(hookResult.startGame('678901', 'apple')).rejects.toThrow(
         'Only host can start the game',
       );
     });
   });
 
   it('startGame throws when both players are not ready', async () => {
-    __dbData['multiplayer/NOTREADY'] = {
+    __dbData['multiplayer/789012'] = {
       hostId: 'host-1',
-      guestId: 'guest-1',
-      hostReady: true,
-      guestReady: false,
       status: 'waiting',
       speedrun: false,
       players: {
@@ -527,7 +525,7 @@ describe('useMultiplayerGame – error paths', () => {
     render(<HookWrapper />);
 
     await act(async () => {
-      await expect(hookResult.startGame('NOTREADY', 'apple')).rejects.toThrow(
+      await expect(hookResult.startGame('789012', 'apple')).rejects.toThrow(
         'All players must be ready to start',
       );
     });

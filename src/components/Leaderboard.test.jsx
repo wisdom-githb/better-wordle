@@ -10,6 +10,11 @@ vi.mock('../hooks/useLeaderboard', () => ({
   useLeaderboard: vi.fn(),
 }));
 
+vi.mock('../hooks/useUserBadges', () => ({
+  useUserBadges: () => ({ userBadges: {}, loading: false, error: null }),
+  useBadgesForUser: () => ({ userBadges: {}, loading: false }),
+}));
+
 vi.mock('./FeedbackModal', () => ({
   default: () => null,
 }));
@@ -115,13 +120,13 @@ describe('Leaderboard component', () => {
 
     // First row: rank #1, Alice (You)
     expect(screen.getByText('#1')).toBeInTheDocument();
-    const aliceCell = screen.getByText('Alice');
-    expect(aliceCell).toBeInTheDocument();
-    expect(screen.getByText(/you\)/i)).toBeInTheDocument();
-
-    const aliceRow = aliceCell.closest('.leaderboardRow');
+    const aliceCells = screen.getAllByText(/Alice/);
+    expect(aliceCells.length).toBeGreaterThan(0);
+    const aliceRow = screen.getByText('#1').closest('.leaderboardRow');
     expect(aliceRow).not.toBeNull();
-    expect(aliceRow.className).toContain('leaderboardRowCurrent');
+    expect(aliceRow?.textContent).toMatch(/Alice/);
+    expect(screen.getByText(/you\)/i)).toBeInTheDocument();
+    expect(aliceRow?.className).toContain('leaderboardRowCurrent');
 
     // Second row: rank #2, Bob
     expect(screen.getByText('#2')).toBeInTheDocument();

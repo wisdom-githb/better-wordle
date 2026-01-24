@@ -1,4 +1,6 @@
 import React from 'react';
+import UserCardWithBadges from '../UserCardWithBadges';
+import { MAX_BOARDS } from '../../lib/gameConstants';
 import './MultiplayerWaitingRoom.css';
 
 export default function MultiplayerWaitingRoom({
@@ -19,6 +21,8 @@ export default function MultiplayerWaitingRoom({
   waitingTimeoutMs,
   initialBoards,
   onUpdateConfig,
+  roomName,
+  onUpdateRoomName,
 }) {
   const {
     status,
@@ -54,6 +58,31 @@ export default function MultiplayerWaitingRoom({
     : false;
 
   const [showFriendsList, setShowFriendsList] = React.useState(false);
+
+  const hostPlayer = playerEntries.find((p) => !!p.isHost);
+  const hostName = hostPlayer?.name || 'Host';
+  const defaultRoomName = `${hostName}'s room`;
+  const effectiveRoomName = roomName || defaultRoomName;
+  const [isEditingRoomName, setIsEditingRoomName] = React.useState(false);
+  const [roomNameDraft, setRoomNameDraft] = React.useState(effectiveRoomName);
+  React.useEffect(() => {
+    setRoomNameDraft(effectiveRoomName);
+  }, [effectiveRoomName]);
+
+  const handleRoomNameSave = () => {
+    if (!onUpdateRoomName || !isHost) return;
+    const trimmed = roomNameDraft.trim();
+    const toSave = trimmed || defaultRoomName;
+    if (toSave !== effectiveRoomName) {
+      onUpdateRoomName(toSave);
+    }
+    setIsEditingRoomName(false);
+  };
+
+  const handleRoomNameCancel = () => {
+    setRoomNameDraft(effectiveRoomName);
+    setIsEditingRoomName(false);
+  };
 
   // Game configuration for display.
   const boardsLive = Number.isFinite(gameState?.configBoards)
@@ -117,9 +146,51 @@ export default function MultiplayerWaitingRoom({
   return (
     <div className="waitingRoomRoot">
       <div className="waitingRoomCard">
-        <h2 className="waitingRoomTitle">
-          Multiplayer Room
-        </h2>
+        {isHost && onUpdateRoomName && isEditingRoomName ? (
+          <div className="waitingRoomTitleEdit">
+            <input
+              type="text"
+              value={roomNameDraft}
+              onChange={(e) => setRoomNameDraft(e.target.value)}
+              placeholder="Room name"
+              className="waitingRoomTitleInput"
+              aria-label="Room name"
+              autoFocus
+            />
+            <div className="waitingRoomTitleEditActions">
+              <button
+                type="button"
+                onClick={handleRoomNameCancel}
+                className="waitingRoomSecondaryButton waitingRoomTitleEditBtn"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRoomNameSave}
+                className="waitingRoomPrimaryButton waitingRoomTitleEditBtn"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="waitingRoomTitleRow">
+            <h2 className="waitingRoomTitle">
+              {effectiveRoomName}
+            </h2>
+            {isHost && onUpdateRoomName && (
+              <button
+                type="button"
+                onClick={() => setIsEditingRoomName(true)}
+                className="waitingRoomTitleEditLink"
+                aria-label="Edit room name"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+        )}
 
         {status === 'waiting' && (
           <div>
@@ -202,13 +273,13 @@ export default function MultiplayerWaitingRoom({
                         onChange={(e) =>
                           setBoardsDraft(
                             Math.min(
-                              32,
+                              MAX_BOARDS,
                               Math.max(1, parseInt(e.target.value, 10) || 1),
                             ),
                           )
                         }
                       >
-                        {Array.from({ length: 32 }, (_, i) => i + 1).map((n) => (
+                        {Array.from({ length: MAX_BOARDS }, (_, i) => i + 1).map((n) => (
                           <option key={n} value={n}>
                             {n}
                           </option>
@@ -342,11 +413,13 @@ export default function MultiplayerWaitingRoom({
                       className="waitingRoomPlayerCard"
                     >
                       <div className="waitingRoomPlayerInfo">
-                        <span className="waitingRoomPlayerName">
-                          {p.name || 'Player'}
-                          {isHostPlayer ? ' (Host)' : ''}
-                          {isCurrent ? ' (You)' : ''}
-                        </span>
+                        <UserCardWithBadges
+                          userId={p.id}
+                          username={p.name || 'Player'}
+                          isYou={isCurrent}
+                          badges={isHostPlayer ? [{ id: 'host', label: 'Host' }] : []}
+                          size="sm"
+                        />
                         {isOtherPlayer && (
                           <button
                             type="button"
@@ -431,9 +504,11 @@ export default function MultiplayerWaitingRoom({
                         key={friend.id}
                         className="waitingRoomInviteItem"
                       >
-                        <span className="waitingRoomInviteName">
-                          {friend.name}
-                        </span>
+                        <UserCardWithBadges
+                          userId={friend.id}
+                          username={friend.name}
+                          size="sm"
+                        />
                         <button
                           type="button"
                           onClick={() => onInviteFriend(friend)}

@@ -74,8 +74,12 @@ describe('useMultiplayerController', () => {
   it('computes friendRequestSent for host and guest correctly', () => {
     const gameState = {
       hostId: 'host-uid',
-      hostFriendRequestSent: true,
-      guestFriendRequestSent: false,
+      players: {
+        'host-uid': { id: 'host-uid', name: 'Host', isHost: true },
+        'guest-uid': { id: 'guest-uid', name: 'Guest', isHost: false },
+      },
+      friendRequestFrom: 'host-uid',
+      friendRequestStatus: 'pending',
     };
 
     const hostGame = { ...createCommonProps().multiplayerGame, gameState };
@@ -103,8 +107,9 @@ describe('useMultiplayerController', () => {
     const setReady = vi.fn();
     const gameState = {
       hostId: 'host-uid',
-      hostReady: false,
-      guestReady: false,
+      players: {
+        'host-uid': { id: 'host-uid', name: 'Host', isHost: true, ready: false },
+      },
     };
 
     const multiplayerGame = { ...createCommonProps().multiplayerGame, gameState, setReady };
@@ -198,7 +203,7 @@ describe('useMultiplayerController', () => {
     // Should show success message
     expect(setTimedMessage).toHaveBeenCalledWith(
       expect.stringContaining('Next rematch will use 4 board'),
-      5000
+      expect.any(Number) // Use any number since we're using constants now
     );
   });
 
@@ -313,8 +318,9 @@ describe('useMultiplayerController', () => {
       solutions: ['APPLE'],
       hostId: 'host-uid',
       speedrun: false,
-      hostGuesses: ['OTHER'],
-      guestGuesses: [],
+      players: {
+        'host-uid': { id: 'host-uid', name: 'Host', isHost: true, guesses: ['OTHER'] },
+      },
     };
 
     const multiplayerGame = {

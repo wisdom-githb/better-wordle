@@ -7,6 +7,11 @@ vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
 }));
 
+vi.mock('../hooks/useUserBadges', () => ({
+  useUserBadges: () => ({ userBadges: {}, loading: false, error: null }),
+  useBadgesForUser: () => ({ userBadges: {}, loading: false, error: null }),
+}));
+
 vi.mock('../hooks/useDailyResetTimer', () => ({
   useDailyResetTimer: vi.fn(),
 }));
@@ -45,7 +50,7 @@ describe('SiteHeader', () => {
     expect(screen.getByPlaceholderText(/email/i)).toBeInTheDocument();
   });
 
-  it('when user is present, shows Sign Out, Leaderboard, and username banner with Change username', () => {
+  it('when user is present, shows Sign Out, Leaderboard, and UserCard linking to profile', () => {
     useAuth.mockReturnValue({
       user: { displayName: 'Alice', email: 'alice@example.com' },
       signOut: vi.fn(),
@@ -58,8 +63,8 @@ describe('SiteHeader', () => {
     expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /sign in/i })).not.toBeInTheDocument();
 
-    expect(screen.getByText(/signed in as alice/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /change username/i })).toBeInTheDocument();
+    expect(screen.getByText(/alice/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /go to profile/i })).toBeInTheDocument();
   });
 
   it('home icon navigates to \/ and leaderboard button navigates to \/leaderboard', async () => {
@@ -79,7 +84,7 @@ describe('SiteHeader', () => {
     expect(navigateMock).toHaveBeenCalledWith('/leaderboard');
   });
 
-  it('Change username button navigates to \/profile when user is present', async () => {
+  it('UserCard (profile) button navigates to \/profile when user is present', async () => {
     const signOut = vi.fn();
     useAuth.mockReturnValue({
       user: { displayName: 'Bob', email: 'bob@example.com' },
@@ -91,8 +96,8 @@ describe('SiteHeader', () => {
 
     render(<SiteHeader onOpenFeedback={vi.fn()} onSignUpComplete={vi.fn()} />);
 
-    const changeUsernameButton = screen.getByRole('button', { name: /change username/i });
-    await user.click(changeUsernameButton);
+    const profileButton = screen.getByRole('button', { name: /go to profile/i });
+    await user.click(profileButton);
 
     expect(navigateMock).toHaveBeenCalledWith('/profile');
   });

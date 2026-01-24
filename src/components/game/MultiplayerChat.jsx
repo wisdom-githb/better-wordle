@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ref, onValue, push, set, query, limitToLast } from "firebase/database";
 import { database } from "../../config/firebase";
+import { logError } from "../../lib/errorUtils";
+import UserCardWithBadges from "../UserCardWithBadges";
 
 /**
  * Lightweight real-time chat tied to a specific multiplayer room.
@@ -120,10 +122,9 @@ export default function MultiplayerChat({ gameCode, authUser }) {
         }
       });
     } catch (err) {
-      // Best-effort only; surface error via console for debugging.
+      // Best-effort only; surface error via logging for debugging.
       // Multiplayer gameplay should not break if chat fails.
-      // eslint-disable-next-line no-console
-      console.error("Failed to send chat message", err);
+      logError(err, 'MultiplayerChat.handleSend');
     } finally {
       setIsSending(false);
     }
@@ -346,15 +347,12 @@ export default function MultiplayerChat({ gameCode, authUser }) {
                       }}
                     >
                       {!isMe && (
-                        <div
-                          style={{
-                            fontSize: 11,
-                            fontWeight: "bold",
-                            color: "#d1d5db",
-                            marginBottom: 2,
-                          }}
-                        >
-                          {m.name || "Player"}
+                        <div style={{ marginBottom: 2 }}>
+                          <UserCardWithBadges
+                            userId={m.uid}
+                            username={m.name || "Player"}
+                            size="sm"
+                          />
                         </div>
                       )}
                       <div>{m.text}</div>

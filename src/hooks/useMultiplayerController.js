@@ -2,6 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { loadWordLists } from '../lib/wordLists';
 import { getMaxTurns, scoreGuess } from '../lib/wordle';
 import { SeededRandom } from '../lib/dailyWords';
+import { clampBoards, clampPlayers } from '../lib/validation';
+import { MAX_BOARDS, ABSOLUTE_MAX_PLAYERS, DEFAULT_MAX_PLAYERS, MESSAGE_TIMEOUT_MS, LONG_MESSAGE_TIMEOUT_MS, VERIFICATION_MESSAGE_TIMEOUT_MS, CONFIG_MESSAGE_TIMEOUT_MS } from '../lib/gameConstants';
+import { getSolutionArray } from '../lib/multiplayerConfig';
+import { formatError, logError } from '../lib/errorUtils';
 
 /**
  * Central controller for multiplayer mode. Encapsulates:
@@ -109,93 +113,56 @@ export function useMultiplayerController({
     isMultiplayerConfigModalOpen,
   ]);
 
-  // Helper: derive a stable players array from gameState (or fall back to host/guest).
+  // Helper: derive a stable players array from gameState using players map only.
   const getPlayersArray = (gs) => {
-    if (!gs) return [];
-    if (gs.players && typeof gs.players === 'object') {
-      return Object.values(gs.players).map((p) => ({
-        id: p.id,
-        name: p.name,
-        isHost: !!p.isHost,
-        ready: !!p.ready,
-        guesses: Array.isArray(p.guesses) ? p.guesses : [],
-        timeMs: typeof p.timeMs === 'number' ? p.timeMs : null,
-        rematch: !!p.rematch,
-      }));
+    if (!gs || !gs.players || typeof gs.players !== 'object') {
+      return [];
     }
-
-    // Legacy fallback: synthesise players array from host/guest fields.
-    const players = [];
-    if (gs.hostId) {
-      players.push({
-        id: gs.hostId,
-        name: gs.hostName || 'Player 1',
-        isHost: true,
-        ready: !!gs.hostReady,
-        guesses: Array.isArray(gs.hostGuesses) ? gs.hostGuesses : [],
-        timeMs: typeof gs.hostTimeMs === 'number' ? gs.hostTimeMs : null,
-        rematch: !!gs.hostRematch,
-      });
-    }
-    if (gs.guestId) {
-      players.push({
-        id: gs.guestId,
-        name: gs.guestName || 'Player 2',
-        isHost: false,
-        ready: !!gs.guestReady,
-        guesses: Array.isArray(gs.guestGuesses) ? gs.guestGuesses : [],
-        timeMs: typeof gs.guestTimeMs === 'number' ? gs.guestTimeMs : null,
-        rematch: !!gs.guestRematch,
-      });
-    }
-    return players;
+    
+    return Object.values(gs.players).map((p) => ({
+      id: p.id,
+      name: p.name,
+      isHost: !!p.isHost,
+      ready: !!p.ready,
+      guesses: Array.isArray(p.guesses) ? p.guesses : [],
+      timeMs: typeof p.timeMs === 'number' ? p.timeMs : null,
+      rematch: !!p.rematch,
+    }));
   };
 
   const getCurrentPlayerGuesses = (gs) => {
-    if (!gs || !authUser) return [];
-    if (gs.players && gs.players[authUser.uid] && Array.isArray(gs.players[authUser.uid].guesses)) {
+    if (!gs || !authUser || !gs.players) return [];
+    if (gs.players[authUser.uid] && Array.isArray(gs.players[authUser.uid].guesses)) {
       return gs.players[authUser.uid].guesses;
     }
-    // Legacy fallback.
-    if (gs.hostId === authUser.uid) return gs.hostGuesses || [];
-    if (gs.guestId === authUser.uid) return gs.guestGuesses || [];
     return [];
   };
 
   const getOpponentGuesses = (gs) => {
-    if (!gs || !authUser) return [];
+    if (!gs || !authUser || !gs.players) return [];
     // For 2-player games, return the other player's guesses; for multi-player,
     // callers typically handle all opponents explicitly.
-    if (gs.players && typeof gs.players === 'object') {
-      const entries = Object.values(gs.players);
-      if (entries.length === 2) {
-        const other = entries.find((p) => p.id !== authUser.uid);
-        return other && Array.isArray(other.guesses) ? other.guesses : [];
-      }
+    const entries = Object.values(gs.players);
+    if (entries.length === 2) {
+      const other = entries.find((p) => p.id !== authUser.uid);
+      return other && Array.isArray(other.guesses) ? other.guesses : [];
     }
-    const isHost = gs.hostId === authUser.uid;
-    if (isHost) return gs.guestGuesses || [];
-    if (gs.guestId === authUser.uid) return gs.hostGuesses || [];
     return [];
   };
 
   const getPlayerCount = (gs) => {
-    if (!gs) return 0;
-    if (gs.players && typeof gs.players === 'object') {
-      return Object.keys(gs.players).length;
+    if (!gs || !gs.players || typeof gs.players !== 'object') {
+      return 0;
     }
-    let count = 0;
-    if (gs.hostId) count += 1;
-    if (gs.guestId) count += 1;
-    return count;
+    return Object.keys(gs.players).length;
   };
 
   // Derived friend-request state based on live gameState.
   const friendRequestSent = useMemo(() => {
     if (!isMultiplayer || !multiplayerGame.gameState || !authUser) return false;
     const gs = multiplayerGame.gameState;
-    const isPlayerHost = gs.hostId === authUser.uid;
-    return isPlayerHost ? !!gs.hostFriendRequestSent : !!gs.guestFriendRequestSent;
+    // Friend request status is now tracked via friendRequestFrom field
+    return gs.friendRequestFrom === authUser.uid && gs.friendRequestStatus === 'pending';
   }, [isMultiplayer, multiplayerGame.gameState, authUser]);
 
   // Track whether the LOCAL player has solved all of their boards in multiplayer.
@@ -235,7 +202,7 @@ export function useMultiplayerController({
       }
 
       if (!isVerifiedUser) {
-        setTimedMessage('You must verify your email or sign in with Google to play Multiplayer Mode.', 8000);
+        setTimedMessage('You must verify your email or sign in with Google to play Multiplayer Mode.', LONG_MESSAGE_TIMEOUT_MS);
         return;
       }
 
@@ -249,12 +216,12 @@ export function useMultiplayerController({
         // If host, create game (but only once per controller instance).
         if (isHost && !gameCode && !hasHostedGameRef.current) {
           hasHostedGameRef.current = true;
-          let maxPlayersForRoom = 2;
+          let maxPlayersForRoom = DEFAULT_MAX_PLAYERS;
           if (maxPlayersParam != null) {
             const parsed = parseInt(maxPlayersParam, 10);
             if (Number.isFinite(parsed)) {
               // Clamp to a small, reasonable upper bound for UI/layout.
-              maxPlayersForRoom = Math.max(2, Math.min(8, parsed));
+              maxPlayersForRoom = clampPlayers(parsed, DEFAULT_MAX_PLAYERS, ABSOLUTE_MAX_PLAYERS);
             }
           }
           const isPublicRoom = isPublicParam === 'true';
@@ -263,7 +230,7 @@ export function useMultiplayerController({
           if (boardsParam != null) {
             const parsedBoards = parseInt(boardsParam, 10);
             if (Number.isFinite(parsedBoards)) {
-              boardsForRoom = Math.max(1, Math.min(32, parsedBoards));
+              boardsForRoom = clampBoards(parsedBoards);
             }
           }
 
@@ -287,10 +254,11 @@ export function useMultiplayerController({
         if (!isHost && gameCode) {
           // Check if user is already part of the game via gameState
           if (multiplayerGame.gameState) {
-            const isAlreadyGuest = multiplayerGame.gameState.guestId === authUser.uid;
-            const isAlreadyHost = multiplayerGame.gameState.hostId === authUser.uid;
+            const players = multiplayerGame.gameState.players || {};
+            const isAlreadyInGame = players[authUser.uid] || 
+                                   multiplayerGame.gameState.hostId === authUser.uid;
 
-            if (isAlreadyGuest || isAlreadyHost) {
+            if (isAlreadyInGame) {
               // User is already part of the game, no need to join
               setIsLoading(false);
             } else {
@@ -323,7 +291,9 @@ export function useMultiplayerController({
         if (isHost && !gameCode) {
           hasHostedGameRef.current = false;
         }
-        setTimedMessage(error.message || 'Failed to initialize multiplayer game', 5000);
+        const errorMessage = formatError(error) || 'Failed to initialize multiplayer game';
+        logError(error, 'useMultiplayerController.initMultiplayer');
+        setTimedMessage(errorMessage, MESSAGE_TIMEOUT_MS);
         setIsLoading(false);
       }
     }
@@ -370,25 +340,24 @@ export function useMultiplayerController({
         solution,
         solutions,
         hostId,
-        hostGuesses = [],
-        guestGuesses = [],
         players,
       } = gameState;
       const isPlayerHost = hostId === authUser.uid;
       const isSpeedrun = gameState.speedrun || false;
 
       const playersMap = players || null;
-      const playerIds = playersMap ? Object.keys(playersMap) : [];
-      const playerCount = playersMap ? playerIds.length : 0;
-      const isMultiRoom = !!playersMap && playerCount > 2;
+      
+      if (!playersMap) {
+        // All games now use the players map
+        return;
+      }
+      
+      const playerIds = Object.keys(playersMap);
+      const playerCount = playerIds.length;
+      const isMultiRoom = playerCount > 2;
 
       // Normalize to an array of solutions for multi-board support
-      const solutionArray =
-        Array.isArray(solutions) && solutions.length > 0
-          ? solutions
-          : solution
-          ? [solution]
-          : [];
+      const solutionArray = getSolutionArray(gameState);
       const boardCount = solutionArray.length || 1;
 
       // Initialize game boards when game starts
@@ -410,13 +379,11 @@ export function useMultiplayerController({
         setIsUnlimited(isSpeedrun);
 
         // Update boards with the LOCAL player's guesses (one board per solution).
-        // For true multi-player rooms (3+), derive guesses from the players map.
-        let myGuesses = [];
-        if (playersMap && playersMap[authUser.uid]) {
-          myGuesses = playersMap[authUser.uid].guesses || [];
-        } else {
-          myGuesses = isPlayerHost ? hostGuesses : guestGuesses;
-        }
+        // All games now use the players map.
+        const playerRecord = playersMap[authUser.uid];
+        const myGuesses = playerRecord && Array.isArray(playerRecord.guesses) 
+          ? playerRecord.guesses 
+          : [];
 
         const newBoards = solutionArray.map((sol, idx) => {
           const prevBoard = boards[idx];
@@ -581,34 +548,29 @@ export function useMultiplayerController({
   const handleMultiplayerReady = useCallback(async () => {
     if (!gameCode) return;
     if (!isVerifiedUser) {
-      setTimedMessage('You must verify your email or sign in with Google to play Multiplayer Mode.', 8000);
+      setTimedMessage('You must verify your email or sign in with Google to play Multiplayer Mode.', VERIFICATION_MESSAGE_TIMEOUT_MS);
       return;
     }
     try {
       const gameState = multiplayerGame.gameState;
-      let currentReady = false;
-
-      // For multiplayer rooms with players map, check per-player ready status.
-      if (gameState?.players && gameState.players[authUser?.uid]) {
-        currentReady = gameState.players[authUser.uid].ready || false;
-      }
-      // Fall back to legacy host/guest ready flags for true 2-player games.
-      else if (gameState?.hostId === authUser?.uid) {
-        currentReady = gameState.hostReady || false;
-      } else if (gameState?.guestId === authUser?.uid) {
-        currentReady = gameState.guestReady || false;
+      if (!gameState || !gameState.players || !gameState.players[authUser?.uid]) {
+        throw new Error('Player not in game');
       }
 
+      // All games now use the players map
+      const currentReady = gameState.players[authUser.uid].ready || false;
       await multiplayerGame.setReady(gameCode, !currentReady);
     } catch (error) {
-      setTimedMessage(error.message || 'Failed to set ready status', 5000);
+      const errorMessage = formatError(error) || 'Failed to set ready status';
+      logError(error, 'useMultiplayerController.handleMultiplayerReady');
+      setTimedMessage(errorMessage, MESSAGE_TIMEOUT_MS);
     }
   }, [gameCode, multiplayerGame, authUser, isVerifiedUser, setTimedMessage]);
 
   const handleMultiplayerStart = useCallback(async () => {
     if (!gameCode) return;
     if (!isVerifiedUser) {
-      setTimedMessage('You must verify your email or sign in with Google to play Multiplayer Mode.', 8000);
+      setTimedMessage('You must verify your email or sign in with Google to play Multiplayer Mode.', VERIFICATION_MESSAGE_TIMEOUT_MS);
       return;
     }
     try {
@@ -652,7 +614,9 @@ export function useMultiplayerController({
     try {
       await cancelSentChallenge(gameCode);
     } catch (error) {
-      setTimedMessage(error.message || 'Failed to cancel challenge', 5000);
+      const errorMessage = formatError(error) || 'Failed to cancel challenge';
+      logError(error, 'useMultiplayerController.handleCancelHostedChallenge');
+      setTimedMessage(errorMessage, MESSAGE_TIMEOUT_MS);
     }
     navigate('/');
   }, [gameCode, cancelSentChallenge, navigate, setTimedMessage]);
@@ -733,7 +697,7 @@ export function useMultiplayerController({
       await multiplayerGame.setNextGameConfig(gameCode, config);
     } catch (err) {
       console.error('Failed to save config to Firebase:', err);
-      setTimedMessage('Failed to save configuration', 3000);
+      setTimedMessage('Failed to save configuration', CONFIG_MESSAGE_TIMEOUT_MS);
       return;
     }
     
@@ -741,7 +705,7 @@ export function useMultiplayerController({
     const modeLabel = multiplayerConfigSpeedrunDraft ? 'speedrun' : 'standard';
     setTimedMessage(
       `Next rematch will use ${clampedBoards} board${clampedBoards > 1 ? 's' : ''} (${modeLabel} mode).`,
-      5000
+      MESSAGE_TIMEOUT_MS
     );
   }, [
     gameCode,
@@ -760,7 +724,7 @@ export function useMultiplayerController({
     
     const isPlayerHost = gameState.hostId === authUser.uid;
     if (!isPlayerHost) {
-      setTimedMessage('Only the host can start a rematch', 5000);
+      setTimedMessage('Only the host can start a rematch', MESSAGE_TIMEOUT_MS);
       return;
     }
     
@@ -821,8 +785,9 @@ export function useMultiplayerController({
       setCurrentGuess('');
       setIsLoading(false);
     } catch (err) {
-      console.error('Failed to start rematch:', err);
-      setTimedMessage(err.message || 'Failed to start rematch', 5000);
+      const errorMessage = formatError(err) || 'Failed to start rematch';
+      logError(err, 'useMultiplayerController.handleRematchStart');
+      setTimedMessage(errorMessage, MESSAGE_TIMEOUT_MS);
     }
   }, [
     gameCode,

@@ -9,6 +9,10 @@ vi.mock('firebase/database', () => ({
   ref: vi.fn(),
   onValue: vi.fn(),
   off: vi.fn(),
+  query: vi.fn((ref) => ref),
+  orderByChild: vi.fn(() => ({})),
+  startAt: vi.fn(() => ({})),
+  limitToLast: vi.fn(() => ({})),
 }));
 
 vi.mock('../config/firebase', () => ({

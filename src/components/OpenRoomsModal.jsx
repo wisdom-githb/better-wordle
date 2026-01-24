@@ -178,6 +178,7 @@ export default function OpenRoomsModal({ isOpen, onRequestClose, adminMode = fal
                 : 1;
               const speedrun = !!data.speedrun;
               const hostName = data.hostName || (playersMap && playersMap[data.hostId]?.name) || "Host";
+              const roomDisplayName = data.roomName || `${hostName}'s room`;
 
               const createdAt = typeof data.createdAt === "number" ? data.createdAt : null;
               const ageMs = createdAt ? Math.max(0, nowMs - createdAt) : null;
@@ -205,7 +206,7 @@ export default function OpenRoomsModal({ isOpen, onRequestClose, adminMode = fal
                 >
                   <div className="openRoomsItemMain">
                     <div className="openRoomsItemTitle">
-                      {hostName}'s room
+                      {roomDisplayName}
                     </div>
                     <div className="openRoomsItemMeta">
                       {playerCount}/{maxPlayers} players · {boards} board

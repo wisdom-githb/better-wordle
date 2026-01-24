@@ -7,6 +7,7 @@ vi.mock('../lib/persist', () => ({
 }));
 
 vi.mock('../lib/wordle', () => ({
+  WORD_LENGTH: 5,
   getMaxTurns: vi.fn(() => 10),
   createBoardState: vi.fn((solution) => ({ solution })),
 }));
@@ -25,6 +26,8 @@ vi.mock('../lib/dailyWords', () => ({
 
 vi.mock('../lib/gameConstants', () => ({
   FLIP_COMPLETE_MS: 100,
+  DEFAULT_MAX_TURNS: 6,
+  LONG_MESSAGE_TIMEOUT_MS: 10000,
 }));
 
 // useSinglePlayerGame now consults useAuth to decide whether to load/save
@@ -33,10 +36,18 @@ vi.mock('./useAuth', () => ({
   useAuth: () => ({ user: null, loading: false }),
 }));
 
+vi.mock('../lib/singlePlayerStore', () => ({
+  loadSolvedState: vi.fn(async () => null),
+  loadGameState: vi.fn(async () => null),
+  saveSolvedState: vi.fn(async () => {}),
+  saveGameState: vi.fn(async () => {}),
+}));
+
 import { loadJSON } from '../lib/persist';
 import { loadWordLists } from '../lib/wordLists';
 import { selectDailyWords } from '../lib/dailyWords';
 import { getMaxTurns, createBoardState } from '../lib/wordle';
+import { loadGameState, loadSolvedState } from '../lib/singlePlayerStore';
 import { useSinglePlayerGame } from './useSinglePlayerGame';
 
 beforeEach(() => {
@@ -159,11 +170,13 @@ describe('useSinglePlayerGame', () => {
       { isSolved: true, lastRevealId: null },
     ];
 
-    /** @type {any} */ (loadJSON).mockReturnValueOnce({
+    const solvedState = {
       allSolved: true,
       boards: solvedBoards,
       stageElapsedMs: 1234,
-    });
+    };
+
+    /** @type {any} */ (loadSolvedState).mockResolvedValueOnce(solvedState);
 
     const setBoards = vi.fn();
     const setCurrentGuess = vi.fn();
@@ -249,7 +262,8 @@ describe('useSinglePlayerGame', () => {
       revealId: 3,
     };
 
-    /** @type {any} */ (loadJSON).mockReturnValueOnce(savedGameState); // saved game state
+    // Mock loadGameState to return the saved game state
+    /** @type {any} */ (loadGameState).mockResolvedValueOnce(savedGameState);
 
     const setBoards = vi.fn();
     const setCurrentGuess = vi.fn();

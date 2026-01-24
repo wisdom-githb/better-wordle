@@ -11,7 +11,8 @@ import {
   formatElapsed,
   sumMs,
 } from "../../lib/wordle";
-import { FLIP_COMPLETE_MS } from "../../lib/gameConstants";
+import { useGameEngine } from "../../hooks/useGameEngine";
+import { FLIP_COMPLETE_MS, MESSAGE_TIMEOUT_MS, DEFAULT_MAX_TURNS } from "../../lib/gameConstants";
 import { generateShareText, buildMarathonShareTotals } from "../../lib/gameUtils";
 import { getCurrentDateString } from "../../lib/dailyWords";
 import { submitSpeedrunScore } from "../../hooks/useLeaderboard";
@@ -25,6 +26,9 @@ import { useKeyboard } from "../../hooks/useKeyboard";
 import { useBoardLayout } from "../../hooks/useBoardLayout";
 import { useStageTimer } from "../../hooks/useStageTimer";
 import { loadStreakRemoteAware, saveStreakRemoteAware, saveSolvedState } from "../../lib/singlePlayerStore";
+import { grantBadge } from "../../lib/badgeService";
+import { clampBoards } from "../../lib/validation";
+import { logError } from "../../lib/errorUtils";
 import SinglePlayerGameView from "./SinglePlayerGameView";
 import "../../Game.css";
 
@@ -62,12 +66,10 @@ export default function GameSinglePlayer({
       const userRef = ref(database, `users/${authUser.uid}/${subPath}`);
       set(userRef, value).catch((err) => {
         // Server persistence failures should never break gameplay.
-        // eslint-disable-next-line no-console
-        console.error("Failed to persist single-player state to server", err);
+        logError(err, 'GameSinglePlayer.persistForUser');
       });
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("Failed to queue single-player state to server", err);
+      logError(err, 'GameSinglePlayer.persistForUser');
     }
   };
 
@@ -82,8 +84,7 @@ export default function GameSinglePlayer({
   if (mode !== "marathon" && boardsParam) {
     const n = parseInt(boardsParam, 10);
     if (Number.isFinite(n)) {
-      const clamped = Math.max(1, Math.min(32, n));
-      parsedBoards = clamped;
+      parsedBoards = clampBoards(n);
     }
   }
 
@@ -92,9 +93,12 @@ export default function GameSinglePlayer({
   const [boards, setBoards] = useState([]);
   const [currentGuess, setCurrentGuess] = useState("");
   const currentGuessRef = useRef("");
-  const [maxTurns, setMaxTurns] = useState(6);
+  const [maxTurns, setMaxTurns] = useState(DEFAULT_MAX_TURNS);
   const [allowedSet, setAllowedSet] = useState(new Set());
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Initialize game engine with allowed words
+  const gameEngine = useGameEngine({ allowedWords: allowedSet });
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   const [showPopup, setShowPopup] = useState(false);
@@ -113,6 +117,8 @@ export default function GameSinglePlayer({
   // final marathon stage.
   const [forceCanShareAfterPopup, setForceCanShareAfterPopup] = useState(false);
 
+  // NOTE: This ref holds a solved state snapshot that's loaded once and doesn't change.
+  // Using a ref prevents unnecessary re-renders when the value is set.
   const savedSolvedStateRef = useRef(null);
 
   const [isUnlimited, setIsUnlimited] = useState(false);
@@ -120,9 +126,16 @@ export default function GameSinglePlayer({
   const [revealId, setRevealId] = useState(0);
   const [isFlipping, setIsFlipping] = useState(false);
 
+  // NOTE: This ref holds DOM element references for boards.
+  // Refs are appropriate for DOM references as they don't need to trigger re-renders.
   const boardRefs = useRef({});
   const [showBoardSelector, setShowBoardSelector] = useState(false);
 
+  // NOTE: These refs are used instead of state to avoid unnecessary re-renders.
+  // They track internal game state that doesn't need to trigger UI updates.
+  // - committedRef: Marathon stage commit flag (doesn't affect UI)
+  // - committedStageMsRef: Marathon stage time (only used in calculations)
+  // - hasStartedStageTimerRef: Timer start flag (prevents duplicate starts)
   const committedRef = useRef(false);
   const committedStageMsRef = useRef(0);
   const hasStartedStageTimerRef = useRef(false);
@@ -155,7 +168,7 @@ export default function GameSinglePlayer({
       const info = loadStreak(mode, speedrunEnabled);
       setStreakLabel(buildStreakLabel(mode, speedrunEnabled, info));
     } catch (err) {
-      console.error("Failed to load streak info", err);
+      logError(err, 'GameSinglePlayer.loadStreak');
       setStreakLabel(null);
     }
   }, [mode, speedrunEnabled, numBoards]);
@@ -179,8 +192,7 @@ export default function GameSinglePlayer({
         if (!isMounted || !remoteAware) return;
         setStreakLabel(buildStreakLabel(mode, speedrunEnabled, remoteAware));
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error("Failed to load streak for game", err);
+        logError(err, 'GameSinglePlayer.loadStreakRemoteAware');
       }
     })();
 
@@ -216,6 +228,8 @@ export default function GameSinglePlayer({
 
   // Keep an always-fresh ref of the current guess so that even callbacks
   // captured by mocks or older renders (e.g. in tests) see the latest value.
+  // NOTE: This ref is necessary because keyboard handlers are called with callbacks
+  // that may have stale closures. The ref ensures we always access the latest value.
   useEffect(() => {
     currentGuessRef.current = currentGuess;
   }, [currentGuess]);
@@ -340,14 +354,14 @@ export default function GameSinglePlayer({
     numBoards
   );
 
+  // Use game engine for solved count (can be replaced with gameEngine.countSolvedBoards(boards))
   const solvedCount = useMemo(() => boards.filter((b) => b.isSolved).length, [boards]);
 
+  // Use game engine for finished check (can be replaced with gameEngine.checkAllBoardsFinished)
   const finished = useMemo(() => {
     if (boards.length === 0) return false;
-    return isUnlimited
-      ? boards.every((b) => b.isSolved)
-      : boards.every((b) => b.isSolved || b.isDead);
-  }, [boards, isUnlimited]);
+    return gameEngine.checkAllBoardsFinished(boards, maxTurns, isUnlimited);
+  }, [boards, isUnlimited, maxTurns, gameEngine]);
 
   // Mark the stage as fully completed the first time the end-of-game popup
   // is shown. This happens both when the player solves all boards and when
@@ -359,9 +373,10 @@ export default function GameSinglePlayer({
     }
   }, [hasCompletedStage, finished, showPopup]);
 
+  // Use game engine for all solved check
   const allSolved = useMemo(
-    () => boards.length > 0 && boards.every((b) => b.isSolved),
-    [boards]
+    () => gameEngine.checkAllBoardsSolved(boards),
+    [boards, gameEngine]
   );
 
   const isInputBlocked = useCallback(() => {
@@ -428,37 +443,36 @@ export default function GameSinglePlayer({
       return;
     }
 
-    if (!allowedSet.has(guess)) {
-      setTimedMessage("Not in word list.", 5000);
+    // Use game engine for guess validation
+    const validation = gameEngine.validateGuess(guess, allowedSet);
+    if (!validation.isValid) {
+      setTimedMessage(validation.error || "Not in word list.", MESSAGE_TIMEOUT_MS);
       currentGuessRef.current = "";
       setCurrentGuess("");
       return;
     }
 
-    const allOver = isUnlimited
-      ? boards.every((b) => b.isSolved)
-      : boards.every((b) => b.isSolved || b.isDead);
-
+    // Use game engine to check if all boards are finished
+    const allOver = gameEngine.checkAllBoardsFinished(boards, maxTurns, isUnlimited);
     if (allOver) return;
 
     const nextRevealId = revealId + 1;
 
+    // Use game engine to process guesses for all boards
     const newBoards = boards.map((board) => {
-      if (board.isSolved) return board;
-      if (!isUnlimited && board.isDead) return board;
+      // Skip processing for solved or dead boards
+      if (gameEngine.isBoardSolved(board)) return board;
+      if (!isUnlimited && gameEngine.isBoardDead(board, maxTurns)) return board;
 
-      const colors = board.solution ? scoreGuess(guess, board.solution) : [];
-
-      const prevGuesses = Array.isArray(board.guesses) ? board.guesses : [];
-      const guesses = [...prevGuesses, { word: guess, colors }];
-
-      const isSolvedNow = guess === board.solution;
-      const isDeadNow = !isUnlimited && !isSolvedNow && guesses.length >= maxTurns;
-
-      const hadNewGuess = guesses.length > prevGuesses.length;
-      const lastRevealId = hadNewGuess ? nextRevealId : board.lastRevealId ?? null;
-
-      return { ...board, guesses, isSolved: isSolvedNow, isDead: isDeadNow, lastRevealId };
+      try {
+        // Use game engine's processGuess method
+        const updatedBoard = gameEngine.processGuess(board, guess, maxTurns, isUnlimited, nextRevealId);
+        return updatedBoard;
+      } catch (err) {
+        // If processing fails, return board unchanged
+        logError(err, 'GameSinglePlayer.submitGuess.processGuess');
+        return board;
+      }
     });
 
     setBoards(newBoards);
@@ -473,11 +487,9 @@ export default function GameSinglePlayer({
       setIsFlipping(false);
     }, FLIP_COMPLETE_MS);
 
-    const finishedNow = isUnlimited
-      ? newBoards.every((b) => b.isSolved)
-      : newBoards.every((b) => b.isSolved || b.isDead);
-
-    const allSolvedNow = newBoards.every((b) => b.isSolved);
+    // Use game engine for finished and solved checks
+    const finishedNow = gameEngine.checkAllBoardsFinished(newBoards, maxTurns, isUnlimited);
+    const allSolvedNow = gameEngine.checkAllBoardsSolved(newBoards);
 
     if (finishedNow && !allSolvedNow && !isUnlimited) {
       freezeStageTimer();
@@ -550,9 +562,15 @@ export default function GameSinglePlayer({
 
             setStreakLabel(buildStreakLabel(mode, speedrunEnabled, streakInfo));
           } catch (err) {
-            console.error("Failed to update streak after win", err);
+            logError(err, 'GameSinglePlayer.updateStreak');
           }
         })();
+      }
+
+      if (mode === "daily" && authUser) {
+        grantBadge({ database, uid: authUser.uid, badgeId: "daily_player" }).catch((err) => {
+          logError(err, 'GameSinglePlayer.grantBadge');
+        });
       }
 
       const shouldSubmit =
@@ -574,7 +592,7 @@ export default function GameSinglePlayer({
           finalTimeMs,
           0
         ).catch((err) => {
-          console.error("Failed to submit score to leaderboard:", err);
+          logError(err, 'GameSinglePlayer.submitSpeedrunScore');
         });
       }
 
@@ -778,7 +796,7 @@ export default function GameSinglePlayer({
       return buildMarathonShareTotals(marathonLevels, speedrunEnabled, maxTurns);
     } catch (err) {
       // Fall back to current-stage numbers if aggregation fails for any reason.
-      console.error("Failed to aggregate marathon share totals", err);
+      logError(err, 'GameSinglePlayer.buildMarathonShareTotals');
       return null;
     }
   }, [

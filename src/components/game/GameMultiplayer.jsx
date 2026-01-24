@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useRef, useState, useEffect } from "react"
 import { useSearchParams, useNavigate, useParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { WORD_LENGTH, buildLetterMapFromGuesses, getTurnsUsed, formatElapsed } from "../../lib/wordle";
-import { FLIP_COMPLETE_MS } from "../../lib/gameConstants";
+import { FLIP_COMPLETE_MS, MAX_BOARDS, TIMER_INTERVAL_MS, DEFAULT_MAX_TURNS } from "../../lib/gameConstants";
 import { useAuth } from "../../hooks/useAuth";
 import { useMultiplayerGame } from "../../hooks/useMultiplayerGame";
 import { useMultiplayerController } from "../../hooks/useMultiplayerController";
@@ -10,6 +10,7 @@ import { useTimedMessage } from "../../hooks/useTimedMessage";
 import { useShare } from "../../hooks/useShare";
 import { useKeyboard } from "../../hooks/useKeyboard";
 import { useBoardLayout } from "../../hooks/useBoardLayout";
+import { clampBoards } from "../../lib/validation";
 import GameToast from "./GameToast";
 import MultiplayerRoomConfigModal from "./MultiplayerRoomConfigModal";
 import MultiplayerGameView from "./MultiplayerGameView";
@@ -20,7 +21,7 @@ import Keyboard from "../Keyboard";
 import "../../Game.css";
 import { MULTIPLAYER_WAITING_TIMEOUT_MS } from "../../lib/multiplayerConfig";
 
-const MULTIPLAYER_BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
+const MULTIPLAYER_BOARD_OPTIONS = Array.from({ length: MAX_BOARDS }, (_, i) => i + 1);
 
 export default function GameMultiplayer() {
   const [searchParams] = useSearchParams();
@@ -70,6 +71,11 @@ export default function GameMultiplayer() {
 
   const [showPopup, setShowPopup] = useState(false);
   const [showOutOfGuesses, setShowOutOfGuesses] = useState(false);
+  // NOTE: These refs are used for coordination between effects to prevent infinite loops.
+  // They don't need to trigger re-renders, so refs are appropriate.
+  // - endingGameRef: Prevents multiple game end triggers
+  // - popupClosedRef: Tracks popup state to prevent effect loops
+  // - shouldShowPopupAfterFlipRef: Coordinates popup display with flip animation
   const endingGameRef = useRef(false);
   const popupClosedRef = useRef(false);
   const shouldShowPopupAfterFlipRef = useRef(false);
@@ -79,6 +85,8 @@ export default function GameMultiplayer() {
   const [revealId, setRevealId] = useState(0);
   const [isFlipping, setIsFlipping] = useState(false);
 
+  // NOTE: This ref holds DOM element references for boards.
+  // Refs are appropriate for DOM references as they don't need to trigger re-renders.
   const boardRefs = useRef({});
   const [showBoardSelector, setShowBoardSelector] = useState(false);
 
@@ -91,7 +99,7 @@ export default function GameMultiplayer() {
     if (!multiplayerGame.gameState?.speedrun) return;
     const id = setInterval(() => {
       setMultiplayerNowMs(Date.now());
-    }, 100);
+    }, TIMER_INTERVAL_MS);
     return () => clearInterval(id);
   }, [multiplayerGame.gameState?.speedrun]);
 
@@ -110,6 +118,8 @@ export default function GameMultiplayer() {
 
   // Keep an always-fresh ref of the current guess so that even callbacks
   // captured by mocks or older renders (e.g. in tests) see the latest value.
+  // NOTE: This ref is necessary because keyboard handlers are called with callbacks
+  // that may have stale closures. The ref ensures we always access the latest value.
   useEffect(() => {
     currentGuessRef.current = currentGuess;
   }, [currentGuess]);
@@ -132,7 +142,7 @@ export default function GameMultiplayer() {
     if (boardsParam != null) {
       const parsed = parseInt(boardsParam, 10);
       if (Number.isFinite(parsed)) {
-        return Math.max(1, Math.min(32, parsed));
+        return clampBoards(parsed);
       }
     }
 
@@ -446,6 +456,19 @@ export default function GameMultiplayer() {
     [gameCode, multiplayerGame, setTimedMessage]
   );
 
+  const handleUpdateRoomName = useCallback(
+    async (name) => {
+      if (!gameCode) return;
+      try {
+        await multiplayerGame.setRoomName(gameCode, name);
+        setTimedMessage("Room name updated.", 3000);
+      } catch (error) {
+        setTimedMessage(error.message || "Failed to update room name", 5000);
+      }
+    },
+    [gameCode, multiplayerGame, setTimedMessage]
+  );
+
   const pageTitle = "Multiplayer Wordle-Style Battles – Game | Better Wordle";
   const pageDescription =
     "Play Better Wordle Multiplayer Mode, challenge friends with custom board counts and speedrun mode, and see who solves multi-board puzzles faster.";
@@ -503,6 +526,7 @@ export default function GameMultiplayer() {
         onChangeMode={openMultiplayerConfigFromEnd}
         friends={friends}
         onUpdateConfig={handleUpdateConfig}
+        onUpdateRoomName={handleUpdateRoomName}
         onInviteFriend={async (friend) => {
           if (!friend || !friend.id || !gameCode) return;
           try {

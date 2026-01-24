@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { getSolutionArray } from "../../lib/multiplayerConfig";
+import UserCardWithBadges from "../UserCardWithBadges";
 
 export default function GamePopup({
   allSolved,
@@ -477,10 +478,12 @@ export default function GamePopup({
                             >
                               {toOrdinal(p.rank)}
                             </div>
-                            <div style={{ color: "#ffffff" }}>
-                              {p.name || "Player"}
-                              {isMe ? " (You)" : ""}
-                            </div>
+                            <UserCardWithBadges
+                              userId={p.id}
+                              username={p.name || "Player"}
+                              isYou={isMe}
+                              size="sm"
+                            />
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <div style={{ textAlign: "right", color: "#d7dadc" }}>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { MESSAGE_TIMEOUT_MS, LONG_MESSAGE_TIMEOUT_MS } from "../lib/gameConstants";
 
 /**
  * Hook to manage a transient message with an auto-clear timer.
@@ -15,7 +16,7 @@ export function useTimedMessage(initialMessage = "") {
   }, []);
 
   const setTimedMessage = useCallback(
-    (text, ms = 5000) => {
+    (text, ms = MESSAGE_TIMEOUT_MS) => {
       clearMessageTimer();
       setMessage(text);
       timeoutRef.current = setTimeout(() => {

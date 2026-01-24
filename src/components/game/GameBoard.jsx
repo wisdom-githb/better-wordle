@@ -1,7 +1,7 @@
-import React from "react";
+import React, { memo } from "react";
 import TileRow from "./TileRow";
 
-export default function GameBoard({
+function GameBoard({
   board,
   index,
   numBoards,
@@ -95,3 +95,23 @@ export default function GameBoard({
     </div>
   );
 }
+
+// Memoize to prevent unnecessary re-renders when parent re-renders but board props haven't changed
+export default memo(GameBoard, (prevProps, nextProps) => {
+  // Custom comparison function for better performance
+  return (
+    prevProps.board === nextProps.board &&
+    prevProps.index === nextProps.index &&
+    prevProps.numBoards === nextProps.numBoards &&
+    prevProps.maxTurns === nextProps.maxTurns &&
+    prevProps.isUnlimited === nextProps.isUnlimited &&
+    prevProps.currentGuess === nextProps.currentGuess &&
+    prevProps.invalidCurrentGuess === nextProps.invalidCurrentGuess &&
+    prevProps.revealId === nextProps.revealId &&
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.speedrunEnabled === nextProps.speedrunEnabled &&
+    prevProps.isCurrentTurn === nextProps.isCurrentTurn
+    // Note: onToggleSelect and boardRef are functions, so we skip them in comparison
+    // They should be stable callbacks from the parent
+  );
+});

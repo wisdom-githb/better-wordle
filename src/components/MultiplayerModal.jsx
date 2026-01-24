@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import AuthModal from './AuthModal';
 import Modal from './Modal';
+import { MAX_BOARDS } from '../lib/gameConstants';
+import { validateGameCode } from '../lib/validation';
 
-const BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
+const BOARD_OPTIONS = Array.from({ length: MAX_BOARDS }, (_, i) => i + 1);
 
 export default function MultiplayerModal({ isOpen, onRequestClose, showConfigFirst = false, onConfigClose, onConfigOpen }) {
   const navigate = useNavigate();
@@ -37,13 +39,15 @@ export default function MultiplayerModal({ isOpen, onRequestClose, showConfigFir
   }, [navigate, onRequestClose, isSpeedrun, numBoards, maxPlayers, isPublic, onConfigClose]);
 
   const handleJoin = useCallback(() => {
-    if (!gameCode || gameCode.length !== 6) {
-      setCodeError('Please enter a valid 6-digit game code');
+    // Validate game code format
+    const codeValidation = validateGameCode(gameCode);
+    if (!codeValidation.isValid) {
+      setCodeError(codeValidation.errors.join('. ') || 'Please enter a valid 6-digit game code');
       return;
     }
 
     // Navigate with query params so Game can join the existing multiplayer game via ?code=...
-    navigate(`/game?mode=multiplayer&code=${gameCode}`);
+    navigate(`/game?mode=multiplayer&code=${codeValidation.value}`);
     onRequestClose();
   }, [gameCode, navigate, onRequestClose]);
 

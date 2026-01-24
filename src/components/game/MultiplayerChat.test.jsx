@@ -24,6 +24,11 @@ vi.mock('../../config/firebase', () => ({
   database: {},
 }));
 
+vi.mock('../../hooks/useUserBadges', () => ({
+  useUserBadges: () => ({ userBadges: {}, loading: false, error: null }),
+  useBadgesForUser: () => ({ userBadges: {}, loading: false }),
+}));
+
 describe('MultiplayerChat', () => {
   let mockUnsubscribe;
   let mockOnValueCallback;

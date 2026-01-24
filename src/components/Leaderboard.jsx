@@ -3,6 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import { useLeaderboard } from '../hooks/useLeaderboard';
 import { useAuth } from '../hooks/useAuth';
 import SiteHeader from './SiteHeader';
+import UserCardWithBadges from './UserCardWithBadges';
 
 const FeedbackModal = lazy(() => import('./FeedbackModal'));
 import './Leaderboard.css';
@@ -116,8 +117,12 @@ export default function Leaderboard() {
                 >
                   <div className="leaderboardRank">#{index + 1}</div>
                   <div className="leaderboardName">
-                    {entry.userName}
-                    {isCurrentUser && <span className="leaderboardYou"> (You)</span>}
+                    <UserCardWithBadges
+                      userId={entry.userId}
+                      username={entry.userName}
+                      isYou={isCurrentUser}
+                      size="sm"
+                    />
                   </div>
                   <div className="leaderboardBoards">{entry.numBoards}</div>
                   <div className="leaderboardTime">{formatElapsed(entry.timeMs)}</div>

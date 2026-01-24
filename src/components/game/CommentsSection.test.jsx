@@ -34,6 +34,11 @@ vi.mock('../../hooks/useAuth', () => ({
   useAuth: () => useAuthMock(),
 }));
 
+vi.mock('../../hooks/useUserBadges', () => ({
+  useUserBadges: () => ({ userBadges: {}, loading: false, error: null }),
+  useBadgesForUser: () => ({ userBadges: {}, loading: false }),
+}));
+
 import CommentsSection from './CommentsSection';
 
 const emitCommentsSnapshot = (data) => {

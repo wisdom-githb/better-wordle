@@ -1,0 +1,178 @@
+/* Single-line user card: [username] [context badges] [earned badge icon] */
+.userCard {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  background: linear-gradient(145deg, #232326 0%, #1c1c1e 100%);
+  color: #e4e4e7;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  max-width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  position: relative;
+}
+
+.userCard--sm {
+  padding: 4px 10px;
+  font-size: 12px;
+  gap: 5px;
+}
+
+.userCard--md {
+  /* defaults above */
+}
+
+.userCard-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+.userCard-main.userCard--clickable {
+  cursor: pointer;
+}
+
+.userCard-main.userCard--clickable:hover {
+  color: #fff;
+}
+
+.userCard-main.userCard--clickable:focus {
+  outline: none;
+}
+
+/* Highlight whole pill when hovering/focusing main button */
+.userCard:has(.userCard-main.userCard--clickable:hover),
+.userCard:has(.userCard-main.userCard--clickable:focus-visible) {
+  background: linear-gradient(145deg, #2a2a2e 0%, #222224 100%);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.userCard--sm .userCard-main {
+  gap: 5px;
+}
+
+/* Context badges (e.g. Host) on the right of name */
+.userCard-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.userCard-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: rgba(106, 170, 100, 0.2);
+  color: #86efac;
+  border: 1px solid rgba(106, 170, 100, 0.3);
+}
+
+.userCard--sm .userCard-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+}
+
+.userCard-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Earned badge icon (ribbon/medal); click opens popover */
+.userCard-earnedWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.userCard-earnedIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  margin: -2px 0;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: #c9b458;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.userCard-earnedIcon:hover {
+  background: rgba(201, 180, 88, 0.2);
+  color: #e5d063;
+}
+
+.userCard-earnedIcon:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(201, 180, 88, 0.4);
+}
+
+/* Popover: all earned badges */
+.userCard-badgePopover {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 6px;
+  min-width: 160px;
+  padding: 8px 0;
+  background: #1a1a1b;
+  border: 1px solid #3a3a3c;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+}
+
+.userCard-badgePopoverItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: #e4e4e7;
+}
+
+.userCard-badgePopoverItem .badgeIcon {
+  color: #c9b458;
+  flex-shrink: 0;
+}
+
+.userCard-badgePopoverName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.userCard--sm .userCard-badgePopover {
+  min-width: 140px;
+  padding: 6px 0;
+}
+
+.userCard--sm .userCard-badgePopoverItem {
+  padding: 5px 10px;
+  font-size: 12px;
+}

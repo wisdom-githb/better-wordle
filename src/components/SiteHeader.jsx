@@ -1,9 +1,12 @@
 import React, { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useUserBadges } from "../hooks/useUserBadges";
 import { useDailyResetTimer } from "../hooks/useDailyResetTimer";
+import { getAllEarnedSorted } from "../lib/badges";
 import AuthModal from "./AuthModal";
 import HamburgerMenu from "./HamburgerMenu";
+import UserCard from "./UserCard";
 
 /**
  * Global site header used across all pages.
@@ -11,12 +14,13 @@ import HamburgerMenu from "./HamburgerMenu";
  * Layout:
  * Line 1 - BETTER WORDLE centered, hamburger icon on the right.
  * Line 2 - "Reset in" text on the left, Sign in/Sign out and Leaderboard buttons on the right.
- *
- * No username text is displayed in the header.
+ * Line 3 (when signed in) - UserCard only; click navigates to profile.
  */
 export default function SiteHeader({ onOpenFeedback, onSignUpComplete }) {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { userBadges } = useUserBadges(user);
+  const earnedBadges = getAllEarnedSorted(userBadges);
   const resetTime = useDailyResetTimer();
   const [showAuthModal, setShowAuthModal] = useState(false);
 
@@ -190,35 +194,24 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete }) {
           </div>
         </div>
 
-        {/* Line 3: signed-in username + profile link (only when user is signed in) */}
+        {/* Line 3: Signed in as + UserCard when signed in; click card → profile */}
         {user && (
           <div
             style={{
               marginTop: 6,
-              fontSize: 12,
-              color: "#d7dadc",
-              lineHeight: 1.4,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              flexWrap: "wrap",
             }}
           >
-            Signed in as {user.displayName || user.email || "Unknown user"}.{" "}
-            (
-            <button
-              type="button"
+            <span style={{ fontSize: 12, color: "#d7dadc" }}>Signed in as</span>
+            <UserCard
+              username={user.displayName || user.email || "Unknown user"}
               onClick={() => navigate("/profile")}
-              style={{
-                background: "none",
-                border: "none",
-                padding: 0,
-                margin: 0,
-                color: "#93c5fd",
-                textDecoration: "underline",
-                cursor: "pointer",
-                fontSize: 12,
-              }}
-            >
-              Change username
-            </button>
-            )
+              size="sm"
+              earnedBadges={earnedBadges}
+            />
           </div>
         )}
       </header>

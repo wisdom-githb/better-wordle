@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ref, onValue, push, set, update, query, limitToLast } from "firebase/database";
 import { database } from "../../config/firebase";
 import { useAuth } from "../../hooks/useAuth";
+import { logError } from "../../lib/errorUtils";
+import { validateUsername } from "../../lib/validation";
+import UserCardWithBadges from "../UserCardWithBadges";
 
 /**
  * Lightweight comments section shown under the boards once a player has
@@ -110,6 +113,7 @@ export default function CommentsSection({ threadId }) {
         username: trimmedUsername,
         text: trimmedComment,
         createdAt: Date.now(),
+        uid: user?.uid || null,
         // Legacy aggregate reactions map is kept for backward compatibility,
         // but new logic prefers per-user reactions in `userReactions`.
         reactions: {},
@@ -117,7 +121,7 @@ export default function CommentsSection({ threadId }) {
       });
       setComment("");
     } catch (err) {
-      console.error("Failed to submit comment:", err);
+      logError(err, 'CommentsSection.handleSubmit');
       setSubmitError("Failed to submit comment. Please try again.");
     } finally {
       setIsSubmitting(false);
@@ -148,7 +152,7 @@ export default function CommentsSection({ threadId }) {
 
       await update(commentRef, updates);
     } catch (err) {
-      console.error("Failed to update reaction:", err);
+      logError(err, 'CommentsSection.handleReaction');
     }
   };
 
@@ -331,26 +335,25 @@ export default function CommentsSection({ threadId }) {
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
-                      alignItems: "baseline",
+                      alignItems: "center",
                       marginBottom: 4,
+                      gap: 8,
                     }}
                   >
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#9ca3af",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      {c.username || "Unknown"}
+                    <div style={{ flexShrink: 0, minWidth: 0 }}>
+                      <UserCardWithBadges
+                        userId={c.uid || null}
+                        username={c.username || "Unknown"}
+                        size="sm"
+                      />
                     </div>
                     {timeLabel && (
                       <div
                         style={{
                           fontSize: 11,
                           color: "#6b7280",
-                          marginLeft: 8,
                           whiteSpace: "nowrap",
+                          flexShrink: 0,
                         }}
                       >
                         {timeLabel}

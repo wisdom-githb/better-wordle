@@ -7,6 +7,11 @@ vi.mock('./hooks/useAuth', () => ({
   useAuth: vi.fn(),
 }));
 
+vi.mock('./hooks/useUserBadges', () => ({
+  useUserBadges: () => ({ userBadges: {}, loading: false, error: null }),
+  useBadgesForUser: () => ({ userBadges: {}, loading: false }),
+}));
+
 vi.mock('./components/FeedbackModal', () => ({
   __esModule: true,
   default: ({ isOpen }) => (isOpen ? <div data-testid="feedback-modal" /> : null),

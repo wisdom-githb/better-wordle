@@ -7,6 +7,11 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
 }));
 
+vi.mock('../../hooks/useUserBadges', () => ({
+  useUserBadges: () => ({ userBadges: {}, loading: false, error: null }),
+  useBadgesForUser: () => ({ userBadges: {}, loading: false }),
+}));
+
 describe('GamePopup - single player', () => {
   const formatElapsed = (ms) => `${(ms / 1000).toFixed(1)}s`;
 

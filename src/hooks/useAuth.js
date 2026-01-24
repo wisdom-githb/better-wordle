@@ -13,7 +13,9 @@ import {
   deleteUser,
 } from 'firebase/auth';
 import { auth, googleProvider, database } from '../config/firebase';
-import { ref, get, set, remove, onValue, update } from 'firebase/database';
+import { ref, get, set, remove, onValue, update, runTransaction } from 'firebase/database';
+import { validateUsername } from '../lib/validation';
+import { logError, formatError } from '../lib/errorUtils';
 
 // Helper: determine whether a user is allowed to use social features (friends,
 // challenges, multiplayer). Centralizing this makes it easy to adjust the
@@ -446,18 +448,47 @@ export function useAuth() {
         throw new Error('You must verify your email or sign in with Google to use friends.');
       }
       
-      // Send request to the other user
+      // Validate inputs
+      if (!friendId || typeof friendId !== 'string') {
+        throw new Error('Invalid friend ID');
+      }
+      
+      const usernameValidation = validateUsername(friendName || 'Unknown');
+      const fromName = usernameValidation.isValid ? usernameValidation.value : (auth.currentUser.displayName || 'Unknown');
+      
+      // Use transaction to prevent race conditions when both users send requests simultaneously
       const requestRef = ref(database, `users/${friendId}/friendRequests/${auth.currentUser.uid}`);
-      await set(requestRef, {
-        from: auth.currentUser.uid,
-        fromName: auth.currentUser.displayName || 'Unknown',
-        sentAt: new Date().toISOString()
+      const myRequestRef = ref(database, `users/${auth.currentUser.uid}/friendRequests/${friendId}`);
+      
+      await runTransaction(requestRef, (currentData) => {
+        // Check if request already exists
+        if (currentData) {
+          // Request already exists, return current data (idempotent)
+          return currentData;
+        }
+        
+        // Create new request
+        return {
+          from: auth.currentUser.uid,
+          fromName,
+          sentAt: new Date().toISOString(),
+          timestamp: Date.now(),
+        };
       });
+      
+      // Also check if the other user already sent us a request (mutual friend request detection)
+      const otherUserRequestRef = ref(database, `users/${auth.currentUser.uid}/friendRequests/${friendId}`);
+      const otherUserSnapshot = await get(otherUserRequestRef);
+      if (otherUserSnapshot.exists()) {
+        // Both users sent requests - they can be auto-accepted or handled specially
+        // For now, we'll just proceed normally
+      }
       
       return true;
     } catch (err) {
-      console.error('sendFriendRequest error:', err);
-      setError(formatAuthError(err));
+      const errorMessage = formatError(err) || formatAuthError(err) || 'Failed to send friend request';
+      logError(err, 'useAuth.sendFriendRequest');
+      setError(errorMessage);
       throw err;
     }
   }, []);

@@ -2,6 +2,7 @@ import React, { useState, Suspense, lazy } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import Modal from "./Modal";
+import UserCardWithBadges from "./UserCardWithBadges";
 
 const FriendsModal = lazy(() => import("./FriendsModal"));
 const OpenRoomsModal = lazy(() => import("./OpenRoomsModal"));
@@ -413,8 +414,12 @@ export default function HamburgerMenu({ onOpenFeedback }) {
                       }}
                     >
                       <div style={{ textAlign: "left", flex: 1 }}>
-                        <div style={{ color: "#ffffff", fontWeight: 600, marginBottom: 2 }}>
-                          {ch.toUserName || ch.friendName || "Unknown friend"}
+                        <div style={{ marginBottom: 2 }}>
+                          <UserCardWithBadges
+                            userId={ch.toUserId}
+                            username={ch.toUserName || ch.friendName || "Unknown friend"}
+                            size="sm"
+                          />
                         </div>
                         <div style={{ color: "#d7dadc", fontSize: 12 }}>
                           {ch.boards || 1} board{(ch.boards || 1) > 1 ? "s" : ""} · {ch.speedrun ? "Speedrun" : "Standard"}
@@ -493,8 +498,12 @@ export default function HamburgerMenu({ onOpenFeedback }) {
                       }}
                     >
                       <div style={{ textAlign: "left", flex: 1 }}>
-                        <div style={{ color: "#ffffff", fontWeight: 600, marginBottom: 2 }}>
-                          {ch.fromUserName || "Unknown"}
+                        <div style={{ marginBottom: 2 }}>
+                          <UserCardWithBadges
+                            userId={ch.fromUserId}
+                            username={ch.fromUserName || "Unknown"}
+                            size="sm"
+                          />
                         </div>
                         <div style={{ color: "#d7dadc", fontSize: 12 }}>
                           {ch.boards || 1} board{(ch.boards || 1) > 1 ? "s" : ""} · {ch.speedrun ? "Speedrun" : "Standard"}

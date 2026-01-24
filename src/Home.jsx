@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect, Suspense, lazy } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
+import { MAX_BOARDS } from "./lib/gameConstants";
 import "./Home.css";
 import Modal from "./components/Modal";
 import SiteHeader from "./components/SiteHeader";
@@ -13,7 +14,7 @@ import { loadMarathonMeta } from "./lib/marathonMeta";
 import { database } from "./config/firebase";
 import { ref, get, update } from "firebase/database";
 
-const BOARD_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
+const BOARD_OPTIONS = Array.from({ length: MAX_BOARDS }, (_, i) => i + 1);
 
 const ModeRow = React.memo(function ModeRow({ title, desc, buttonText, onClick, variant = "green", titleRight, modeVariant = "daily" }) {
   const handleKeyDown = (event) => {

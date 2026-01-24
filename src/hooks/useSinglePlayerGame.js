@@ -3,10 +3,11 @@ import { loadJSON, makeSolvedKey } from "../lib/persist";
 import { getMaxTurns, createBoardState } from "../lib/wordle";
 import { loadWordLists } from "../lib/wordLists";
 import { selectDailyWords, getCurrentDateString } from "../lib/dailyWords";
-import { FLIP_COMPLETE_MS } from "../lib/gameConstants";
+import { FLIP_COMPLETE_MS, LONG_MESSAGE_TIMEOUT_MS } from "../lib/gameConstants";
 import { useAuth } from "./useAuth";
 import { database } from "../config/firebase";
 import { loadSolvedState, loadGameState } from "../lib/singlePlayerStore";
+import { formatError, logError } from "../lib/errorUtils";
 
 function applySolvedCommitState({ speedrunEnabled, solvedState, committedRef, committedStageMsRef, setStageTimerSeed }) {
   const elapsed = (solvedState && solvedState.stageElapsedMs) || 0;
@@ -297,9 +298,10 @@ export function useSinglePlayerGame({
 
         setIsLoading(false);
       } catch (error) {
-        console.error("Error initializing game:", error);
+        logError(error, 'useSinglePlayerGame.initGame');
         setIsLoading(false);
-        setTimedMessage("Failed to load word lists. Please refresh the page.", 10000);
+        const errorMessage = formatError(error) || "Failed to load word lists. Please refresh the page.";
+        setTimedMessage(errorMessage, LONG_MESSAGE_TIMEOUT_MS);
       }
     }
 
