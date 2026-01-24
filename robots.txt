@@ -1,4 +1,4 @@
 User-agent: *
-Allow: /
+Allow: /better-wordle/
 
 Sitemap: https://wisdom-githb.github.io/better-wordle/sitemap.xml
