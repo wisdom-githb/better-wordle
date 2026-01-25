@@ -1,4 +1,4 @@
-import { loadJSON, saveJSON, makeStreakKey } from "./persist";
+import { loadJSON, saveJSON, makeStreakKey, loadStreak } from "./persist";
 import { logError } from "./errorUtils";
 import { validateGameState } from "./validation";
 import { defaultStateSync } from "./stateSync";
@@ -225,7 +225,25 @@ export async function loadStreakRemoteAware({ authUser, database, mode, speedrun
     const streakRef = ref(database, `users/${authUser.uid}/streaks/${remoteKey}`);
     const snap = await get(streakRef);
     if (!snap.exists()) {
-      return loadJSON(localKey, null);
+      const local = loadJSON(localKey, null);
+      const hasData =
+        local &&
+        ((typeof local.current === "number" && local.current > 0) ||
+          (typeof local.best === "number" && local.best > 0));
+      if (hasData) {
+        await saveStreakRemoteAware({
+          authUser,
+          database,
+          mode,
+          speedrunEnabled,
+          streakInfo: {
+            current: local.current,
+            best: local.best,
+            lastDate: local.lastDate || null,
+          },
+        });
+      }
+      return local;
     }
     const remote = snap.val() || null;
     if (!remote) return loadJSON(localKey, null);
@@ -263,5 +281,58 @@ export async function saveStreakRemoteAware({
     await set(streakRef, streakInfo);
   } catch (err) {
     logError(err, 'singlePlayerStore.saveStreakRemoteAware');
+  }
+}
+
+/**
+ * Sync local streaks to Firebase when user logs in and remote is missing.
+ * Ensures guest-play streaks are persisted after sign-in.
+ * @param {{ uid: string }} authUser
+ * @param {object} database
+ */
+export async function syncLocalStreaksToRemoteOnLogin(authUser, database) {
+  if (!authUser?.uid || !database) return;
+
+  const variants = [
+    { mode: "daily", speedrunEnabled: false },
+    { mode: "daily", speedrunEnabled: true },
+    { mode: "marathon", speedrunEnabled: false },
+    { mode: "marathon", speedrunEnabled: true },
+  ];
+
+  try {
+    const { ref, get } = await import("firebase/database");
+    const streaksRef = ref(database, `users/${authUser.uid}/streaks`);
+    const snap = await get(streaksRef);
+    const remote = snap.exists() ? snap.val() || {} : {};
+
+    const modeKey = (m) => (m === "daily" ? "daily" : "marathon");
+    const variantKey = (v) => (v ? "speedrun" : "standard");
+    const remoteKey = (m, v) => `${modeKey(m)}_${variantKey(v)}`;
+
+    for (const { mode, speedrunEnabled } of variants) {
+      const key = remoteKey(mode, speedrunEnabled);
+      if (remote[key]) continue;
+
+      const local = loadStreak(mode, speedrunEnabled);
+      const hasData =
+        (typeof local.current === "number" && local.current > 0) ||
+        (typeof local.best === "number" && local.best > 0);
+      if (!hasData) continue;
+
+      await saveStreakRemoteAware({
+        authUser,
+        database,
+        mode,
+        speedrunEnabled,
+        streakInfo: {
+          current: local.current,
+          best: local.best,
+          lastDate: local.lastDate || null,
+        },
+      });
+    }
+  } catch (err) {
+    logError(err, "singlePlayerStore.syncLocalStreaksToRemoteOnLogin");
   }
 }

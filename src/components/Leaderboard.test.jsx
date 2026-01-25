@@ -103,8 +103,8 @@ describe('Leaderboard component', () => {
 
   it('renders rows with correct rank, fields, and highlights current user', async () => {
     const entries = [
-      { id: '1', userId: 'u1', userName: 'Alice', numBoards: 3, timeMs: 12_345, score: 200 },
-      { id: '2', userId: 'u2', userName: 'Bob', numBoards: 3, timeMs: 15_000, score: 150 },
+      { id: '1', userId: 'u1', userName: 'Alice', numBoards: 3, timeMs: 12_345 },
+      { id: '2', userId: 'u2', userName: 'Bob', numBoards: 3, timeMs: 15_000 },
     ];
 
     useAuth.mockReturnValue({ user: { uid: 'u1' } });
@@ -135,12 +135,8 @@ describe('Leaderboard component', () => {
     // Boards
     expect(screen.getAllByText('3').length).toBeGreaterThanOrEqual(2);
 
-    // Time formatting: 12_345 -> 12.3, 15_000 -> 15.0
-    expect(screen.getByText('12.3')).toBeInTheDocument();
-    expect(screen.getByText('15.0')).toBeInTheDocument();
-
-    // Scores
-    expect(screen.getByText('200')).toBeInTheDocument();
-    expect(screen.getByText('150')).toBeInTheDocument();
+    // Time formatting (shared formatElapsed mm:ss.tenths): 12_345 -> 00:12.3, 15_000 -> 00:15.0
+    expect(screen.getByText('00:12.3')).toBeInTheDocument();
+    expect(screen.getByText('00:15.0')).toBeInTheDocument();
   });
 });

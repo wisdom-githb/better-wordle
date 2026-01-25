@@ -68,6 +68,7 @@ export default function SinglePlayerGameView({
   streakLabel,
   wordListError,
   onRetryWordLists,
+  countdownRemaining,
 }) {
   const inRouter = useInRouterContext();
 
@@ -83,6 +84,34 @@ export default function SinglePlayerGameView({
     >
       {inRouter && (
         <SiteHeader onOpenFeedback={() => setShowFeedbackModal(true)} />
+      )}
+
+      {speedrunEnabled && countdownRemaining != null && countdownRemaining > 0 && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(18, 18, 19, 0.95)",
+            zIndex: 9999,
+          }}
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <div
+            style={{
+              fontSize: 48,
+              fontWeight: "bold",
+              letterSpacing: 4,
+              color: "#ffffff",
+              textAlign: "center",
+            }}
+          >
+            Timer starts in {countdownRemaining}
+          </div>
+        </div>
       )}
 
       <main

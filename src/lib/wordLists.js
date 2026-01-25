@@ -8,7 +8,7 @@ export async function loadWordListsOnce() {
   if (cachedPromise) return cachedPromise;
 
   cachedPromise = (async () => {
-    const baseUrl = import.meta.env.BASE_URL;
+    const baseUrl = import.meta.env.BASE_URL || '/';
     const [answersRes, guessesRes] = await Promise.all([
       fetch(`${baseUrl}wordle-answers-alphabetical.txt`),
       fetch(`${baseUrl}valid-wordle-words.txt`),

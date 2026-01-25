@@ -16,6 +16,8 @@ import { auth, googleProvider, database } from '../config/firebase';
 import { ref, get, set, remove, onValue, update, runTransaction } from 'firebase/database';
 import { validateUsername } from '../lib/validation';
 import { logError, formatError } from '../lib/errorUtils';
+import { flushPendingLeaderboardOnLogin } from '../lib/pendingLeaderboard';
+import { syncLocalStreaksToRemoteOnLogin } from '../lib/singlePlayerStore';
 
 // Helper: determine whether a user is allowed to use social features (friends,
 // challenges, multiplayer). Centralizing this makes it easy to adjust the
@@ -77,9 +79,15 @@ export function useAuth() {
 
       setUser(authUser);
 
-      // If this is an email/password account without a username, assign a
-      // default "better-wordle-player-xxx" username (three random digits).
       if (authUser) {
+        (async () => {
+          try {
+            await flushPendingLeaderboardOnLogin(authUser);
+            await syncLocalStreaksToRemoteOnLogin(authUser, database);
+          } catch (e) {
+            logError(e, 'useAuth.flushPendingOnLogin');
+          }
+        })();
         const hasPasswordProvider = (authUser.providerData || []).some(
           (p) => p && p.providerId === 'password'
         );

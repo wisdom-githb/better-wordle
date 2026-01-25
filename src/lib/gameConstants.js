@@ -11,6 +11,7 @@ export const ABSOLUTE_MAX_PLAYERS = 8;
 
 // Timing constants
 export const TIMER_INTERVAL_MS = 100; // High-frequency timer interval for speedrun
+export const SPEEDRUN_COUNTDOWN_MS = 3000; // 3-2-1 countdown before timer starts (1s per step)
 export const MESSAGE_TIMEOUT_MS = 5000; // Default timeout for toast messages
 export const LONG_MESSAGE_TIMEOUT_MS = 10000; // Longer timeout for important messages
 export const VERIFICATION_MESSAGE_TIMEOUT_MS = 8000; // Timeout for verification messages

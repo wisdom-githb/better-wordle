@@ -2,22 +2,12 @@ import React, { useState, Suspense, lazy } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useLeaderboard } from '../hooks/useLeaderboard';
 import { useAuth } from '../hooks/useAuth';
+import { formatElapsed } from '../lib/wordle';
 import SiteHeader from './SiteHeader';
 import UserCardWithBadges from './UserCardWithBadges';
 
 const FeedbackModal = lazy(() => import('./FeedbackModal'));
 import './Leaderboard.css';
-
-function formatElapsed(ms) {
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  const millis = Math.floor((ms % 1000) / 100);
-  if (minutes > 0) {
-    return `${minutes}:${seconds.toString().padStart(2, '0')}.${millis}`;
-  }
-  return `${seconds}.${millis}`;
-}
 
 export default function Leaderboard() {
   const { user } = useAuth();
@@ -106,7 +96,6 @@ export default function Leaderboard() {
               <div className="leaderboardName">Player</div>
               <div className="leaderboardBoards">Boards</div>
               <div className="leaderboardTime">Time</div>
-              <div className="leaderboardScore">Score</div>
             </div>
             {entries.map((entry, index) => {
               const isCurrentUser = user && entry.userId === user.uid;
@@ -126,7 +115,6 @@ export default function Leaderboard() {
                   </div>
                   <div className="leaderboardBoards">{entry.numBoards}</div>
                   <div className="leaderboardTime">{formatElapsed(entry.timeMs)}</div>
-                  <div className="leaderboardScore">{entry.score}</div>
                 </div>
               );
             })}

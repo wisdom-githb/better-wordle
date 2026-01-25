@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useRef, useState, useEffect, Suspense, laz
 import { useSearchParams, useNavigate, useParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { WORD_LENGTH, buildLetterMapFromGuesses, getTurnsUsed, formatElapsed } from "../../lib/wordle";
-import { FLIP_COMPLETE_MS, MAX_BOARDS, TIMER_INTERVAL_MS, DEFAULT_MAX_TURNS } from "../../lib/gameConstants";
+import { FLIP_COMPLETE_MS, MAX_BOARDS, TIMER_INTERVAL_MS, DEFAULT_MAX_TURNS, SPEEDRUN_COUNTDOWN_MS } from "../../lib/gameConstants";
 import { useAuth } from "../../hooks/useAuth";
 import { useMultiplayerGame } from "../../hooks/useMultiplayerGame";
 import { useMultiplayerController } from "../../hooks/useMultiplayerController";
@@ -94,6 +94,10 @@ export default function GameMultiplayer() {
   const [waitingNowMs, setWaitingNowMs] = useState(Date.now());
   const waitingExpiredRef = useRef(false);
 
+  const [countdownRemaining, setCountdownRemaining] = useState(null);
+  const countdownTimeoutsRef = useRef([]);
+  const countdownStartedForRef = useRef(null);
+
   // High-frequency timer for speedrun elapsed time.
   useEffect(() => {
     if (!multiplayerGame.gameState?.speedrun) return;
@@ -115,6 +119,37 @@ export default function GameMultiplayer() {
     }, 1000);
     return () => clearInterval(id);
   }, [multiplayerGame.gameState?.createdAt]);
+
+  const gs = multiplayerGame.gameState;
+  const isPlayingSpeedrun = gs?.status === "playing" && !!gs?.speedrun;
+  const startedAt = gs?.startedAt ?? null;
+
+  // 3-2-1 countdown when entering speedrun playing. Reset when leaving playing.
+  useEffect(() => {
+    if (!isPlayingSpeedrun || !startedAt) {
+      if (!isPlayingSpeedrun) {
+        countdownStartedForRef.current = null;
+        setCountdownRemaining(null);
+      }
+      return;
+    }
+    if (countdownStartedForRef.current === startedAt) return;
+
+    countdownStartedForRef.current = startedAt;
+    const stepMs = SPEEDRUN_COUNTDOWN_MS / 3;
+    setCountdownRemaining(3);
+    const t1 = setTimeout(() => setCountdownRemaining(2), stepMs);
+    const t2 = setTimeout(() => setCountdownRemaining(1), stepMs * 2);
+    const t3 = setTimeout(() => {
+      setCountdownRemaining(null);
+      countdownTimeoutsRef.current = [];
+    }, SPEEDRUN_COUNTDOWN_MS);
+    countdownTimeoutsRef.current = [t1, t2, t3];
+    return () => {
+      countdownTimeoutsRef.current.forEach((id) => clearTimeout(id));
+      countdownTimeoutsRef.current = [];
+    };
+  }, [isPlayingSpeedrun, startedAt]);
 
   // Keep an always-fresh ref of the current guess so that even callbacks
   // captured by mocks or older renders (e.g. in tests) see the latest value.
@@ -241,6 +276,7 @@ export default function GameMultiplayer() {
     if (allSolved) return true;
     if (hasPlayerSolvedAllMultiplayerBoards) return true;
     if (showPopup || showOutOfGuesses) return true;
+    if (countdownRemaining != null) return true;
 
     if (typeof document !== "undefined") {
       const active = document.activeElement;
@@ -266,6 +302,7 @@ export default function GameMultiplayer() {
     hasPlayerSolvedAllMultiplayerBoards,
     showPopup,
     showOutOfGuesses,
+    countdownRemaining,
     multiplayerGame.gameState,
   ]);
 
@@ -527,6 +564,7 @@ export default function GameMultiplayer() {
         friends={friends}
         onUpdateConfig={handleUpdateConfig}
         onUpdateRoomName={handleUpdateRoomName}
+        countdownRemaining={countdownRemaining}
         onInviteFriend={async (friend) => {
           if (!friend || !friend.id || !gameCode) return;
           try {

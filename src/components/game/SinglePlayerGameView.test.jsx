@@ -104,4 +104,10 @@ describe('SinglePlayerGameView guess counter wiring', () => {
     expect(screen.queryByTestId('keyboard')).toBeNull();
     expect(screen.queryByTestId('board-selector')).toBeNull();
   });
+
+  it('shows "Timer starts in 3" overlay when speedrun and countdown active', () => {
+    renderView({ speedrunEnabled: true, countdownRemaining: 3 });
+
+    expect(screen.getByText('Timer starts in 3')).toBeInTheDocument();
+  });
 });

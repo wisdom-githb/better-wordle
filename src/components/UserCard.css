@@ -147,6 +147,25 @@
   z-index: 1000;
 }
 
+/* Portaled popover (leaderboard, etc.): avoid overflow clipping */
+.userCard-badgePopoverAnchor {
+  z-index: 1000;
+}
+.userCard-badgePopoverAnchor .userCard-badgePopover {
+  position: static;
+  top: auto;
+  right: auto;
+  margin-top: 0;
+}
+.userCard-badgePopoverAnchor--sm .userCard-badgePopover {
+  min-width: 140px;
+  padding: 6px 0;
+}
+.userCard-badgePopoverAnchor--sm .userCard-badgePopoverItem {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
 .userCard-badgePopoverItem {
   display: flex;
   align-items: center;

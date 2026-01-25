@@ -594,7 +594,7 @@ export default function GamePopup({
             >
               {(Array.isArray(boards) ? boards : []).map((b, i) => (
                 <div
-                  key={i}
+                  key={b?.solution ?? `board-${i}`}
                   style={{
                     backgroundColor: b && b.isSolved ? "#6aaa64" : "#3a3a3c",
                     color: "#ffffff",
@@ -632,7 +632,7 @@ export default function GamePopup({
                 >
                   {solutionList.map((word, idx) => (
                     <div
-                      key={idx}
+                      key={typeof word === "string" ? word : `sol-${idx}`}
                       style={{
                         backgroundColor: "#6aaa64",
                         color: "#ffffff",

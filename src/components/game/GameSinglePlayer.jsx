@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { loadJSON, saveJSON, makeSolvedKey, makeDailyKey, makeMarathonKey, makeStreakKey, loadStreak, updateStreakOnWin } from "../../lib/persist";
+import { loadJSON, saveJSON, makeSolvedKey, makeDailyKey, makeMarathonKey, makeStreakKey, loadStreak, updateStreakOnWin, marathonMetaKey } from "../../lib/persist";
 import { loadMarathonMeta, saveMarathonMeta } from "../../lib/marathonMeta";
 import {
   WORD_LENGTH,
@@ -12,7 +12,7 @@ import {
   sumMs,
 } from "../../lib/wordle";
 import { useGameEngine } from "../../hooks/useGameEngine";
-import { FLIP_COMPLETE_MS, MESSAGE_TIMEOUT_MS, DEFAULT_MAX_TURNS } from "../../lib/gameConstants";
+import { FLIP_COMPLETE_MS, MESSAGE_TIMEOUT_MS, DEFAULT_MAX_TURNS, SPEEDRUN_COUNTDOWN_MS } from "../../lib/gameConstants";
 import { generateShareText, buildMarathonShareTotals } from "../../lib/gameUtils";
 import { getCurrentDateString } from "../../lib/dailyWords";
 import { submitSpeedrunScore } from "../../hooks/useLeaderboard";
@@ -26,6 +26,7 @@ import { useKeyboard } from "../../hooks/useKeyboard";
 import { useBoardLayout } from "../../hooks/useBoardLayout";
 import { useStageTimer } from "../../hooks/useStageTimer";
 import { loadStreakRemoteAware, saveStreakRemoteAware, saveSolvedState } from "../../lib/singlePlayerStore";
+import { addPendingLeaderboard } from "../../lib/pendingLeaderboard";
 import { grantBadge } from "../../lib/badgeService";
 import { clampBoards } from "../../lib/validation";
 import { logError } from "../../lib/errorUtils";
@@ -60,7 +61,7 @@ export default function GameSinglePlayer({
   // Best-effort helper to mirror local single-player progress into the
   // authenticated user's Firebase profile so daily/marathon games can be
   // resumed across devices. Guests never hit this path.
-  const persistForUser = (subPath, value) => {
+  const persistForUser = useCallback((subPath, value) => {
     if (!authUser) return;
     try {
       const userRef = ref(database, `users/${authUser.uid}/${subPath}`);
@@ -71,7 +72,7 @@ export default function GameSinglePlayer({
     } catch (err) {
       logError(err, 'GameSinglePlayer.persistForUser');
     }
-  };
+  }, [authUser]);
 
   // Load marathon meta for current speedrun/daily config.
   const marathonMeta = loadMarathonMeta(speedrunEnabled);
@@ -139,6 +140,21 @@ export default function GameSinglePlayer({
   const committedRef = useRef(false);
   const committedStageMsRef = useRef(0);
   const hasStartedStageTimerRef = useRef(false);
+  const flipPopupTimeoutsRef = useRef([]);
+  const countdownTimeoutsRef = useRef([]);
+
+  // Countdown (3, 2, 1) before timer starts in speedrun. Only for fresh games, not resumed.
+  const [countdownRemaining, setCountdownRemaining] = useState(null);
+
+  // Clear flip/popup and countdown timeouts on unmount to avoid setState after unmount.
+  useEffect(() => {
+    return () => {
+      flipPopupTimeoutsRef.current.forEach((id) => clearTimeout(id));
+      flipPopupTimeoutsRef.current = [];
+      countdownTimeoutsRef.current.forEach((id) => clearTimeout(id));
+      countdownTimeoutsRef.current = [];
+    };
+  }, []);
 
   // Seed object for the stage timer hook; populated by useSinglePlayerGame
   // based on any saved game state or solved snapshot.
@@ -205,7 +221,7 @@ export default function GameSinglePlayer({
   // passes an initial seed based on saved state.
 
   // For fresh speedrun games (no saved elapsed time and not resumed from a
-  // solved snapshot), start the stage timer once boards are loaded.
+  // solved snapshot), show 3-2-1 countdown then start the stage timer.
   useEffect(() => {
     if (!speedrunEnabled) return;
     if (hasStartedStageTimerRef.current) return;
@@ -214,15 +230,28 @@ export default function GameSinglePlayer({
     const isSeedFrozen = stageTimerSeed.frozen;
 
     // Resumed games and solved snapshots rely on the seeding behaviour inside
-    // useStageTimer; they should not call start() again.
+    // useStageTimer; they should not call start() again. No countdown.
     if (hasSeedElapsed || isSeedFrozen) {
       hasStartedStageTimerRef.current = true;
       return;
     }
 
     if (!isLoading && boards.length > 0) {
-      stageTimerStart();
-      hasStartedStageTimerRef.current = true;
+      const stepMs = SPEEDRUN_COUNTDOWN_MS / 3;
+      setCountdownRemaining(3);
+      const t1 = setTimeout(() => setCountdownRemaining(2), stepMs);
+      const t2 = setTimeout(() => setCountdownRemaining(1), stepMs * 2);
+      const t3 = setTimeout(() => {
+        setCountdownRemaining(null);
+        stageTimerStart();
+        hasStartedStageTimerRef.current = true;
+        countdownTimeoutsRef.current = [];
+      }, SPEEDRUN_COUNTDOWN_MS);
+      countdownTimeoutsRef.current = [t1, t2, t3];
+      return () => {
+        countdownTimeoutsRef.current.forEach((id) => clearTimeout(id));
+        countdownTimeoutsRef.current = [];
+      };
     }
   }, [speedrunEnabled, stageTimerSeed, isLoading, boards.length, stageTimerStart]);
 
@@ -323,7 +352,7 @@ export default function GameSinglePlayer({
     committedStageMsRef.current = ms;
 
     if (speedrunEnabled && mode === "marathon") {
-      const currentMeta = loadMarathonMeta(true);
+      const currentMeta = loadMarathonMeta(speedrunEnabled);
       const newStageTimes = [...(currentMeta.stageTimes || [])];
       const existing = newStageTimes.findIndex((st) => st.boards === numBoards);
       if (existing >= 0) {
@@ -338,8 +367,8 @@ export default function GameSinglePlayer({
         cumulativeMs: cumulative,
         stageTimes: newStageTimes,
       };
-      const saved = saveMarathonMeta(true, updatedMeta);
-      const metaKey = marathonMetaKey(true);
+      const saved = saveMarathonMeta(speedrunEnabled, updatedMeta);
+      const metaKey = marathonMetaKey(speedrunEnabled);
       // Mirror marathon meta so cumulative times stay consistent across devices.
       persistForUser(`singlePlayer/meta/${metaKey}`, saved);
     }
@@ -382,6 +411,7 @@ export default function GameSinglePlayer({
   const isInputBlocked = useCallback(() => {
     if (allSolved) return true;
     if (showPopup || showOutOfGuesses) return true;
+    if (countdownRemaining != null) return true;
 
     if (typeof document !== "undefined") {
       const active = document.activeElement;
@@ -396,7 +426,7 @@ export default function GameSinglePlayer({
       }
     }
     return false;
-  }, [allSolved, showPopup, showOutOfGuesses]);
+  }, [allSolved, showPopup, showOutOfGuesses, countdownRemaining]);
 
   const addLetter = (letter) => {
     if (currentGuessRef.current.length >= WORD_LENGTH) return;
@@ -483,9 +513,10 @@ export default function GameSinglePlayer({
     setMessage("");
     clearMessageTimer();
 
-    setTimeout(() => {
+    const flipId = setTimeout(() => {
       setIsFlipping(false);
     }, FLIP_COMPLETE_MS);
+    flipPopupTimeoutsRef.current.push(flipId);
 
     // Use game engine for finished and solved checks
     const finishedNow = gameEngine.checkAllBoardsFinished(newBoards, maxTurns, isUnlimited);
@@ -493,9 +524,10 @@ export default function GameSinglePlayer({
 
     if (finishedNow && !allSolvedNow && !isUnlimited) {
       freezeStageTimer();
-      setTimeout(() => {
+      const outId = setTimeout(() => {
         setShowOutOfGuesses(true);
       }, FLIP_COMPLETE_MS);
+      flipPopupTimeoutsRef.current.push(outId);
       return;
     }
 
@@ -573,17 +605,16 @@ export default function GameSinglePlayer({
         });
       }
 
-      const shouldSubmit =
-        speedrunEnabled && authUser && isVerifiedUser && allSolvedNow &&
-        (mode === "daily" || isMarathonComplete);
+      const wouldSubmitSpeedrun =
+        speedrunEnabled && allSolvedNow && (mode === "daily" || isMarathonComplete);
+      const finalTimeMs = savedPopupTotalMs || finalStageMs;
+      const submitNumBoards =
+        mode === "marathon"
+          ? marathonLevels[marathonLevels.length - 1]
+          : numBoards;
 
-      if (shouldSubmit) {
+      if (wouldSubmitSpeedrun && authUser && isVerifiedUser) {
         const userName = authUser.displayName || authUser.email || "Anonymous";
-        const finalTimeMs = savedPopupTotalMs || finalStageMs;
-        const submitNumBoards =
-          mode === "marathon"
-            ? marathonLevels[marathonLevels.length - 1]
-            : numBoards;
         submitSpeedrunScore(
           authUser.uid,
           userName,
@@ -594,16 +625,21 @@ export default function GameSinglePlayer({
         ).catch((err) => {
           logError(err, 'GameSinglePlayer.submitSpeedrunScore');
         });
+      } else if (wouldSubmitSpeedrun && !authUser) {
+        addPendingLeaderboard({ mode, numBoards: submitNumBoards, timeMs: finalTimeMs });
       }
 
       clearGameState();
 
-      setTimeout(() => {
+      const popupId = setTimeout(() => {
         setShowPopup(true);
       }, FLIP_COMPLETE_MS);
+      flipPopupTimeoutsRef.current.push(popupId);
     }
   };
 
+  // useKeyboard stores disabled in a ref; ensure isInputBlocked (allSolved,
+  // showPopup, showOutOfGuesses) stays correct when changing input-blocking logic.
   useKeyboard({
     disabled: isInputBlocked(),
     onEnter: submitGuess,
@@ -611,6 +647,9 @@ export default function GameSinglePlayer({
     onLetter: addLetter,
   });
 
+  // Persist game state when boards/guess/unlimited change. saveGameState is
+  // intentionally excluded from deps to avoid re-running on every callback
+  // identity change; if its implementation or deps change, re-evaluate.
   useEffect(() => {
     if (boards.length > 0 && !isLoading) {
       const allSolvedLocal = boards.every((b) => b.isSolved);
@@ -685,7 +724,9 @@ export default function GameSinglePlayer({
       persistForUser(`singlePlayer/meta/${metaKey}`, updatedMeta);
       // Navigate to the next marathon stage. Use direct href navigation instead of
       // navigate() + reload() to ensure the navigation happens before the page reload.
-      window.location.href = `/game?mode=marathon&speedrun=${speedrunEnabled}`;
+      // Respect app base URL (e.g. /better-wordle/) when deployed.
+      const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '') || '';
+      window.location.href = `${base}/game?mode=marathon&speedrun=${speedrunEnabled}`;
     }
   }, [marathonHasNext, marathonIndex, speedrunEnabled]);
 
@@ -972,11 +1013,11 @@ export default function GameSinglePlayer({
         marathonHasNext={marathonHasNext}
         handleShare={handleShare}
         freezeStageTimer={freezeStageTimer}
-      isMarathonSpeedrun={isMarathonSpeedrun}
-      commitStageIfNeeded={commitStageIfNeeded}
-      handleVirtualKey={handleVirtualKey}
-      allowNextStageAfterPopup={allowNextStageAfterPopup}
-      showFeedbackModal={showFeedbackModal}
+        isMarathonSpeedrun={isMarathonSpeedrun}
+        commitStageIfNeeded={commitStageIfNeeded}
+        handleVirtualKey={handleVirtualKey}
+        allowNextStageAfterPopup={allowNextStageAfterPopup}
+        showFeedbackModal={showFeedbackModal}
         setShowFeedbackModal={setShowFeedbackModal}
         setShowPopup={setShowPopup}
         setShowOutOfGuesses={setShowOutOfGuesses}
@@ -984,6 +1025,7 @@ export default function GameSinglePlayer({
         commentThreadId={commentsThreadId}
         canShare={canShare}
         streakLabel={streakLabel}
+        countdownRemaining={countdownRemaining}
         wordListError={
           hasWordListError
             ? "Failed to load word lists. Please check your connection and try again."

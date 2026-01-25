@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { loadJSON, makeSolvedKey } from "../lib/persist";
 import { getMaxTurns, createBoardState } from "../lib/wordle";
 import { loadWordLists } from "../lib/wordLists";
@@ -81,6 +81,7 @@ export function useSinglePlayerGame({
   setStageTimerSeed,
 }) {
   const { user: authUser, loading: authLoading } = useAuth();
+  const flipPopupTimeoutRef = useRef(null);
 
   useEffect(() => {
     // Defer initialization until Firebase auth has resolved so we know
@@ -192,7 +193,9 @@ export function useSinglePlayerGame({
           } else {
             // For fully solved stages, delay popup to ensure any potential
             // animations are complete before showing the results.
-            setTimeout(() => {
+            if (flipPopupTimeoutRef.current) clearTimeout(flipPopupTimeoutRef.current);
+            flipPopupTimeoutRef.current = setTimeout(() => {
+              flipPopupTimeoutRef.current = null;
               setShowPopup(true);
             }, FLIP_COMPLETE_MS);
           }
@@ -306,6 +309,13 @@ export function useSinglePlayerGame({
     }
 
     initGame();
+
+    return () => {
+      if (flipPopupTimeoutRef.current) {
+        clearTimeout(flipPopupTimeoutRef.current);
+        flipPopupTimeoutRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOneVOne, numBoards, mode, speedrunEnabled, marathonIndex, authUser, authLoading]);
 }

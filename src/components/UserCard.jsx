@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import BadgeIcon from "./BadgeIcon";
 import "./UserCard.css";
 
@@ -49,6 +50,17 @@ export default function UserCard({
     };
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
+  }, [popoverOpen]);
+
+  useEffect(() => {
+    if (!popoverOpen) return;
+    const close = () => setPopoverOpen(false);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
   }, [popoverOpen]);
 
   const mainContent = (
@@ -107,21 +119,35 @@ export default function UserCard({
           >
             <BadgeIcon size={iconSize} title={latestEarned.name} />
           </button>
-          {popoverOpen && (
-            <div
-              ref={popoverRef}
-              className="userCard-badgePopover"
-              role="dialog"
-              aria-label="Your badges"
-            >
-              {earnedBadges.map((b) => (
-                <div key={b.id} className="userCard-badgePopoverItem">
-                  <BadgeIcon size="sm" title={b.name} />
-                  <span className="userCard-badgePopoverName">{b.name}</span>
+          {popoverOpen &&
+            (() => {
+              const rect = iconRef.current?.getBoundingClientRect();
+              if (!rect) return null;
+              const top = rect.bottom + 6;
+              const right = typeof window !== "undefined" ? window.innerWidth - rect.right : 0;
+              const anchorClass = `userCard-badgePopoverAnchor userCard-badgePopoverAnchor--${size}`;
+              const popover = (
+                <div
+                  ref={popoverRef}
+                  className={anchorClass}
+                  style={{ position: "fixed", top, right, left: "auto", bottom: "auto" }}
+                  role="dialog"
+                  aria-label={isYou ? "Your badges" : "Badges"}
+                >
+                  <div className="userCard-badgePopover">
+                    {earnedBadges.map((b) => (
+                      <div key={b.id} className="userCard-badgePopoverItem">
+                        <BadgeIcon size="sm" title={b.name} />
+                        <span className="userCard-badgePopoverName">{b.name}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
+              );
+              return typeof document !== "undefined"
+                ? createPortal(popover, document.body)
+                : null;
+            })()}
         </div>
       )}
     </div>

@@ -105,7 +105,7 @@
 
 .leaderboardRow {
   display: grid;
-  grid-template-columns: 60px 1fr 80px 120px 80px;
+  grid-template-columns: 60px 1fr 80px 120px;
   gap: 16px;
   padding: 16px 20px;
   border-bottom: 1px solid #3a3a3c;
@@ -171,12 +171,6 @@
   color: #ffffff;
 }
 
-.leaderboardScore {
-  text-align: center;
-  font-weight: bold;
-  color: #6aaa64;
-}
-
 @media (max-width: 768px) {
   .leaderboardRoot {
     padding: 12px;
@@ -193,7 +187,7 @@
   }
 
   .leaderboardRow {
-    grid-template-columns: 50px 1fr 60px 100px 60px;
+    grid-template-columns: 50px 1fr 60px 100px;
     gap: 8px;
     padding: 12px 12px;
     font-size: 14px;
@@ -208,8 +202,7 @@
   }
 
   .leaderboardBoards,
-  .leaderboardTime,
-  .leaderboardScore {
+  .leaderboardTime {
     font-size: 12px;
   }
 }

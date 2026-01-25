@@ -6,6 +6,16 @@ import { database, auth } from "../config/firebase";
 import { MULTIPLAYER_WAITING_TIMEOUT_MS } from "../lib/multiplayerConfig";
 import "./OpenRoomsModal.css";
 
+function formatDuration(ms) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes > 0) {
+    return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
+  }
+  return `${seconds}s`;
+}
+
 export default function OpenRoomsModal({ isOpen, onRequestClose, adminMode = false }) {
   const navigate = useNavigate();
   const [rooms, setRooms] = useState([]);
@@ -74,6 +84,7 @@ export default function OpenRoomsModal({ isOpen, onRequestClose, adminMode = fal
         setLoading(false);
       },
       () => {
+        setRooms([]);
         setLoading(false);
       }
     );
@@ -82,7 +93,7 @@ export default function OpenRoomsModal({ isOpen, onRequestClose, adminMode = fal
       off(roomsRef);
       if (typeof unsubscribe === "function") unsubscribe();
     };
-  }, [isOpen]);
+  }, [isOpen, adminMode]);
 
   const handleJoin = (room) => {
     const { code, data } = room;
@@ -186,16 +197,6 @@ export default function OpenRoomsModal({ isOpen, onRequestClose, adminMode = fal
               const remainingMs = createdAt
                 ? Math.max(0, lifetimeMs - ageMs)
                 : null;
-
-              const formatDuration = (ms) => {
-                const totalSeconds = Math.floor(ms / 1000);
-                const minutes = Math.floor(totalSeconds / 60);
-                const seconds = totalSeconds % 60;
-                if (minutes > 0) {
-                  return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
-                }
-                return `${seconds}s`;
-              };
 
               const expiresLabel = remainingMs != null ? formatDuration(remainingMs) : null;
 

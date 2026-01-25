@@ -1,6 +1,5 @@
 // Error boundary component for React error handling
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import './ErrorBoundary.css';
 
 class ErrorBoundaryClass extends React.Component {
@@ -71,7 +70,8 @@ class ErrorBoundaryClass extends React.Component {
               <button
                 type="button"
                 onClick={() => {
-                  window.location.href = '/';
+                  const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '') || '';
+                  window.location.href = base ? `${base}/` : '/';
                 }}
                 className="error-boundary-button error-boundary-button-secondary"
               >

@@ -7,7 +7,7 @@ import MultiplayerChat from "./MultiplayerChat";
 import UserCardWithBadges from "../UserCardWithBadges";
 import AuthModal from "../AuthModal";
 import { KEYBOARD_HEIGHT, formatElapsed as formatElapsedLib, scoreGuess } from "../../lib/wordle";
-import { FLIP_MS } from "../../lib/gameConstants";
+import { FLIP_MS, SPEEDRUN_COUNTDOWN_MS } from "../../lib/gameConstants";
 import { MULTIPLAYER_WAITING_TIMEOUT_MS, getSolutionArray } from "../../lib/multiplayerConfig";
 
 /**
@@ -48,6 +48,7 @@ export default function MultiplayerGameView({
   onInviteFriend,
   onUpdateConfig,
   onUpdateRoomName,
+  countdownRemaining,
 }) {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const gameState = multiplayerGame?.gameState;
@@ -425,19 +426,20 @@ export default function MultiplayerGameView({
     : "Standard: everyone guessing";
 
   const renderSpeedrunTimeForPlayer = (playerId) => {
-    // For multiplayer games with players map, get the player's time
     if (gameState?.players && playerId) {
       const playerData = gameState.players[playerId];
       const playerTimeMs = playerData?.timeMs || null;
 
       if (playerTimeMs !== null) return formatElapsedLib(playerTimeMs);
 
-      // If player hasn't finished yet, calculate elapsed time since game started
-      const startTime = playerData?.startTime || gameState.startedAt;
-      if (startTime) return formatElapsedLib(multiplayerNowMs - startTime);
+      const startedAt = gameState?.startedAt;
+      const effectiveStart = startedAt != null ? startedAt + SPEEDRUN_COUNTDOWN_MS : null;
+      if (effectiveStart != null) {
+        const elapsed = Math.max(0, multiplayerNowMs - effectiveStart);
+        return formatElapsedLib(elapsed);
+      }
       return "0:00";
     }
-
     return "0:00";
   };
 
@@ -494,6 +496,37 @@ export default function MultiplayerGameView({
         }}
       >
         <SiteHeader onOpenFeedback={onOpenFeedback} />
+
+        {isSpeedrun &&
+          gameState.status === "playing" &&
+          countdownRemaining != null &&
+          countdownRemaining > 0 && (
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(18, 18, 19, 0.95)",
+                zIndex: 9999,
+              }}
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <div
+                style={{
+                  fontSize: 48,
+                  fontWeight: "bold",
+                  letterSpacing: 4,
+                  color: "#ffffff",
+                  textAlign: "center",
+                }}
+              >
+                Timer starts in {countdownRemaining}
+              </div>
+            </div>
+          )}
 
         <main
           style={{
@@ -592,30 +625,27 @@ export default function MultiplayerGameView({
                     }}
                   >
                     {(() => {
-                      // For speedrun mode, show THIS player's own time
-                      // If they've finished, show their final timeMs
-                      // Otherwise, show their elapsed time since they started
+                      const inCountdown = countdownRemaining != null && countdownRemaining > 0;
+                      if (inCountdown) return "0:00";
+
+                      const startedAt = gameState?.startedAt;
+                      const effectiveStart = startedAt != null ? startedAt + SPEEDRUN_COUNTDOWN_MS : null;
+
                       if (gameState?.players && authUser) {
                         const myPlayer = gameState.players[authUser.uid];
                         if (myPlayer) {
-                          // If this player has finished, show their final time
-                          if (myPlayer.timeMs != null && typeof myPlayer.timeMs === 'number') {
+                          if (myPlayer.timeMs != null && typeof myPlayer.timeMs === "number") {
                             return formatElapsedLib(myPlayer.timeMs);
                           }
-                          
-                          // Otherwise, calculate elapsed time for this player
-                          const startTime = myPlayer.startTime || gameState.startedAt;
-                          if (startTime) {
-                            const elapsed = multiplayerNowMs - startTime;
+                          if (effectiveStart != null) {
+                            const elapsed = Math.max(0, multiplayerNowMs - effectiveStart);
                             return formatElapsedLib(elapsed);
                           }
                         }
                       }
 
-                      // Fallback: show elapsed time since game started
-                      const startedAt = gameState?.startedAt;
-                      if (startedAt) {
-                        const elapsed = multiplayerNowMs - startedAt;
+                      if (effectiveStart != null) {
+                        const elapsed = Math.max(0, multiplayerNowMs - effectiveStart);
                         return formatElapsedLib(elapsed);
                       }
                       return "0:00";

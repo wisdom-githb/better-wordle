@@ -7,6 +7,7 @@ import SiteHeader from "./components/SiteHeader";
 import { loadStreak } from "./lib/persist";
 import { database } from "./config/firebase";
 import { ref, get } from "firebase/database";
+import { syncLocalStreaksToRemoteOnLogin } from "./lib/singlePlayerStore";
 import { ALL_BADGES, getEarnedBadgeDefs } from "./lib/badges";
 import BadgeIcon from "./components/BadgeIcon";
 
@@ -25,6 +26,8 @@ export default function Profile() {
   const [sendingVerification, setSendingVerification] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [streaks, setStreaks] = useState(null);
+  const [streakLoadError, setStreakLoadError] = useState(null);
+  const [streakRetryCount, setStreakRetryCount] = useState(0);
   const { userBadges, loading: badgesLoading } = useUserBadges(user);
   const earnedBadges = getEarnedBadgeDefs(userBadges);
 
@@ -42,6 +45,7 @@ export default function Profile() {
 
   useEffect(() => {
     let isMounted = true;
+    setStreakLoadError(null);
 
     async function loadProfileStreaks() {
       try {
@@ -61,6 +65,11 @@ export default function Profile() {
         const streaksRef = ref(database, `users/${user.uid}/streaks`);
         const snap = await get(streaksRef);
         if (!snap.exists()) {
+          try {
+            await syncLocalStreaksToRemoteOnLogin(user, database);
+          } catch (e) {
+            // Non-fatal; we still show local streaks
+          }
           if (isMounted) setStreaks(local);
           return;
         }
@@ -76,7 +85,10 @@ export default function Profile() {
         if (isMounted) setStreaks(merged);
       } catch (err) {
         console.error("Failed to load streaks in profile", err);
-        if (isMounted) setStreaks(null);
+        if (isMounted) {
+          setStreaks(null);
+          setStreakLoadError(err?.message || "Failed to load streaks.");
+        }
       }
     }
 
@@ -85,7 +97,7 @@ export default function Profile() {
     return () => {
       isMounted = false;
     };
-  }, [user]);
+  }, [user, streakRetryCount]);
 
   const handleSave = async () => {
     if (!username.trim()) {
@@ -287,9 +299,24 @@ export default function Profile() {
                   </div>
                 )}
 
-                {streaks && (
+                {(streaks || streakLoadError) && (
                   <div className="profileSection profileSectionSpacing">
                     <h2>Game streaks</h2>
+                    {streakLoadError ? (
+                      <div className="profileField">
+                        <div style={{ color: "#f87171", fontSize: 14, marginBottom: 8 }}>
+                          {streakLoadError}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setStreakRetryCount((c) => c + 1)}
+                          className="homeBtn homeBtnOutline homeBtnLg"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    ) : (
+                      <>
                     <div className="profileField">
                       <label style={{ fontSize: 12, color: "#9ca3af" }}>
                         Streaks are tied to your account and sync across devices once you're signed in.
@@ -329,6 +356,8 @@ export default function Profile() {
                         <div className="streakBest">Best: {streaks.marathonSpeedrun.best}</div>
                       </div>
                     </div>
+                      </>
+                    )}
                   </div>
                 )}
 

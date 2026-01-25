@@ -320,7 +320,8 @@ describe('useMultiplayerGame – DB operations', () => {
 
     const stored = __dbData['multiplayer/012345'];
     expect(stored.players['host-1'].guesses).toEqual(['APPLE', 'OTHER']);
-    expect(stored.players['host-1'].timeMs).toBe(19_000); // now - startTime
+    // Timer starts after 3-2-1 countdown: effectiveStart = startedAt + 3000 = 4000
+    expect(stored.players['host-1'].timeMs).toBe(16_000); // now 20_000 - effectiveStart 4_000
   });
 
   it('switchTurn toggles between host and guest in non-speedrun mode', async () => {

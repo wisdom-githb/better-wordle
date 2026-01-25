@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import emailjs from "@emailjs/browser";
 import Modal from "./Modal";
 import { EMAILJS_CONFIG, isEmailJSConfigured } from "../config/emailjs";
@@ -7,15 +7,30 @@ function FeedbackModal({ isOpen, onRequestClose }) {
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState(null); // 'success' | 'error' | null
+  const timeoutRef = useRef(null);
+
+  const clearTimeouts = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => clearTimeouts();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!message.trim()) return;
 
+    clearTimeouts();
+
     // Check if EmailJS is configured
     if (!isEmailJSConfigured()) {
       setSubmitStatus("error");
-      setTimeout(() => {
+      timeoutRef.current = setTimeout(() => {
+        timeoutRef.current = null;
         setSubmitStatus(null);
       }, 3000);
       return;
@@ -38,9 +53,10 @@ function FeedbackModal({ isOpen, onRequestClose }) {
 
       setSubmitStatus("success");
       setMessage("");
-      
+
       // Close modal after 2 seconds
-      setTimeout(() => {
+      timeoutRef.current = setTimeout(() => {
+        timeoutRef.current = null;
         onRequestClose();
         setSubmitStatus(null);
       }, 2000);
@@ -53,6 +69,7 @@ function FeedbackModal({ isOpen, onRequestClose }) {
   };
 
   const handleClose = () => {
+    clearTimeouts();
     setMessage("");
     setSubmitStatus(null);
     onRequestClose();

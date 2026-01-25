@@ -4,7 +4,7 @@ import { database } from '../config/firebase';
 import { auth } from '../config/firebase';
 import { MULTIPLAYER_WAITING_TIMEOUT_MS, getSolutionArray } from '../lib/multiplayerConfig';
 import { clampBoards, clampPlayers, validateGameCode } from '../lib/validation';
-import { MAX_BOARDS, ABSOLUTE_MAX_PLAYERS, DEFAULT_MAX_PLAYERS } from '../lib/gameConstants';
+import { MAX_BOARDS, ABSOLUTE_MAX_PLAYERS, DEFAULT_MAX_PLAYERS, SPEEDRUN_COUNTDOWN_MS } from '../lib/gameConstants';
 import { logError } from '../lib/errorUtils';
 
 /**
@@ -464,11 +464,13 @@ const createGame = useCallback(async (options = {}) => {
         updateData[`players/${user.uid}/colors`] = [...(playerRecord.colors || []), colors];
 
         // Multi-player speedrun timing: track timeMs per player.
+        // Timer starts after 3-2-1 countdown, so use effectiveStart = startedAt + 3000.
         if (isSpeedrun && solutionArray.length > 0 && !playerRecord.timeMs) {
           const solvedAll = solutionArray.every((sol) => newGuesses.includes(sol));
           if (solvedAll) {
-            const startTime = playerRecord.startTime || gameData.startedAt || now;
-            const elapsed = now - startTime;
+            const startedAt = gameData.startedAt;
+            const effectiveStart = startedAt != null ? startedAt + SPEEDRUN_COUNTDOWN_MS : now;
+            const elapsed = Math.max(0, now - effectiveStart);
             updateData[`players/${user.uid}/timeMs`] = elapsed;
           }
         }

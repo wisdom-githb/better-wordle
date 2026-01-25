@@ -13,26 +13,27 @@ import { getGameMode, getModeFeatures, modeSupportsFeatureFlag } from '../lib/ga
 export function useGameMode() {
   const params = useParams();
   const [searchParams] = useSearchParams();
-  
+  const searchString = searchParams.toString();
+
   const gameConfig = useMemo(() => {
     return parseGameUrl(params, searchParams);
-  }, [params, searchParams]);
-  
+  }, [params, searchString]);
+
   const modeConfig = useMemo(() => {
     return getGameMode(gameConfig.mode);
   }, [gameConfig.mode]);
-  
+
   const isMultiplayer = useMemo(() => {
     return gameConfig.mode === 'multiplayer';
   }, [gameConfig.mode]);
-  
+
   const seo = useMemo(() => {
     return modeConfig?.seo || {
       title: 'Game – Better Wordle',
       description: 'Play Better Wordle game modes including daily, marathon, speedrun and multi-board Wordle-style puzzles.',
     };
   }, [modeConfig]);
-  
+
   const features = useMemo(() => {
     return getModeFeatures(gameConfig.mode);
   }, [gameConfig.mode]);
@@ -41,6 +42,11 @@ export function useGameMode() {
     return modeSupportsFeatureFlag(gameConfig.mode, feature);
   }, [gameConfig.mode]);
 
+  const buildUrl = useCallback(
+    (overrides = {}) => buildGameUrl({ ...gameConfig, ...overrides }),
+    [gameConfig]
+  );
+
   return {
     ...gameConfig,
     modeConfig,
@@ -48,6 +54,6 @@ export function useGameMode() {
     seo,
     features,
     supportsFeature,
-    buildUrl: (overrides = {}) => buildGameUrl({ ...gameConfig, ...overrides }),
+    buildUrl,
   };
 }

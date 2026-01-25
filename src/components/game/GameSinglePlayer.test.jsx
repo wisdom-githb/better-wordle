@@ -872,46 +872,54 @@ describe('GameSinglePlayer speedrun leaderboard submission', () => {
   it('submits daily speedrun score for verified user when all boards are solved', async () => {
     const { setBoards, setIsLoading, setAllowedSet } = await renderDailySpeedrun();
 
-    act(() => {
-      // Single board with known solution; start unsolved so the normal submit
-      // path (including score submission) is exercised.
-      setAllowedSet(new Set(['APPLE']));
-      setBoards([
-        {
-          solution: 'APPLE',
-          guesses: [],
-          isSolved: false,
-          isDead: false,
-        },
-      ]);
-      setIsLoading(false);
-    });
+    vi.useFakeTimers();
+    try {
+      act(() => {
+        setAllowedSet(new Set(['APPLE']));
+        setBoards([
+          {
+            solution: 'APPLE',
+            guesses: [],
+            isSolved: false,
+            isDead: false,
+          },
+        ]);
+        setIsLoading(false);
+      });
 
-    const { handleVirtualKey } = latestViewProps;
-    expect(typeof handleVirtualKey).toBe('function');
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
 
-    act(() => {
-      handleVirtualKey('A');
-      handleVirtualKey('P');
-      handleVirtualKey('P');
-      handleVirtualKey('L');
-      handleVirtualKey('E');
-      handleVirtualKey('ENTER');
-    });
+      const { handleVirtualKey } = latestViewProps;
+      expect(typeof handleVirtualKey).toBe('function');
 
-    expect(submitSpeedrunScoreMock).toHaveBeenCalledTimes(1);
-    const [userId, userName, modeArg, numBoardsArg, timeMsArg, scoreArg] =
-      submitSpeedrunScoreMock.mock.calls[0];
+      act(() => {
+        handleVirtualKey('A');
+        handleVirtualKey('P');
+        handleVirtualKey('P');
+        handleVirtualKey('L');
+        handleVirtualKey('E');
+        handleVirtualKey('ENTER');
+      });
 
-    expect(userId).toBe('uid-speedrun');
-    expect(userName).toBe('Speed Runner');
-    expect(modeArg).toBe('daily');
-    expect(numBoardsArg).toBe(1);
-    expect(typeof timeMsArg).toBe('number');
-    expect(scoreArg).toBe(0);
+      expect(submitSpeedrunScoreMock).toHaveBeenCalledTimes(1);
+      const [userId, userName, modeArg, numBoardsArg, timeMsArg, scoreArg] =
+        submitSpeedrunScoreMock.mock.calls[0];
+
+      expect(userId).toBe('uid-speedrun');
+      expect(userName).toBe('Speed Runner');
+      expect(modeArg).toBe('daily');
+      expect(numBoardsArg).toBe(1);
+      expect(typeof timeMsArg).toBe('number');
+      expect(scoreArg).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('does not submit speedrun score when user is not verified', async () => {
+    vi.useFakeTimers();
     mockUseAuth.mockReturnValue({
       user: {
         uid: 'uid-unverified',
@@ -950,6 +958,10 @@ describe('GameSinglePlayer speedrun leaderboard submission', () => {
       setIsLoading(false);
     });
 
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+
     const { handleVirtualKey } = latestViewProps;
 
     act(() => {
@@ -961,6 +973,7 @@ describe('GameSinglePlayer speedrun leaderboard submission', () => {
       handleVirtualKey('ENTER');
     });
 
+    vi.useRealTimers();
     expect(submitSpeedrunScoreMock).not.toHaveBeenCalled();
   });
 });
