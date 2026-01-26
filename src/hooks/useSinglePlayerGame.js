@@ -80,8 +80,11 @@ export function useSinglePlayerGame({
   setShowPopup,
   setTimedMessage,
   setStageTimerSeed,
+  archiveDate = null, // Optional: date string (YYYY-MM-DD) for archive games
 }) {
   const { user: authUser, loading: authLoading } = useAuth();
+  // Note: We can't use useSubscription here directly due to hook rules,
+  // so we'll check premium access in the component level
   const flipPopupTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -93,11 +96,19 @@ export function useSinglePlayerGame({
       // Skip regular init for multiplayer mode
       if (isOneVOne) return;
 
+      // Premium check for archive games is handled at component level
+      // Archive games require signed-in user
+      if (archiveDate && !authUser) {
+        setIsLoading(false);
+        setTimedMessage('You must be signed in to play archive games.', 5000);
+        return;
+      }
+
       try {
         setIsLoading(true);
 
-        // Check if this mode has already been solved (for today's date)
-        const dateString = getCurrentDateString();
+        // For archive games, use archiveDate; for regular games, use current date
+        const dateString = archiveDate || getCurrentDateString();
         const solvedKey = makeSolvedKey(
           mode,
           numBoards,
@@ -206,9 +217,21 @@ export function useSinglePlayerGame({
         // Reset saved state ref when starting a new game
         savedSolvedStateRef.current = null;
 
-        // Check if there's an incomplete game state to resume
+        // Handle archive games
+        let archiveGameState = null;
+        if (archiveDate && authUser) {
+          const { loadArchiveGameState } = await import('../lib/archiveService');
+          archiveGameState = await loadArchiveGameState({
+            uid: authUser.uid,
+            mode,
+            speedrunEnabled,
+            dateString: archiveDate,
+          });
+        }
+
+        // Check if there's an incomplete game state to resume (regular or archive)
         const gameStateKey = getGameStateKey();
-        const savedGameState = await loadGameState({
+        const savedGameState = archiveGameState || await loadGameState({
           authUser,
           database,
           gameStateKey,
@@ -258,24 +281,46 @@ export function useSinglePlayerGame({
           }
         }
 
-        // No saved state - start new game
+        // No saved state - start new game (or archive game)
         const { ANSWER_WORDS, ALLOWED_GUESSES } = await loadWordLists();
         setAllowedSet(new Set(ALLOWED_GUESSES));
 
         const turns = getMaxTurns(numBoards);
         setMaxTurns(turns);
 
-        // Select daily words deterministically based on date
-        const marathonIndexForSeed = mode === "marathon" ? marathonIndex : null;
-        const marathonLevelsForSelection = mode === "marathon" ? (marathonLevels || [1, 2, 3, 4]) : [1, 2, 3, 4];
-        const dailySolutions = selectDailyWords(
-          ANSWER_WORDS,
-          numBoards,
-          mode,
-          speedrunEnabled,
-          marathonIndexForSeed,
-          marathonLevelsForSelection
-        );
+        // For archive games, load solution words from archive
+        let dailySolutions;
+        if (archiveDate) {
+          const { loadArchiveSolution } = await import('../lib/archiveService');
+          const archiveSolutions = await loadArchiveSolution({
+            mode,
+            speedrunEnabled,
+            dateString: archiveDate,
+          });
+          
+          if (archiveSolutions && archiveSolutions.length >= numBoards) {
+            // Use archive solutions
+            dailySolutions = archiveSolutions.slice(0, numBoards);
+          } else {
+            // Archive not found - show error message and don't start game
+            setIsLoading(false);
+            setTimedMessage(`This Wordle doesn't exist for ${archiveDate}. Archive games are only available for dates for which better wordle has tracked the words.`, 6000);
+            return;
+          }
+        } else {
+          // Regular game - select daily words deterministically based on current date
+          const marathonIndexForSeed = mode === "marathon" ? marathonIndex : null;
+          const marathonLevelsForSelection = mode === "marathon" ? (marathonLevels || [1, 2, 3, 4]) : [1, 2, 3, 4];
+          dailySolutions = selectDailyWords(
+            ANSWER_WORDS,
+            numBoards,
+            mode,
+            speedrunEnabled,
+            marathonIndexForSeed,
+            marathonLevelsForSelection
+          );
+        }
+        
         const newBoards = dailySolutions.map((solution) => createBoardState(solution));
 
         setBoards(newBoards);
@@ -320,5 +365,5 @@ export function useSinglePlayerGame({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOneVOne, numBoards, mode, speedrunEnabled, marathonIndex, authUser, authLoading]);
+  }, [isOneVOne, numBoards, mode, speedrunEnabled, marathonIndex, authUser, authLoading, archiveDate]);
 }

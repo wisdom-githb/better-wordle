@@ -78,8 +78,8 @@ export function selectDailyWord(wordList, dateString, boardIndex = 0, mode = 'da
  * @param {number[]} marathonLevels - Array of board counts for each marathon stage (e.g., [1, 2, 3, 4])
  * @returns {string[]} Array of selected words
  */
-export function selectDailyWords(wordList, numBoards, mode = 'daily', speedrunEnabled = false, marathonIndex = null, marathonLevels = [1, 2, 3, 4]) {
-  const dateString = getCurrentDateString();
+export function selectDailyWords(wordList, numBoards, mode = 'daily', speedrunEnabled = false, marathonIndex = null, marathonLevels = [1, 2, 3, 4], dateString = null) {
+  const targetDateString = dateString || getCurrentDateString();
   const words = [];
   const usedWords = new Set(); // Track used words to avoid duplicates
   
@@ -98,9 +98,9 @@ export function selectDailyWords(wordList, numBoards, mode = 'daily', speedrunEn
         
         // Generate words for this board in the previous stage
         do {
-          word = selectDailyWord(wordList, dateString, boardIdx, mode, speedrunEnabled, prevStageIndex, prevStageBoards);
+          word = selectDailyWord(wordList, targetDateString, boardIdx, mode, speedrunEnabled, prevStageIndex, prevStageBoards);
           if (attempts > 0) {
-            const seed = createSeed(dateString, boardIdx + attempts * 1000, mode, speedrunEnabled, prevStageIndex, prevStageBoards);
+            const seed = createSeed(targetDateString, boardIdx + attempts * 1000, mode, speedrunEnabled, prevStageIndex, prevStageBoards);
             const rng = new SeededRandom(seed);
             const index = Math.floor(rng.next() * wordList.length);
             word = wordList[index];
@@ -127,22 +127,22 @@ export function selectDailyWords(wordList, numBoards, mode = 'daily', speedrunEn
     let attempts = 0;
     const maxAttempts = workingWordList.length; // Safety limit
     
-    // Keep trying until we get a unique word
-    do {
-      // Use the filtered word list, but maintain the same seed logic for determinism
-      // We need to map the selection to the filtered list
-      const seed = createSeed(dateString, i, mode, speedrunEnabled, marathonIndex, numBoards);
-      const rng = new SeededRandom(seed);
-      const baseIndex = Math.floor(rng.next() * workingWordList.length);
-      word = workingWordList[baseIndex];
-      
-      // If we've tried many times and still getting duplicates, add attempts to seed to vary it
-      if (attempts > 0) {
-        const seed2 = createSeed(dateString, i + attempts * 1000, mode, speedrunEnabled, marathonIndex, numBoards);
-        const rng2 = new SeededRandom(seed2);
-        const index2 = Math.floor(rng2.next() * workingWordList.length);
-        word = workingWordList[index2];
-      }
+      // Keep trying until we get a unique word
+      do {
+        // Use the filtered word list, but maintain the same seed logic for determinism
+        // We need to map the selection to the filtered list
+        const seed = createSeed(targetDateString, i, mode, speedrunEnabled, marathonIndex, numBoards);
+        const rng = new SeededRandom(seed);
+        const baseIndex = Math.floor(rng.next() * workingWordList.length);
+        word = workingWordList[baseIndex];
+        
+        // If we've tried many times and still getting duplicates, add attempts to seed to vary it
+        if (attempts > 0) {
+          const seed2 = createSeed(targetDateString, i + attempts * 1000, mode, speedrunEnabled, marathonIndex, numBoards);
+          const rng2 = new SeededRandom(seed2);
+          const index2 = Math.floor(rng2.next() * workingWordList.length);
+          word = workingWordList[index2];
+        }
       attempts++;
     } while (usedWords.has(word) && attempts < maxAttempts);
     

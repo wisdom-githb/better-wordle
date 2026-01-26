@@ -802,7 +802,7 @@ export default function GamePopup({
             </button>
           )}
 
-          {user && !isSubscribed && (
+          {user && isSubscribed !== true && (
             <button
               onClick={handleOpenSubscribe}
               style={{

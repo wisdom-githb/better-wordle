@@ -19,6 +19,11 @@
           ".write": "auth != null && auth.uid === $uid"
         },
 
+        "archiveGames": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.uid === $uid"
+        },
+
         "friendRequests": {
           ".read": "auth != null",
           "$requestId": {
@@ -83,6 +88,19 @@
       "$threadId": {
         ".read": true,
         ".write": true
+      }
+    },
+
+    "archive": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$archiveKey": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "$dateString": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        }
       }
     }
   }

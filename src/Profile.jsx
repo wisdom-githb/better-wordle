@@ -12,6 +12,7 @@ import { ALL_BADGES, getEarnedBadgeDefs } from "./lib/badges";
 import BadgeIcon from "./components/BadgeIcon";
 
 const FeedbackModal = lazy(() => import("./components/FeedbackModal"));
+import ArchiveModal from "./components/ArchiveModal";
 import "./Profile.css";
 
 export default function Profile() {
@@ -28,6 +29,7 @@ export default function Profile() {
   const [streaks, setStreaks] = useState(null);
   const [streakLoadError, setStreakLoadError] = useState(null);
   const [streakRetryCount, setStreakRetryCount] = useState(0);
+  const [archiveModal, setArchiveModal] = useState({ isOpen: false, mode: null, speedrunEnabled: false });
   const { userBadges, loading: badgesLoading } = useUserBadges(user);
   const earnedBadges = getEarnedBadgeDefs(userBadges);
 
@@ -330,6 +332,18 @@ export default function Profile() {
                           {streaks.dailyStandard.current} day{streaks.dailyStandard.current === 1 ? "" : "s"}
                         </div>
                         <div className="streakBest">Best: {streaks.dailyStandard.best}</div>
+                        <button
+                          type="button"
+                          onClick={() => setArchiveModal({ isOpen: true, mode: 'daily', speedrunEnabled: false })}
+                          className="homeBtn homeBtnOutline"
+                          style={{
+                            marginTop: 8,
+                            padding: '6px 12px',
+                            fontSize: 12,
+                          }}
+                        >
+                          View Archive
+                        </button>
                       </div>
 
                       <div className="streakCard">
@@ -338,6 +352,18 @@ export default function Profile() {
                           {streaks.dailySpeedrun.current} day{streaks.dailySpeedrun.current === 1 ? "" : "s"}
                         </div>
                         <div className="streakBest">Best: {streaks.dailySpeedrun.best}</div>
+                        <button
+                          type="button"
+                          onClick={() => setArchiveModal({ isOpen: true, mode: 'daily', speedrunEnabled: true })}
+                          className="homeBtn homeBtnOutline"
+                          style={{
+                            marginTop: 8,
+                            padding: '6px 12px',
+                            fontSize: 12,
+                          }}
+                        >
+                          View Archive
+                        </button>
                       </div>
 
                       <div className="streakCard">
@@ -346,6 +372,18 @@ export default function Profile() {
                           {streaks.marathonStandard.current} day{streaks.marathonStandard.current === 1 ? "" : "s"}
                         </div>
                         <div className="streakBest">Best: {streaks.marathonStandard.best}</div>
+                        <button
+                          type="button"
+                          onClick={() => setArchiveModal({ isOpen: true, mode: 'marathon', speedrunEnabled: false })}
+                          className="homeBtn homeBtnOutline"
+                          style={{
+                            marginTop: 8,
+                            padding: '6px 12px',
+                            fontSize: 12,
+                          }}
+                        >
+                          View Archive
+                        </button>
                       </div>
 
                       <div className="streakCard">
@@ -354,6 +392,18 @@ export default function Profile() {
                           {streaks.marathonSpeedrun.current} day{streaks.marathonSpeedrun.current === 1 ? "" : "s"}
                         </div>
                         <div className="streakBest">Best: {streaks.marathonSpeedrun.best}</div>
+                        <button
+                          type="button"
+                          onClick={() => setArchiveModal({ isOpen: true, mode: 'marathon', speedrunEnabled: true })}
+                          className="homeBtn homeBtnOutline"
+                          style={{
+                            marginTop: 8,
+                            padding: '6px 12px',
+                            fontSize: 12,
+                          }}
+                        >
+                          View Archive
+                        </button>
                       </div>
                     </div>
                       </>
@@ -437,6 +487,13 @@ export default function Profile() {
             onRequestClose={() => setShowFeedbackModal(false)}
           />
         </Suspense>
+
+        <ArchiveModal
+          isOpen={archiveModal.isOpen}
+          onRequestClose={() => setArchiveModal({ isOpen: false, mode: null, speedrunEnabled: false })}
+          mode={archiveModal.mode}
+          speedrunEnabled={archiveModal.speedrunEnabled}
+        />
       </div>
     </div>
     </>

@@ -63,14 +63,22 @@ export default function SubscribeModal({ isOpen, onRequestClose, onSubscriptionC
     setPaymentProcessing(true);
 
     try {
+      // Get base URL for GitHub Pages compatibility
+      // BASE_URL includes the base path (e.g., '/better-wordle/')
+      const baseUrl = import.meta.env.BASE_URL || '/';
+      // Remove trailing slash for consistency
+      const basePath = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+      // Construct full URL with base path
+      const baseFullUrl = `${window.location.origin}${basePath}`;
+
       // Create checkout session document in Firestore
       // The Firebase Extension listens to this and creates a Stripe Checkout session
       const docRef = await addDoc(
         collection(firestore, 'customers', user.uid, 'checkout_sessions'),
         {
           price: STRIPE_PRICE_ID,
-          success_url: `${window.location.origin}/?subscription=success`,
-          cancel_url: `${window.location.origin}/?subscription=cancelled`,
+          success_url: `${baseFullUrl}/?subscription=success`,
+          cancel_url: `${baseFullUrl}/?subscription=cancelled`,
         }
       );
 

@@ -17,6 +17,7 @@ import { generateShareText, buildMarathonShareTotals } from "../../lib/gameUtils
 import { getCurrentDateString } from "../../lib/dailyWords";
 import { submitSpeedrunScore } from "../../hooks/useLeaderboard";
 import { useAuth } from "../../hooks/useAuth";
+import { useSubscription } from "../../hooks/useSubscription";
 import { database } from "../../config/firebase";
 import { ref, get, set } from "firebase/database";
 import { useTimedMessage } from "../../hooks/useTimedMessage";
@@ -30,6 +31,7 @@ import { addPendingLeaderboard } from "../../lib/pendingLeaderboard";
 import { grantBadge } from "../../lib/badgeService";
 import { clampBoards } from "../../lib/validation";
 import { logError } from "../../lib/errorUtils";
+import SubscribeModal from "../SubscribeModal";
 import SinglePlayerGameView from "./SinglePlayerGameView";
 import "../../Game.css";
 
@@ -53,10 +55,30 @@ export default function GameSinglePlayer({
   boardsParam,
   speedrunEnabled,
   marathonLevels = DEFAULT_MARATHON_LEVELS,
+  archiveDate = null,
 }) {
   const navigate = useNavigate();
   const { message, setMessage, setTimedMessage, clearMessageTimer } = useTimedMessage("");
   const { user: authUser, isVerifiedUser } = useAuth();
+  const { isSubscribed } = useSubscription(authUser);
+  const [showSubscribeModal, setShowSubscribeModal] = useState(false);
+
+  // Check premium access for archive games
+  // Note: Date availability is checked in ArchiveModal before navigation
+  useEffect(() => {
+    if (archiveDate && !authUser) {
+      // Must be signed in for archive games
+      setTimedMessage('You must be signed in to play archive games.', 3000);
+      setTimeout(() => {
+        navigate('/profile');
+      }, 2000);
+      return;
+    }
+    if (archiveDate && authUser && !isSubscribed) {
+      // Archive games require premium subscription
+      setShowSubscribeModal(true);
+    }
+  }, [archiveDate, authUser, isSubscribed, navigate, setTimedMessage]);
 
   // Best-effort helper to mirror local single-player progress into the
   // authenticated user's Firebase profile so daily/marathon games can be
@@ -297,7 +319,25 @@ export default function GameSinglePlayer({
     saveJSON(gameStateKey, gameState);
     // Mirror in-progress single-player state to Firebase for signed-in users.
     persistForUser(`singlePlayer/gameStates/${gameStateKey}`, gameState);
-  }, [boards, currentGuess, isUnlimited, maxTurns, speedrunEnabled, stageElapsedMs, revealId, getGameStateKey, persistForUser]);
+
+    // If this is an archive game, also save to archive game state
+    if (archiveDate && authUser) {
+      (async () => {
+        try {
+          const { saveArchiveGameState } = await import('../../lib/archiveService');
+          await saveArchiveGameState({
+            uid: authUser.uid,
+            mode,
+            speedrunEnabled,
+            dateString: archiveDate,
+            gameState,
+          });
+        } catch (err) {
+          logError(err, 'GameSinglePlayer.saveArchiveGameState');
+        }
+      })();
+    }
+  }, [boards, currentGuess, isUnlimited, maxTurns, speedrunEnabled, stageElapsedMs, revealId, getGameStateKey, persistForUser, archiveDate, authUser, mode]);
 
   const clearGameState = useCallback(() => {
     const gameStateKey = getGameStateKey();
@@ -331,6 +371,7 @@ export default function GameSinglePlayer({
     setShowPopup,
     setTimedMessage,
     setStageTimerSeed,
+    archiveDate,
   });
 
   const hasThisStageCommittedInProps =
@@ -536,7 +577,8 @@ export default function GameSinglePlayer({
       const finalStageMs = freezeStageTimer();
       if (isMarathonSpeedrun) commitStageIfNeeded(finalStageMs);
 
-      const dateString = getCurrentDateString();
+      // For archive games, use archiveDate; for regular games, use current date
+      const dateString = archiveDate || getCurrentDateString();
       const solvedKey = makeSolvedKey(
         mode,
         numBoards,
@@ -576,9 +618,11 @@ export default function GameSinglePlayer({
       // Update streaks for supported configurations:
       // - Daily: 1-board standard or speedrun
       // - Marathon: standard or speedrun, but only once the full run is complete.
+      // NOTE: Archive games do NOT update streaks
       const shouldUpdateStreak =
-        (mode === "daily" && numBoards === 1) ||
-        (mode === "marathon" && isMarathonComplete);
+        !archiveDate && // Don't update streaks for archive games
+        ((mode === "daily" && numBoards === 1) ||
+        (mode === "marathon" && isMarathonComplete));
 
       if (shouldUpdateStreak) {
         (async () => {
@@ -594,6 +638,22 @@ export default function GameSinglePlayer({
             });
 
             setStreakLabel(buildStreakLabel(mode, speedrunEnabled, streakInfo));
+
+            // Save solution words to archive for streak-tracked modes
+            // Only save for regular games (not archive games) - archive games already have solutions saved
+            if (!archiveDate) {
+              const solutions = newBoards.map((b) => b.solution).filter(Boolean);
+              if (solutions.length > 0) {
+                const { saveArchiveSolution } = await import('../../lib/archiveService');
+                await saveArchiveSolution({
+                  mode,
+                  speedrunEnabled,
+                  dateString, // This is current date for regular games
+                  solutions,
+                  numBoards,
+                });
+              }
+            }
           } catch (err) {
             logError(err, 'GameSinglePlayer.updateStreak');
           }
@@ -1034,6 +1094,22 @@ export default function GameSinglePlayer({
         }
         onRetryWordLists={() => window.location.reload()}
       />
+
+        <SubscribeModal
+          isOpen={showSubscribeModal}
+          onRequestClose={() => {
+            setShowSubscribeModal(false);
+            if (archiveDate) {
+              // Redirect away from archive game if not subscribed
+              setTimeout(() => {
+                navigate('/profile');
+              }, 1000);
+            }
+          }}
+          onSubscriptionComplete={() => {
+            setShowSubscribeModal(false);
+          }}
+        />
     </>
   );
 }

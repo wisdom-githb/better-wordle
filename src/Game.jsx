@@ -1,6 +1,7 @@
 // src/Game.js
 import React, { lazy } from "react";
 import { Helmet } from "react-helmet-async";
+import { useSearchParams } from "react-router-dom";
 import { useGameMode } from "./hooks/useGameMode";
 import "./Game.css";
 
@@ -11,6 +12,8 @@ const Game = ({
   marathonLevels = [1, 2, 3, 4],
 }) => {
   const { mode, boards, speedrun, isMultiplayer, seo, modeConfig } = useGameMode();
+  const [searchParams] = useSearchParams();
+  const archiveDate = searchParams.get('archiveDate');
 
   // Convert boards to string for boardsParam (legacy prop format)
   const boardsParam = boards ? boards.toString() : null;
@@ -29,6 +32,7 @@ const Game = ({
           boardsParam={boardsParam}
           speedrunEnabled={speedrun}
           marathonLevels={marathonLevels}
+          archiveDate={archiveDate}
         />
       )}
     </>

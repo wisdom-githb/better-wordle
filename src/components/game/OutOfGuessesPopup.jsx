@@ -112,7 +112,7 @@ export default function OutOfGuessesPopup({
             Continue
           </button>
 
-          {user && !isSubscribed && (
+          {user && isSubscribed !== true && (
             <button
               onClick={handleOpenSubscribe}
               style={{
