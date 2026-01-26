@@ -46,10 +46,24 @@
           return;
         }
         
+        // Handle root path (/) - redirect to base path with query params
+        // This handles cases like Stripe redirects to root with ?subscription=success
+        if (path === '/' || path === '') {
+          // Redirect to base path with query params and hash preserved
+          const redirectUrl = basePath + '/' + search + hash;
+          window.location.replace(redirectUrl);
+          return;
+        }
+        
         // Extract the path after the base path (e.g., '/game' from '/better-wordle/game')
         let pathAfterBase = path;
         if (path.startsWith(basePath)) {
           pathAfterBase = path.substring(basePath.length);
+        }
+        
+        // Ensure pathAfterBase starts with / for proper routing
+        if (!pathAfterBase.startsWith('/')) {
+          pathAfterBase = '/' + pathAfterBase;
         }
         
         // Store the original URL in sessionStorage so React Router can restore it
