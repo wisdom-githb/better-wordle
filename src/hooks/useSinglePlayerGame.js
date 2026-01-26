@@ -60,6 +60,7 @@ export function useSinglePlayerGame({
   speedrunEnabled,
   numBoards,
   marathonIndex,
+  marathonLevels,
   getGameStateKey,
   savedSolvedStateRef,
   committedRef,
@@ -266,12 +267,14 @@ export function useSinglePlayerGame({
 
         // Select daily words deterministically based on date
         const marathonIndexForSeed = mode === "marathon" ? marathonIndex : null;
+        const marathonLevelsForSelection = mode === "marathon" ? (marathonLevels || [1, 2, 3, 4]) : [1, 2, 3, 4];
         const dailySolutions = selectDailyWords(
           ANSWER_WORDS,
           numBoards,
           mode,
           speedrunEnabled,
-          marathonIndexForSeed
+          marathonIndexForSeed,
+          marathonLevelsForSelection
         );
         const newBoards = dailySolutions.map((solution) => createBoardState(solution));
 

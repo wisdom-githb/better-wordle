@@ -1,7 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getSolutionArray } from "../../lib/multiplayerConfig";
+import { useAuth } from "../../hooks/useAuth";
+import { useSubscription } from "../../hooks/useSubscription";
 import UserCardWithBadges from "../UserCardWithBadges";
+import SubscribeModal from "../SubscribeModal";
 
 export default function GamePopup({
   allSolved,
@@ -38,11 +41,26 @@ export default function GamePopup({
   friendRequestSent,
 }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { isSubscribed } = useSubscription(user);
+  const [showSubscribeModal, setShowSubscribeModal] = useState(false);
   
   const handleBackdropClick = (e) => {
     if (e.target === e.currentTarget) {
       onClose();
     }
+  };
+
+  const handleOpenSubscribe = () => {
+    setShowSubscribeModal(true);
+  };
+
+  const handleCloseSubscribe = () => {
+    setShowSubscribeModal(false);
+  };
+
+  const handleSubscriptionComplete = () => {
+    setShowSubscribeModal(false);
   };
 
   const handleNextStage = () => {
@@ -783,8 +801,36 @@ export default function GamePopup({
               Next Stage
             </button>
           )}
+
+          {user && !isSubscribed && (
+            <button
+              onClick={handleOpenSubscribe}
+              style={{
+                flex: 1,
+                minWidth: 160,
+                padding: "12px 0",
+                borderRadius: 10,
+                border: "none",
+                background: "#c9b458",
+                color: "#121213",
+                fontSize: 14,
+                fontWeight: "bold",
+                cursor: "pointer",
+                letterSpacing: 1,
+                textTransform: "uppercase"
+              }}
+            >
+              Subscribe
+            </button>
+          )}
         </div>
       </div>
+
+      <SubscribeModal
+        isOpen={showSubscribeModal}
+        onRequestClose={handleCloseSubscribe}
+        onSubscriptionComplete={handleSubscriptionComplete}
+      />
     </div>
   );
 }

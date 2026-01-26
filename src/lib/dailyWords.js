@@ -75,27 +75,73 @@ export function selectDailyWord(wordList, dateString, boardIndex = 0, mode = 'da
  * @param {string} mode - Game mode ('daily' or 'marathon')
  * @param {boolean} speedrunEnabled - Whether speedrun is enabled
  * @param {number} marathonIndex - Marathon level index (for marathon mode)
+ * @param {number[]} marathonLevels - Array of board counts for each marathon stage (e.g., [1, 2, 3, 4])
  * @returns {string[]} Array of selected words
  */
-export function selectDailyWords(wordList, numBoards, mode = 'daily', speedrunEnabled = false, marathonIndex = null) {
+export function selectDailyWords(wordList, numBoards, mode = 'daily', speedrunEnabled = false, marathonIndex = null, marathonLevels = [1, 2, 3, 4]) {
   const dateString = getCurrentDateString();
   const words = [];
   const usedWords = new Set(); // Track used words to avoid duplicates
   
+  // For marathon mode, collect all words used in previous stages
+  if (mode === 'marathon' && marathonIndex !== null && marathonIndex > 0) {
+    // Generate words for all previous stages (0 to marathonIndex - 1)
+    for (let prevStageIndex = 0; prevStageIndex < marathonIndex; prevStageIndex++) {
+      const prevStageBoards = marathonLevels[prevStageIndex] || 1;
+      const prevStageUsedWords = new Set();
+      
+      // Generate words for this previous stage
+      for (let boardIdx = 0; boardIdx < prevStageBoards; boardIdx++) {
+        let word;
+        let attempts = 0;
+        const maxAttempts = wordList.length;
+        
+        // Generate words for this board in the previous stage
+        do {
+          word = selectDailyWord(wordList, dateString, boardIdx, mode, speedrunEnabled, prevStageIndex, prevStageBoards);
+          if (attempts > 0) {
+            const seed = createSeed(dateString, boardIdx + attempts * 1000, mode, speedrunEnabled, prevStageIndex, prevStageBoards);
+            const rng = new SeededRandom(seed);
+            const index = Math.floor(rng.next() * wordList.length);
+            word = wordList[index];
+          }
+          attempts++;
+        } while (prevStageUsedWords.has(word) && attempts < maxAttempts);
+        
+        prevStageUsedWords.add(word);
+        usedWords.add(word); // Add to global used words set
+      }
+    }
+  }
+  
+  // Filter word list to exclude words used in previous stages
+  const availableWords = usedWords.size > 0 
+    ? wordList.filter(word => !usedWords.has(word))
+    : wordList;
+  
+  // If we've used too many words, fall back to full list (shouldn't happen in practice)
+  const workingWordList = availableWords.length > 0 ? availableWords : wordList;
+  
   for (let i = 0; i < numBoards; i++) {
     let word;
     let attempts = 0;
-    const maxAttempts = wordList.length; // Safety limit
+    const maxAttempts = workingWordList.length; // Safety limit
     
     // Keep trying until we get a unique word
     do {
-      word = selectDailyWord(wordList, dateString, i, mode, speedrunEnabled, marathonIndex, numBoards);
+      // Use the filtered word list, but maintain the same seed logic for determinism
+      // We need to map the selection to the filtered list
+      const seed = createSeed(dateString, i, mode, speedrunEnabled, marathonIndex, numBoards);
+      const rng = new SeededRandom(seed);
+      const baseIndex = Math.floor(rng.next() * workingWordList.length);
+      word = workingWordList[baseIndex];
+      
       // If we've tried many times and still getting duplicates, add attempts to seed to vary it
       if (attempts > 0) {
-        const seed = createSeed(dateString, i + attempts * 1000, mode, speedrunEnabled, marathonIndex, numBoards);
-        const rng = new SeededRandom(seed);
-        const index = Math.floor(rng.next() * wordList.length);
-        word = wordList[index];
+        const seed2 = createSeed(dateString, i + attempts * 1000, mode, speedrunEnabled, marathonIndex, numBoards);
+        const rng2 = new SeededRandom(seed2);
+        const index2 = Math.floor(rng2.next() * workingWordList.length);
+        word = workingWordList[index2];
       }
       attempts++;
     } while (usedWords.has(word) && attempts < maxAttempts);

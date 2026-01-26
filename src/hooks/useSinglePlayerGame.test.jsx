@@ -126,6 +126,7 @@ describe('useSinglePlayerGame', () => {
       'daily',
       false,
       null,
+      [1, 2, 3, 4], // marathonLevels parameter
     );
 
     expect(setBoards).toHaveBeenCalledWith([

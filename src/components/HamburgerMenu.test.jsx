@@ -33,6 +33,17 @@ vi.mock('./Modal', () => ({
   default: ({ isOpen, children }) => (isOpen ? <div data-testid="challenges-modal">{children}</div> : null),
 }));
 
+vi.mock('./SignInRequiredModal', () => ({
+  __esModule: true,
+  default: ({ isOpen, title, message }) =>
+    isOpen ? (
+      <div data-testid="sign-in-required-modal">
+        <span data-testid="sign-in-title">{title}</span>
+        <span data-testid="sign-in-message">{message}</span>
+      </div>
+    ) : null,
+}));
+
 import { useAuth } from '../hooks/useAuth';
 import HamburgerMenu from './HamburgerMenu';
 
@@ -42,7 +53,7 @@ beforeEach(() => {
 });
 
 describe('HamburgerMenu', () => {
-  it('shows Home and Feedback only when signed out', async () => {
+  it('shows all menu options when signed out (Profile, Friends, Challenges, Open Rooms, Feedback)', async () => {
     const user = userEvent.setup();
     const onOpenFeedback = vi.fn();
 
@@ -56,19 +67,39 @@ describe('HamburgerMenu', () => {
 
     render(<HamburgerMenu onOpenFeedback={onOpenFeedback} />);
 
-    // Open menu
     const menuButton = screen.getByTitle('Menu');
     await user.click(menuButton);
 
     expect(screen.getByRole('button', { name: 'Home' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Profile' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Friends' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Challenges' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open Rooms' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Feedback' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Profile' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Friends' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Challenges' })).toBeNull();
 
-    // Feedback triggers callback and closes menu
     await user.click(screen.getByRole('button', { name: 'Feedback' }));
     expect(onOpenFeedback).toHaveBeenCalled();
+  });
+
+  it('opens SignInRequiredModal when signed-out user clicks Profile, Friends, Challenges, or Open Rooms', async () => {
+    const user = userEvent.setup();
+
+    useAuth.mockReturnValue({
+      user: null,
+      friendRequests: [],
+      incomingChallenges: [],
+      sentChallenges: [],
+      isVerifiedUser: false,
+    });
+
+    render(<HamburgerMenu onOpenFeedback={vi.fn()} />);
+
+    await user.click(screen.getByTitle('Menu'));
+
+    await user.click(screen.getByRole('button', { name: 'Profile' }));
+    expect(screen.getByTestId('sign-in-required-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('sign-in-title')).toHaveTextContent('Profile');
+    expect(screen.getByTestId('sign-in-message')).toHaveTextContent('You need to sign in to access your profile.');
   });
 
   it('shows Profile, Friends, Challenges, Open Rooms, Feedback when signed in', async () => {

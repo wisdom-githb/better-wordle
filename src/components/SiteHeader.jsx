@@ -2,9 +2,11 @@ import React, { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useUserBadges } from "../hooks/useUserBadges";
+import { useSubscription } from "../hooks/useSubscription";
 import { useDailyResetTimer } from "../hooks/useDailyResetTimer";
 import { getAllEarnedSorted } from "../lib/badges";
 import AuthModal from "./AuthModal";
+import SubscribeModal from "./SubscribeModal";
 import HamburgerMenu from "./HamburgerMenu";
 import UserCard from "./UserCard";
 
@@ -20,9 +22,11 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete }) {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { userBadges } = useUserBadges(user);
+  const { isSubscribed } = useSubscription(user);
   const earnedBadges = getAllEarnedSorted(userBadges);
   const resetTime = useDailyResetTimer();
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showSubscribeModal, setShowSubscribeModal] = useState(false);
 
   const handleOpenAuth = useCallback(() => {
     setShowAuthModal(true);
@@ -48,6 +52,23 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete }) {
       console.error("Failed to sign out", e);
     }
   }, [signOut]);
+
+  const handleOpenSubscribe = useCallback(() => {
+    if (!user) {
+      setShowAuthModal(true);
+    } else {
+      setShowSubscribeModal(true);
+    }
+  }, [user]);
+
+  const handleCloseSubscribe = useCallback(() => {
+    setShowSubscribeModal(false);
+  }, []);
+
+  const handleSubscriptionComplete = useCallback(() => {
+    setShowSubscribeModal(false);
+    // Optionally show a success message or navigate
+  }, []);
 
   return (
     <>
@@ -115,7 +136,10 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete }) {
           </div>
 
           <div className="flexRow justifyEnd" style={{ minWidth: 32 }}>
-            <HamburgerMenu onOpenFeedback={onOpenFeedback || (() => {})} />
+            <HamburgerMenu
+              onOpenFeedback={onOpenFeedback || (() => {})}
+              onSignUpComplete={onSignUpComplete}
+            />
           </div>
         </div>
 
@@ -212,6 +236,27 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete }) {
               size="sm"
               earnedBadges={earnedBadges}
             />
+            {!isSubscribed && (
+              <button
+                type="button"
+                className="homeBtn"
+                onClick={handleOpenSubscribe}
+                style={{
+                  padding: "4px 12px",
+                  fontSize: 12,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                  background: "#6aaa64",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                }}
+              >
+                Subscribe
+              </button>
+            )}
           </div>
         )}
       </header>
@@ -220,6 +265,12 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete }) {
         isOpen={showAuthModal}
         onRequestClose={handleCloseAuth}
         onSignUpComplete={onSignUpComplete}
+      />
+
+      <SubscribeModal
+        isOpen={showSubscribeModal}
+        onRequestClose={handleCloseSubscribe}
+        onSubscriptionComplete={handleSubscriptionComplete}
       />
     </>
   );

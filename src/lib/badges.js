@@ -21,6 +21,11 @@ export const ALL_BADGES = [
     name: 'Daily Player',
     description: 'Earned by completing at least one game of Daily Better Wordle.',
   },
+  {
+    id: 'premium_member',
+    name: 'Premium Member',
+    description: 'Unlocked by subscribing to Better Wordle Premium. Access to themed wordles, custom colors, and more!',
+  },
 ];
 
 /**

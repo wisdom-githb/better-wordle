@@ -51,6 +51,28 @@ vi.mock('react-helmet-async', () => {
   };
 });
 
+// Mock Firestore to prevent errors in tests that don't explicitly mock it
+vi.mock('firebase/firestore', () => {
+  const mockCollection = vi.fn(() => ({}));
+  const mockDoc = vi.fn(() => ({}));
+  const mockAddDoc = vi.fn(() => Promise.resolve({ id: 'mock-id' }));
+  const mockOnSnapshot = vi.fn(() => () => {});
+  const mockQuery = vi.fn((...args) => args);
+  const mockWhere = vi.fn(() => ({}));
+  const mockGetFirestore = vi.fn(() => ({}));
+  
+  return {
+    collection: mockCollection,
+    doc: mockDoc,
+    addDoc: mockAddDoc,
+    onSnapshot: mockOnSnapshot,
+    query: mockQuery,
+    where: mockWhere,
+    getFirestore: mockGetFirestore,
+    getDoc: vi.fn(() => Promise.resolve({ exists: () => false, data: () => null })),
+  };
+});
+
 // Navigator mocks
 const clipboardWriteTextMock = vi.fn();
 

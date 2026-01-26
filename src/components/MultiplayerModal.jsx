@@ -1,8 +1,8 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import AuthModal from './AuthModal';
 import Modal from './Modal';
+import SignInRequiredModal from './SignInRequiredModal';
 import { MAX_BOARDS } from '../lib/gameConstants';
 import { validateGameCode } from '../lib/validation';
 
@@ -11,7 +11,6 @@ const BOARD_OPTIONS = Array.from({ length: MAX_BOARDS }, (_, i) => i + 1);
 export default function MultiplayerModal({ isOpen, onRequestClose, showConfigFirst = false, onConfigClose, onConfigOpen }) {
   const navigate = useNavigate();
   const { user, isVerifiedUser } = useAuth();
-  const [showAuthModal, setShowAuthModal] = useState(false);
   const [gameCode, setGameCode] = useState('');
   const [codeError, setCodeError] = useState('');
   const [showConfig, setShowConfig] = useState(showConfigFirst);
@@ -53,33 +52,13 @@ export default function MultiplayerModal({ isOpen, onRequestClose, showConfigFir
 
 
   if (!user) {
-    // Show sign-in prompt
     return (
-      <>
-        <Modal isOpen={isOpen} onRequestClose={onRequestClose}>
-          <div style={{ padding: '24px' }}>
-            <h2 style={{ margin: 0, marginBottom: '16px', fontSize: 20, fontWeight: 'bold', color: '#ffffff' }}>
-              Multiplayer Mode
-            </h2>
-            <div style={{ textAlign: 'center', padding: '20px 0' }}>
-              <p style={{ marginBottom: '20px', color: '#d7dadc' }}>
-                You need to sign in to play Multiplayer Mode.
-              </p>
-              <button
-                onClick={() => setShowAuthModal(true)}
-                className="homeBtn homeBtnGreen homeBtnLg"
-                style={{ minWidth: 140 }}
-              >
-                Sign In
-              </button>
-            </div>
-          </div>
-        </Modal>
-        <AuthModal
-          isOpen={showAuthModal}
-          onRequestClose={() => setShowAuthModal(false)}
-        />
-      </>
+      <SignInRequiredModal
+        isOpen={isOpen}
+        onRequestClose={onRequestClose}
+        title="Multiplayer Mode"
+        message="You need to sign in to play Multiplayer Mode."
+      />
     );
   }
 

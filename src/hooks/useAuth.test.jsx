@@ -5,7 +5,19 @@ import { renderHook, act } from '@testing-library/react';
 
 // Mock firebase/app so that src/config/firebase.js can import it safely
 vi.mock('firebase/app', () => ({
-  initializeApp: vi.fn((config) => ({ config })),
+  initializeApp: vi.fn((config) => ({ config, _delegate: { _getProvider: vi.fn(() => ({})) } })),
+}));
+
+// Mock Firestore to prevent initialization errors
+vi.mock('firebase/firestore', () => ({
+  getFirestore: vi.fn(() => ({})),
+  collection: vi.fn(() => ({})),
+  query: vi.fn(() => ({})),
+  where: vi.fn(() => ({})),
+  onSnapshot: vi.fn(() => () => {}),
+  addDoc: vi.fn(() => Promise.resolve({ id: 'mock-id' })),
+  doc: vi.fn(() => ({})),
+  getDoc: vi.fn(() => Promise.resolve({ exists: () => false, data: () => null })),
 }));
 
 // Auth mock state lives entirely inside the mock factory so it is safe with Vitest hoisting

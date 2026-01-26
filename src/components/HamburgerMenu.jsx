@@ -1,13 +1,21 @@
-import React, { useState, Suspense, lazy } from "react";
+import React, { useState, useCallback, Suspense, lazy } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import Modal from "./Modal";
+import SignInRequiredModal from "./SignInRequiredModal";
 import UserCardWithBadges from "./UserCardWithBadges";
 
 const FriendsModal = lazy(() => import("./FriendsModal"));
 const OpenRoomsModal = lazy(() => import("./OpenRoomsModal"));
 
-export default function HamburgerMenu({ onOpenFeedback }) {
+const SIGN_IN_PROMPTS = {
+  profile: { title: "Profile", message: "You need to sign in to access your profile." },
+  friends: { title: "Friends", message: "You need to sign in to use Friends." },
+  challenges: { title: "Challenges", message: "You need to sign in to view challenges." },
+  openRooms: { title: "Open Rooms", message: "You need to sign in to browse open rooms." },
+};
+
+export default function HamburgerMenu({ onOpenFeedback, onSignUpComplete }) {
   const navigate = useNavigate();
   const {
     user,
@@ -24,6 +32,12 @@ export default function HamburgerMenu({ onOpenFeedback }) {
   const [showChallengesModal, setShowChallengesModal] = useState(false);
   const [showOpenRoomsModal, setShowOpenRoomsModal] = useState(false);
   const [showAllRoomsModal, setShowAllRoomsModal] = useState(false);
+  const [signInRequired, setSignInRequired] = useState(null);
+
+  const requestSignIn = useCallback((key) => {
+    setSignInRequired(SIGN_IN_PROMPTS[key] || { title: "Sign in required", message: "You need to sign in to access this feature." });
+    setShowHamburgerMenu(false);
+  }, []);
 
   return (
     <>
@@ -84,162 +98,194 @@ export default function HamburgerMenu({ onOpenFeedback }) {
             >
               Home
             </button>
-            {user && (
-              <button
-                onClick={() => {
-                  navigate('/profile');
+            <button
+              onClick={() => {
+                navigate('/how-to-play');
+                setShowHamburgerMenu(false);
+              }}
+              style={{
+                width: "100%",
+                padding: "10px 16px",
+                background: "transparent",
+                border: "none",
+                color: "#ffffff",
+                fontSize: "13px",
+                textAlign: "left",
+                cursor: "pointer",
+                fontWeight: "600",
+                letterSpacing: "0.3px",
+                transition: "all 0.2s ease",
+                borderBottom: "1px solid #3a3a3c"
+              }}
+              onMouseEnter={(e) => e.target.style.background = "rgba(255, 255, 255, 0.1)"}
+              onMouseLeave={(e) => e.target.style.background = "transparent"}
+            >
+              How to Play
+            </button>
+            <button
+              onClick={() => {
+                if (!user) {
+                  requestSignIn("profile");
+                  return;
+                }
+                navigate('/profile');
+                setShowHamburgerMenu(false);
+              }}
+              style={{
+                width: "100%",
+                padding: "10px 16px",
+                background: "transparent",
+                border: "none",
+                color: "#ffffff",
+                fontSize: "13px",
+                textAlign: "left",
+                cursor: "pointer",
+                fontWeight: "600",
+                letterSpacing: "0.3px",
+                transition: "all 0.2s ease",
+                borderBottom: "1px solid #3a3a3c"
+              }}
+              onMouseEnter={(e) => e.target.style.background = "rgba(255, 255, 255, 0.1)"}
+              onMouseLeave={(e) => e.target.style.background = "transparent"}
+            >
+              Profile
+            </button>
+            <button
+              onClick={() => {
+                if (!user) {
+                  requestSignIn("friends");
+                  return;
+                }
+                if (!isVerifiedUser) {
+                  alert('Verify your email or sign in with Google to use friends.');
                   setShowHamburgerMenu(false);
-                }}
-                style={{
-                  width: "100%",
-                  padding: "10px 16px",
-                  background: "transparent",
-                  border: "none",
+                  return;
+                }
+                setShowFriendsModal(true);
+                setShowHamburgerMenu(false);
+              }}
+              style={{
+                width: "100%",
+                padding: "10px 16px",
+                background: "transparent",
+                border: "none",
+                color: "#ffffff",
+                fontSize: "13px",
+                textAlign: "left",
+                cursor: "pointer",
+                fontWeight: "600",
+                letterSpacing: "0.3px",
+                transition: "all 0.2s ease",
+                borderBottom: "1px solid #3a3a3c",
+                position: "relative",
+                display: "flex",
+                alignItems: "center"
+              }}
+              onMouseEnter={(e) => e.target.style.background = "rgba(255, 255, 255, 0.1)"}
+              onMouseLeave={(e) => e.target.style.background = "transparent"}
+            >
+              Friends
+              {user && friendRequests && friendRequests.length > 0 && (
+                <div style={{
+                  marginLeft: "8px",
+                  width: "20px",
+                  height: "20px",
+                  borderRadius: "50%",
+                  background: "#ef5350",
                   color: "#ffffff",
-                  fontSize: "13px",
-                  textAlign: "left",
-                  cursor: "pointer",
-                  fontWeight: "600",
-                  letterSpacing: "0.3px",
-                  transition: "all 0.2s ease",
-                  borderBottom: "1px solid #3a3a3c"
-                }}
-                onMouseEnter={(e) => e.target.style.background = "rgba(255, 255, 255, 0.1)"}
-                onMouseLeave={(e) => e.target.style.background = "transparent"}
-              >
-                Profile
-              </button>
-            )}
-            {user && (
-              <button
-                onClick={() => {
-                  if (!isVerifiedUser) {
-                    alert('Verify your email or sign in with Google to use friends.');
-                    setShowHamburgerMenu(false);
-                    return;
-                  }
-                  setShowFriendsModal(true);
-                  setShowHamburgerMenu(false);
-                }}
-                style={{
-                  width: "100%",
-                  padding: "10px 16px",
-                  background: "transparent",
-                  border: "none",
-                  color: "#ffffff",
-                  fontSize: "13px",
-                  textAlign: "left",
-                  cursor: "pointer",
-                  fontWeight: "600",
-                  letterSpacing: "0.3px",
-                  transition: "all 0.2s ease",
-                  borderBottom: "1px solid #3a3a3c",
-                  position: "relative",
+                  fontSize: "11px",
+                  fontWeight: "bold",
                   display: "flex",
-                  alignItems: "center"
-                }}
-                onMouseEnter={(e) => e.target.style.background = "rgba(255, 255, 255, 0.1)"}
-                onMouseLeave={(e) => e.target.style.background = "transparent"}
-              >
-                Friends
-                {friendRequests && friendRequests.length > 0 && (
-                  <div style={{
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}>
+                  {friendRequests.length}
+                </div>
+              )}
+            </button>
+            <button
+              onClick={() => {
+                if (!user) {
+                  requestSignIn("challenges");
+                  return;
+                }
+                if (!isVerifiedUser) {
+                  alert('Verify your email or sign in with Google to use challenges.');
+                  setShowHamburgerMenu(false);
+                  return;
+                }
+                setShowChallengesModal(true);
+                setShowHamburgerMenu(false);
+              }}
+              style={{
+                width: "100%",
+                padding: "10px 16px",
+                background: "transparent",
+                border: "none",
+                color: "#ffffff",
+                fontSize: "13px",
+                textAlign: "left",
+                cursor: "pointer",
+                fontWeight: "600",
+                letterSpacing: "0.3px",
+                transition: "all 0.2s ease",
+                borderBottom: "1px solid #3a3a3c",
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+              }}
+              onMouseEnter={(e) => (e.target.style.background = "rgba(255, 255, 255, 0.1)")}
+              onMouseLeave={(e) => (e.target.style.background = "transparent")}
+            >
+              Challenges
+              {user && incomingChallenges && incomingChallenges.length > 0 && (
+                <div
+                  style={{
                     marginLeft: "8px",
                     width: "20px",
                     height: "20px",
                     borderRadius: "50%",
-                    background: "#ef5350",
-                    color: "#ffffff",
+                    background: "#c9b458",
+                    color: "#121213",
                     fontSize: "11px",
                     fontWeight: "bold",
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "center"
-                  }}>
-                    {friendRequests.length}
-                  </div>
-                )}
-              </button>
-            )}
-            {user && (
-              <button
-                onClick={() => {
-                  if (!isVerifiedUser) {
-                    alert('Verify your email or sign in with Google to use challenges.');
-                    setShowHamburgerMenu(false);
-                    return;
-                  }
-                  setShowChallengesModal(true);
-                  setShowHamburgerMenu(false);
-                }}
-                style={{
-                  width: "100%",
-                  padding: "10px 16px",
-                  background: "transparent",
-                  border: "none",
-                  color: "#ffffff",
-                  fontSize: "13px",
-                  textAlign: "left",
-                  cursor: "pointer",
-                  fontWeight: "600",
-                  letterSpacing: "0.3px",
-                  transition: "all 0.2s ease",
-                  borderBottom: "1px solid #3a3a3c",
-                  position: "relative",
-                  display: "flex",
-                  alignItems: "center",
-                }}
-                onMouseEnter={(e) => (e.target.style.background = "rgba(255, 255, 255, 0.1)")}
-                onMouseLeave={(e) => (e.target.style.background = "transparent")}
-              >
-                Challenges
-                {incomingChallenges && incomingChallenges.length > 0 && (
-                  <div
-                    style={{
-                      marginLeft: "8px",
-                      width: "20px",
-                      height: "20px",
-                      borderRadius: "50%",
-                      background: "#c9b458",
-                      color: "#121213",
-                      fontSize: "11px",
-                      fontWeight: "bold",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {incomingChallenges.length}
-                  </div>
-                )}
-              </button>
-            )}
-            {user && (
-              <button
-                onClick={() => {
-                  setShowOpenRoomsModal(true);
-                  setShowHamburgerMenu(false);
-                }}
-                style={{
-                  width: "100%",
-                  padding: "10px 16px",
-                  background: "transparent",
-                  border: "none",
-                  color: "#ffffff",
-                  fontSize: "13px",
-                  textAlign: "left",
-                  cursor: "pointer",
-                  fontWeight: "600",
-                  letterSpacing: "0.3px",
-                  transition: "all 0.2s ease",
-                  borderBottom: "1px solid #3a3a3c",
-                }}
-                onMouseEnter={(e) => (e.target.style.background = "rgba(255, 255, 255, 0.1)")}
-                onMouseLeave={(e) => (e.target.style.background = "transparent")}
-              >
-                Open Rooms
-              </button>
-            )}
+                    justifyContent: "center",
+                  }}
+                >
+                  {incomingChallenges.length}
+                </div>
+              )}
+            </button>
+            <button
+              onClick={() => {
+                if (!user) {
+                  requestSignIn("openRooms");
+                  return;
+                }
+                setShowOpenRoomsModal(true);
+                setShowHamburgerMenu(false);
+              }}
+              style={{
+                width: "100%",
+                padding: "10px 16px",
+                background: "transparent",
+                border: "none",
+                color: "#ffffff",
+                fontSize: "13px",
+                textAlign: "left",
+                cursor: "pointer",
+                fontWeight: "600",
+                letterSpacing: "0.3px",
+                transition: "all 0.2s ease",
+                borderBottom: "1px solid #3a3a3c",
+              }}
+              onMouseEnter={(e) => (e.target.style.background = "rgba(255, 255, 255, 0.1)")}
+              onMouseLeave={(e) => (e.target.style.background = "transparent")}
+            >
+              Open Rooms
+            </button>
 
             {user && user.email === "abhijeetsridhar14@gmail.com" && (
               <button
@@ -570,6 +616,16 @@ export default function HamburgerMenu({ onOpenFeedback }) {
           </button>
         </div>
       </Modal>
+
+      {signInRequired && (
+        <SignInRequiredModal
+          isOpen={!!signInRequired}
+          onRequestClose={() => setSignInRequired(null)}
+          title={signInRequired.title}
+          message={signInRequired.message}
+          onSignUpComplete={onSignUpComplete}
+        />
+      )}
     </>
   );
 }

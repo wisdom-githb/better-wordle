@@ -5,6 +5,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getDatabase } from 'firebase/database';
+import { getFirestore } from 'firebase/firestore';
 
 // Your web app's Firebase configuration
 // TODO: Replace with your Firebase project config
@@ -53,6 +54,9 @@ export const auth = getAuth(app);
 
 // Initialize Firebase Realtime Database
 export const database = getDatabase(app);
+
+// Initialize Cloud Firestore
+export const firestore = getFirestore(app);
 
 // Google Auth Provider
 export const googleProvider = new GoogleAuthProvider();

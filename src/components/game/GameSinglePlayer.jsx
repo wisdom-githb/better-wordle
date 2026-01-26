@@ -311,6 +311,7 @@ export default function GameSinglePlayer({
     speedrunEnabled,
     numBoards,
     marathonIndex,
+    marathonLevels,
     getGameStateKey,
     savedSolvedStateRef,
     committedRef,

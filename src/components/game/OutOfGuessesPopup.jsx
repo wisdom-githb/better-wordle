@@ -1,4 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
+import { useAuth } from "../../hooks/useAuth";
+import { useSubscription } from "../../hooks/useSubscription";
+import SubscribeModal from "../SubscribeModal";
 
 export default function OutOfGuessesPopup({
   maxTurns,
@@ -11,11 +14,27 @@ export default function OutOfGuessesPopup({
   setShowOutOfGuesses,
   setShowPopup
 }) {
+  const { user } = useAuth();
+  const { isSubscribed } = useSubscription(user);
+  const [showSubscribeModal, setShowSubscribeModal] = useState(false);
+
   const handleNextStage = () => {
     freezeStageTimer();
     setShowOutOfGuesses(false);
     setShowPopup(false);
     onNextStage();
+  };
+
+  const handleOpenSubscribe = () => {
+    setShowSubscribeModal(true);
+  };
+
+  const handleCloseSubscribe = () => {
+    setShowSubscribeModal(false);
+  };
+
+  const handleSubscriptionComplete = () => {
+    setShowSubscribeModal(false);
   };
 
   return (
@@ -92,8 +111,36 @@ export default function OutOfGuessesPopup({
           >
             Continue
           </button>
+
+          {user && !isSubscribed && (
+            <button
+              onClick={handleOpenSubscribe}
+              style={{
+                flex: 1,
+                minWidth: 160,
+                padding: "12px 0",
+                borderRadius: 10,
+                border: "none",
+                background: "#6aaa64",
+                color: "#ffffff",
+                fontSize: 14,
+                fontWeight: "bold",
+                cursor: "pointer",
+                letterSpacing: 1,
+                textTransform: "uppercase"
+              }}
+            >
+              Subscribe
+            </button>
+          )}
         </div>
       </div>
+
+      <SubscribeModal
+        isOpen={showSubscribeModal}
+        onRequestClose={handleCloseSubscribe}
+        onSubscriptionComplete={handleSubscriptionComplete}
+      />
     </div>
   );
 }
