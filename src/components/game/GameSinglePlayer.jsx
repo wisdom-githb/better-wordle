@@ -653,6 +653,81 @@ export default function GameSinglePlayer({
                   numBoards,
                 });
               }
+
+              // Save game statistics for advanced stats
+              // Track for Daily Standard, Daily Speedrun 1 board, and Marathon modes
+              if ((mode === 'daily' && numBoards === 1) || mode === 'marathon') {
+                const { saveGameStats } = await import('../../lib/statsService');
+                
+                if (mode === 'marathon') {
+                  // For marathon, calculate total guesses and time when complete
+                  let marathonTotalGuesses = null;
+                  let marathonTotalTimeMs = null;
+                  
+                  if (isMarathonComplete) {
+                    // Calculate total guesses across all stages from Firebase solved states
+                    try {
+                      const { loadSolvedState } = await import('../../lib/singlePlayerStore');
+                      let totalGuesses = 0;
+                      
+                      // Sum guesses from all stages
+                      for (let stageIdx = 0; stageIdx < marathonLevels.length; stageIdx++) {
+                        const stageBoards = marathonLevels[stageIdx];
+                        const stageSolvedKey = makeSolvedKey(
+                          mode,
+                          stageBoards,
+                          speedrunEnabled,
+                          stageIdx,
+                          dateString
+                        );
+                        const stageState = await loadSolvedState({
+                          authUser,
+                          database,
+                          solvedKey: stageSolvedKey,
+                        });
+                        if (stageState && typeof stageState.turnsUsed === 'number') {
+                          totalGuesses += stageState.turnsUsed;
+                        }
+                      }
+                      marathonTotalGuesses = totalGuesses;
+                      
+                      // For speedrun, total time is already calculated
+                      if (speedrunEnabled) {
+                        marathonTotalTimeMs = savedPopupTotalMs || marathonCumulativeMs + finalStageMs;
+                      }
+                    } catch (err) {
+                      logError(err, 'GameSinglePlayer.calculateMarathonTotals');
+                    }
+                  }
+                  
+                  await saveGameStats({
+                    uid: authUser.uid,
+                    mode,
+                    speedrunEnabled,
+                    dateString,
+                    guesses: currentTurnsUsed,
+                    solveTimeMs: speedrunEnabled ? finalStageMs : null,
+                    numBoards,
+                    solved: true,
+                    marathonIndex,
+                    marathonTotalGuesses,
+                    marathonTotalTimeMs,
+                    isMarathonComplete,
+                  });
+                } else {
+                  // Daily mode
+                  await saveGameStats({
+                    uid: authUser.uid,
+                    mode,
+                    speedrunEnabled,
+                    dateString,
+                    guesses: currentTurnsUsed,
+                    solveTimeMs: speedrunEnabled ? finalStageMs : null,
+                    numBoards,
+                    solved: true,
+                  });
+                }
+              }
             }
           } catch (err) {
             logError(err, 'GameSinglePlayer.updateStreak');

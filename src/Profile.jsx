@@ -13,6 +13,8 @@ import BadgeIcon from "./components/BadgeIcon";
 
 const FeedbackModal = lazy(() => import("./components/FeedbackModal"));
 import ArchiveModal from "./components/ArchiveModal";
+import AdvancedStatsModal from "./components/AdvancedStatsModal";
+import CrossModeComparisonModal from "./components/CrossModeComparisonModal";
 import "./Profile.css";
 
 export default function Profile() {
@@ -30,6 +32,8 @@ export default function Profile() {
   const [streakLoadError, setStreakLoadError] = useState(null);
   const [streakRetryCount, setStreakRetryCount] = useState(0);
   const [archiveModal, setArchiveModal] = useState({ isOpen: false, mode: null, speedrunEnabled: false });
+  const [statsModal, setStatsModal] = useState({ isOpen: false, mode: null, speedrunEnabled: false });
+  const [showCrossModeComparison, setShowCrossModeComparison] = useState(false);
   const { userBadges, loading: badgesLoading } = useUserBadges(user);
   const earnedBadges = getEarnedBadgeDefs(userBadges);
 
@@ -325,85 +329,186 @@ export default function Profile() {
                       </label>
                     </div>
 
-                    <div className="streakGrid">
-                      <div className="streakCard">
-                        <div className="streakLabel">Daily Standard</div>
-                        <div className="streakCurrent">
-                          {streaks.dailyStandard.current} day{streaks.dailyStandard.current === 1 ? "" : "s"}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      {/* Daily Standard */}
+                      <div className="streakCard" style={{ width: '100%' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                          <div style={{ flex: 1 }}>
+                            <div className="streakLabel">Daily Standard</div>
+                            <div className="streakCurrent">
+                              {streaks.dailyStandard.current} day{streaks.dailyStandard.current === 1 ? "" : "s"}
+                            </div>
+                            <div className="streakBest">Best: {streaks.dailyStandard.best}</div>
+                          </div>
                         </div>
-                        <div className="streakBest">Best: {streaks.dailyStandard.best}</div>
-                        <button
-                          type="button"
-                          onClick={() => setArchiveModal({ isOpen: true, mode: 'daily', speedrunEnabled: false })}
-                          className="homeBtn homeBtnOutline"
-                          style={{
-                            marginTop: 8,
-                            padding: '6px 12px',
-                            fontSize: 12,
-                          }}
-                        >
-                          View Archive
-                        </button>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                          <button
+                            type="button"
+                            onClick={() => setArchiveModal({ isOpen: true, mode: 'daily', speedrunEnabled: false })}
+                            className="homeBtn homeBtnOutline"
+                            style={{
+                              flex: 1,
+                              padding: '8px 12px',
+                              fontSize: 12,
+                            }}
+                          >
+                            View Archive
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setStatsModal({ isOpen: true, mode: 'daily', speedrunEnabled: false })}
+                            className="homeBtn homeBtnOutline"
+                            style={{
+                              flex: 1,
+                              padding: '8px 12px',
+                              fontSize: 12,
+                            }}
+                          >
+                            View Advanced Stats
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="streakCard">
-                        <div className="streakLabel">Daily Speedrun</div>
-                        <div className="streakCurrent">
-                          {streaks.dailySpeedrun.current} day{streaks.dailySpeedrun.current === 1 ? "" : "s"}
+                      {/* Daily Speedrun */}
+                      <div className="streakCard" style={{ width: '100%' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                          <div style={{ flex: 1 }}>
+                            <div className="streakLabel">Daily Speedrun</div>
+                            <div className="streakCurrent">
+                              {streaks.dailySpeedrun.current} day{streaks.dailySpeedrun.current === 1 ? "" : "s"}
+                            </div>
+                            <div className="streakBest">Best: {streaks.dailySpeedrun.best}</div>
+                          </div>
                         </div>
-                        <div className="streakBest">Best: {streaks.dailySpeedrun.best}</div>
-                        <button
-                          type="button"
-                          onClick={() => setArchiveModal({ isOpen: true, mode: 'daily', speedrunEnabled: true })}
-                          className="homeBtn homeBtnOutline"
-                          style={{
-                            marginTop: 8,
-                            padding: '6px 12px',
-                            fontSize: 12,
-                          }}
-                        >
-                          View Archive
-                        </button>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                          <button
+                            type="button"
+                            onClick={() => setArchiveModal({ isOpen: true, mode: 'daily', speedrunEnabled: true })}
+                            className="homeBtn homeBtnOutline"
+                            style={{
+                              flex: 1,
+                              padding: '8px 12px',
+                              fontSize: 12,
+                            }}
+                          >
+                            View Archive
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setStatsModal({ isOpen: true, mode: 'daily', speedrunEnabled: true })}
+                            className="homeBtn homeBtnOutline"
+                            style={{
+                              flex: 1,
+                              padding: '8px 12px',
+                              fontSize: 12,
+                            }}
+                          >
+                            View Advanced Stats
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="streakCard">
-                        <div className="streakLabel">Marathon Standard</div>
-                        <div className="streakCurrent">
-                          {streaks.marathonStandard.current} day{streaks.marathonStandard.current === 1 ? "" : "s"}
+                      {/* Marathon Standard */}
+                      <div className="streakCard" style={{ width: '100%' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                          <div style={{ flex: 1 }}>
+                            <div className="streakLabel">Marathon Standard</div>
+                            <div className="streakCurrent">
+                              {streaks.marathonStandard.current} day{streaks.marathonStandard.current === 1 ? "" : "s"}
+                            </div>
+                            <div className="streakBest">Best: {streaks.marathonStandard.best}</div>
+                          </div>
                         </div>
-                        <div className="streakBest">Best: {streaks.marathonStandard.best}</div>
-                        <button
-                          type="button"
-                          onClick={() => setArchiveModal({ isOpen: true, mode: 'marathon', speedrunEnabled: false })}
-                          className="homeBtn homeBtnOutline"
-                          style={{
-                            marginTop: 8,
-                            padding: '6px 12px',
-                            fontSize: 12,
-                          }}
-                        >
-                          View Archive
-                        </button>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                          <button
+                            type="button"
+                            onClick={() => setArchiveModal({ isOpen: true, mode: 'marathon', speedrunEnabled: false })}
+                            className="homeBtn homeBtnOutline"
+                            style={{
+                              flex: 1,
+                              padding: '8px 12px',
+                              fontSize: 12,
+                            }}
+                          >
+                            View Archive
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setStatsModal({ isOpen: true, mode: 'marathon', speedrunEnabled: false })}
+                            className="homeBtn homeBtnOutline"
+                            style={{
+                              flex: 1,
+                              padding: '8px 12px',
+                              fontSize: 12,
+                            }}
+                          >
+                            View Advanced Stats
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="streakCard">
-                        <div className="streakLabel">Marathon Speedrun</div>
-                        <div className="streakCurrent">
-                          {streaks.marathonSpeedrun.current} day{streaks.marathonSpeedrun.current === 1 ? "" : "s"}
+                      {/* Marathon Speedrun */}
+                      <div className="streakCard" style={{ width: '100%' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                          <div style={{ flex: 1 }}>
+                            <div className="streakLabel">Marathon Speedrun</div>
+                            <div className="streakCurrent">
+                              {streaks.marathonSpeedrun.current} day{streaks.marathonSpeedrun.current === 1 ? "" : "s"}
+                            </div>
+                            <div className="streakBest">Best: {streaks.marathonSpeedrun.best}</div>
+                          </div>
                         </div>
-                        <div className="streakBest">Best: {streaks.marathonSpeedrun.best}</div>
-                        <button
-                          type="button"
-                          onClick={() => setArchiveModal({ isOpen: true, mode: 'marathon', speedrunEnabled: true })}
-                          className="homeBtn homeBtnOutline"
-                          style={{
-                            marginTop: 8,
-                            padding: '6px 12px',
-                            fontSize: 12,
-                          }}
-                        >
-                          View Archive
-                        </button>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                          <button
+                            type="button"
+                            onClick={() => setArchiveModal({ isOpen: true, mode: 'marathon', speedrunEnabled: true })}
+                            className="homeBtn homeBtnOutline"
+                            style={{
+                              flex: 1,
+                              padding: '8px 12px',
+                              fontSize: 12,
+                            }}
+                          >
+                            View Archive
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setStatsModal({ isOpen: true, mode: 'marathon', speedrunEnabled: true })}
+                            className="homeBtn homeBtnOutline"
+                            style={{
+                              flex: 1,
+                              padding: '8px 12px',
+                              fontSize: 12,
+                            }}
+                          >
+                            View Advanced Stats
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Cross-Mode Comparison Button */}
+                    <div style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid #2b2b2e' }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowCrossModeComparison(true)}
+                        className="homeBtn homeBtnGreen"
+                        style={{
+                          width: '100%',
+                          padding: '12px 16px',
+                          fontSize: 14,
+                          fontWeight: '600',
+                        }}
+                      >
+                        View Cross-Mode Comparison
+                      </button>
+                      <div style={{ 
+                        fontSize: 12, 
+                        color: '#9ca3af', 
+                        marginTop: 8, 
+                        textAlign: 'center' 
+                      }}>
+                        Compare your performance across all game modes (Premium)
                       </div>
                     </div>
                       </>
@@ -493,6 +598,18 @@ export default function Profile() {
           onRequestClose={() => setArchiveModal({ isOpen: false, mode: null, speedrunEnabled: false })}
           mode={archiveModal.mode}
           speedrunEnabled={archiveModal.speedrunEnabled}
+        />
+
+        <AdvancedStatsModal
+          isOpen={statsModal.isOpen}
+          onRequestClose={() => setStatsModal({ isOpen: false, mode: null, speedrunEnabled: false })}
+          mode={statsModal.mode}
+          speedrunEnabled={statsModal.speedrunEnabled}
+        />
+
+        <CrossModeComparisonModal
+          isOpen={showCrossModeComparison}
+          onRequestClose={() => setShowCrossModeComparison(false)}
         />
       </div>
     </div>

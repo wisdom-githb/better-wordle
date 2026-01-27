@@ -38,20 +38,11 @@ vi.mock('./hooks/useAuth', () => ({
 vi.mock('./lib/persist', () => ({
   loadJSON: vi.fn(() => null),
   saveJSON: vi.fn(),
-  makeDailyKey: vi.fn((boards, speedrun) => `daily:${boards}:${speedrun}`),
-  makeMarathonKey: vi.fn((speedrun) => `marathon:${speedrun}`),
   marathonMetaKey: vi.fn((speedrun) => `meta:${speedrun}`),
-  makeSolvedKey: vi.fn((mode, boards, speedrun, index) => `${mode}:${boards}:${speedrun}:${index ?? 'na'}`),
-  removeKey: vi.fn(),
 }));
 
 import {
   saveJSON,
-  makeDailyKey,
-  makeMarathonKey,
-  marathonMetaKey,
-  makeSolvedKey,
-  removeKey,
 } from './lib/persist';
 
 import Home from './Home';
@@ -120,52 +111,6 @@ describe('Home', () => {
     // should be rendered by React Router.
     const gameRoute = await screen.findByTestId('game-route');
     expect(gameRoute).toBeInTheDocument();
-  });
-
-  it('calls removeKey for the correct daily keys when resetting daily guesses', async () => {
-    const setDailyBoards = vi.fn();
-
-    await act(async () => {
-      renderWithRouter(
-        <Home dailyBoards={2} setDailyBoards={setDailyBoards} marathonLevels={[1, 2, 3, 4]} />,
-      );
-    });
-
-    await screen.findByRole('heading', { name: /daily puzzles/i });
-
-    const resetBtn = screen.getByRole('button', { name: /reset today['’]s daily guesses/i });
-    fireEvent.click(resetBtn);
-
-    expect(makeDailyKey).toHaveBeenCalledWith(2, false);
-    expect(makeDailyKey).toHaveBeenCalledWith(2, true);
-    expect(makeSolvedKey).toHaveBeenCalledWith('daily', 2, false);
-    expect(makeSolvedKey).toHaveBeenCalledWith('daily', 2, true);
-    expect(removeKey).toHaveBeenCalledTimes(4);
-  });
-
-  it('resets marathon keys and stage indices on reset marathon guesses', async () => {
-    const setDailyBoards = vi.fn();
-
-    await act(async () => {
-      renderWithRouter(
-        <Home dailyBoards={1} setDailyBoards={setDailyBoards} marathonLevels={[1, 2]} />,
-      );
-    });
-
-    await screen.findByRole('heading', { name: /daily puzzles/i });
-
-    const resetBtn = screen.getByRole('button', { name: /reset today['’]s marathon guesses/i });
-    fireEvent.click(resetBtn);
-
-    expect(makeMarathonKey).toHaveBeenCalledWith(false);
-    expect(makeMarathonKey).toHaveBeenCalledWith(true);
-    expect(marathonMetaKey).toHaveBeenCalledWith(false);
-    expect(marathonMetaKey).toHaveBeenCalledWith(true);
-
-    // Two boards * two speedrun modes = 4 solved keys
-    expect(makeSolvedKey).toHaveBeenCalledWith('marathon', 1, false, 0);
-    expect(makeSolvedKey).toHaveBeenCalledWith('marathon', 2, true, 1);
-    expect(removeKey).toHaveBeenCalled();
   });
 
   it('opens verify email modal when SiteHeader sign-up completes', async () => {

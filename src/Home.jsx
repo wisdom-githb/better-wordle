@@ -9,10 +9,10 @@ import { useAuth } from "./hooks/useAuth";
 
 const FeedbackModal = lazy(() => import("./components/FeedbackModal"));
 const MultiplayerModal = lazy(() => import("./components/MultiplayerModal"));
-import { loadJSON, saveJSON, makeDailyKey, makeMarathonKey, marathonMetaKey, makeSolvedKey, removeKey } from "./lib/persist";
+import { loadJSON, saveJSON, marathonMetaKey } from "./lib/persist";
 import { loadMarathonMeta } from "./lib/marathonMeta";
 import { database } from "./config/firebase";
-import { ref, get, update } from "firebase/database";
+import { ref, get } from "firebase/database";
 
 const BOARD_OPTIONS = Array.from({ length: MAX_BOARDS }, (_, i) => i + 1);
 
@@ -146,37 +146,6 @@ export default function Home({
     navigate(`/game/daily/${dailyBoards}/speedrun`);
   }, [dailyBoards, navigate]);
   
-  const handleResetDailyGuesses = useCallback(() => {
-    // Clear saved in-progress and solved state for today's daily games
-    // for the currently selected board count, for both standard and speedrun.
-    const updates = {};
-
-    [false, true].forEach((speedrunEnabledFlag) => {
-      const gameKey = makeDailyKey(dailyBoards, speedrunEnabledFlag);
-      const solvedKey = makeSolvedKey("daily", dailyBoards, speedrunEnabledFlag);
-      removeKey(gameKey);
-      removeKey(solvedKey);
-
-      if (authUser) {
-        updates[`users/${authUser.uid}/singlePlayer/gameStates/${gameKey}`] = null;
-        updates[`users/${authUser.uid}/singlePlayer/solvedStates/${solvedKey}`] = null;
-      }
-    });
-
-    if (authUser && Object.keys(updates).length > 0) {
-      try {
-        const rootRef = ref(database);
-        update(rootRef, updates).catch((err) => {
-          // eslint-disable-next-line no-console
-          console.error("Failed to clear remote daily progress", err);
-        });
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error("Failed to queue remote daily progress reset", err);
-      }
-    }
-  }, [dailyBoards, authUser]);
-  
   const handleMarathonStandard = useCallback(() => {
     navigate(`/game/marathon`);
   }, [navigate]);
@@ -185,49 +154,6 @@ export default function Home({
     // Use query params so Game.jsx can read mode=marathon & speedrun=true
     navigate(`/game?mode=marathon&speedrun=true`);
   }, [navigate]);
-  
-  const handleResetMarathonGuesses = useCallback(() => {
-    // Clear saved in-progress, meta, and solved state for today's marathon games
-    // across all stages, for both standard and speedrun.
-    const updates = {};
-
-    [false, true].forEach((speedrunEnabledFlag) => {
-      const gameKey = makeMarathonKey(speedrunEnabledFlag);
-      const metaKey = marathonMetaKey(speedrunEnabledFlag);
-      removeKey(gameKey);
-      removeKey(metaKey);
-
-      if (authUser) {
-        updates[`users/${authUser.uid}/singlePlayer/gameStates/${gameKey}`] = null;
-        updates[`users/${authUser.uid}/singlePlayer/meta/${metaKey}`] = null;
-      }
-
-      marathonLevels.forEach((boards, index) => {
-        const solvedKey = makeSolvedKey("marathon", boards, speedrunEnabledFlag, index);
-        removeKey(solvedKey);
-        if (authUser) {
-          updates[`users/${authUser.uid}/singlePlayer/solvedStates/${solvedKey}`] = null;
-        }
-      });
-    });
-
-    if (authUser && Object.keys(updates).length > 0) {
-      try {
-        const rootRef = ref(database);
-        update(rootRef, updates).catch((err) => {
-          // eslint-disable-next-line no-console
-          console.error("Failed to clear remote marathon progress", err);
-        });
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error("Failed to queue remote marathon progress reset", err);
-      }
-    }
-
-    // Also reset the displayed stage indices back to the first stage.
-    setMarathonStandardIndexUI(0);
-    setMarathonSpeedrunIndexUI(0);
-  }, [marathonLevels, authUser]);
   
   const dailyTitleRight = useMemo(() => `${dailyBoards} board${dailyBoards > 1 ? "s" : ""}`, [dailyBoards]);
 
@@ -376,15 +302,6 @@ export default function Home({
                 modeVariant="daily"
                 titleRight={dailyTitleRight}
               />
-
-              <button
-                type="button"
-                className="homeBtn homeBtnOutline"
-                onClick={handleResetDailyGuesses}
-                style={{ marginTop: "12px" }}
-              >
-                Reset today&apos;s daily guesses
-              </button>
             </div>
           </section>
 
@@ -420,15 +337,6 @@ export default function Home({
                 modeVariant="marathon"
                 titleRight={`Stage ${marathonSpeedrunIndexUI + 1}/${marathonLevels.length}`}
               />
-
-              <button
-                type="button"
-                className="homeBtn homeBtnOutline"
-                onClick={handleResetMarathonGuesses}
-                style={{ marginTop: "12px" }}
-              >
-                Reset today&apos;s marathon guesses
-              </button>
             </div>
           </section>
 

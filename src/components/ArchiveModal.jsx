@@ -137,6 +137,11 @@ export default function ArchiveModal({
 
   return (
     <>
+      <style>{`
+        @keyframes archiveSpinner {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
       <div
         onClick={(e) => {
           if (e.target === e.currentTarget) handleClose();
@@ -157,67 +162,94 @@ export default function ArchiveModal({
         <div
           style={{
             backgroundColor: '#1a1a1b',
-            borderRadius: 16,
-            padding: 32,
-            maxWidth: 600,
+            borderRadius: 20,
+            padding: '40px 32px',
+            maxWidth: 700,
             width: '92vw',
-            maxHeight: '80vh',
+            maxHeight: '85vh',
             overflowY: 'auto',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
+            boxShadow: '0 25px 70px rgba(0,0,0,0.9)',
+            border: '1px solid #2b2b2e',
           }}
         >
-          <h2
-            style={{
-              margin: 0,
-              marginBottom: 24,
-              fontSize: 24,
-              fontWeight: 'bold',
-              color: '#ffffff',
-              letterSpacing: 1,
-              textAlign: 'center',
-            }}
-          >
-            {getModeDisplayName()} Archive
-          </h2>
-
-          <div
-            style={{
-              marginBottom: 20,
-              fontSize: 14,
-              color: '#9ca3af',
-              textAlign: 'center',
-            }}
-          >
-            {checkingDates 
-              ? 'Checking available dates...'
-              : isSubscribed 
-                ? 'Select a date to play that day\'s game'
-                : 'Subscribe to unlock archive access'}
+          <div style={{ marginBottom: 32, textAlign: 'center' }}>
+            <h2
+              style={{
+                margin: 0,
+                marginBottom: 8,
+                fontSize: 28,
+                fontWeight: 'bold',
+                color: '#ffffff',
+                letterSpacing: 0.5,
+              }}
+            >
+              {getModeDisplayName()} Archive
+            </h2>
+            <div
+              style={{
+                fontSize: 14,
+                color: '#9ca3af',
+                marginTop: 8,
+              }}
+            >
+              {checkingDates 
+                ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <div style={{ 
+                      width: 16, 
+                      height: 16, 
+                      border: '2px solid #6aaa64',
+                      borderTopColor: 'transparent',
+                      borderRadius: '50%',
+                      animation: 'archiveSpinner 0.8s linear infinite',
+                      flexShrink: 0,
+                    }} />
+                    <span>Checking available dates...</span>
+                  </div>
+                )
+                : isSubscribed 
+                  ? 'Select a date to play that day\'s game'
+                  : 'Subscribe to unlock archive access'}
+            </div>
           </div>
 
           {unavailableDateMessage && (
             <div
               style={{
-                marginBottom: 20,
-                padding: '12px 16px',
-                borderRadius: 8,
-                backgroundColor: 'rgba(220, 38, 38, 0.2)',
-                border: '1px solid #ef4444',
-                color: '#ef4444',
+                marginBottom: 24,
+                padding: '14px 18px',
+                borderRadius: 12,
+                backgroundColor: 'rgba(220, 38, 38, 0.15)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#f87171',
                 fontSize: 13,
                 textAlign: 'center',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
               }}
             >
-              {unavailableDateMessage}
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <circle cx="12" cy="12" r="10" stroke="#f87171" strokeWidth="2" />
+                <path d="M8 8L16 16M16 8L8 16" stroke="#f87171" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              <span>{unavailableDateMessage}</span>
             </div>
           )}
 
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-              gap: 12,
-              marginBottom: 20,
+              gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+              gap: 16,
+              marginBottom: 32,
             }}
           >
             {archiveDates.map((dateString) => {
@@ -229,103 +261,176 @@ export default function ArchiveModal({
                 <button
                   key={dateString}
                   onClick={() => handleDateClick(dateString)}
-                  disabled={false}
+                  disabled={isUnavailable}
                   style={{
-                    padding: '16px 12px',
-                    borderRadius: 10,
+                    padding: '20px 16px',
+                    borderRadius: 14,
                     border: isUnavailable 
-                      ? '1px solid #3a3a3c' 
+                      ? '2px solid rgba(239, 68, 68, 0.4)' 
                       : isLocked 
-                        ? '1px solid #3a3a3c' 
-                        : '1px solid #6aaa64',
+                        ? '2px solid #3a3a3c' 
+                        : '2px solid #6aaa64',
                     background: isUnavailable 
-                      ? '#18181a' 
+                      ? 'linear-gradient(135deg, rgba(220, 38, 38, 0.1) 0%, rgba(181, 23, 23, 0.05) 100%)' 
                       : isLocked 
-                        ? '#18181a' 
-                        : '#1a2e1a',
+                        ? 'linear-gradient(135deg, #18181a 0%, #1a1a1b 100%)' 
+                        : 'linear-gradient(135deg, rgba(106, 170, 100, 0.15) 0%, rgba(106, 170, 100, 0.05) 100%)',
                     color: isUnavailable 
-                      ? '#818384' 
+                      ? '#f87171' 
                       : isLocked 
-                        ? '#818384' 
+                        ? '#9ca3af' 
                         : '#ffffff',
                     fontSize: 13,
-                    fontWeight: 'bold',
+                    fontWeight: '600',
                     cursor: isUnavailable ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 4,
-                    transition: 'all 0.2s ease',
-                    opacity: (isLocked || isUnavailable) ? 0.6 : 1,
+                    gap: 8,
+                    transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                    opacity: (isLocked || isUnavailable) ? 0.7 : 1,
+                    position: 'relative',
+                    overflow: 'hidden',
                   }}
                   onMouseEnter={(e) => {
                     if (!isLocked && !isUnavailable) {
-                      e.currentTarget.style.background = '#1f3f1f';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 8px 20px rgba(106, 170, 100, 0.3)';
                       e.currentTarget.style.borderColor = '#7bb87b';
+                      e.currentTarget.style.background = 'linear-gradient(135deg, rgba(106, 170, 100, 0.25) 0%, rgba(106, 170, 100, 0.1) 100%)';
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!isLocked && !isUnavailable) {
-                      e.currentTarget.style.background = '#1a2e1a';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
                       e.currentTarget.style.borderColor = '#6aaa64';
+                      e.currentTarget.style.background = 'linear-gradient(135deg, rgba(106, 170, 100, 0.15) 0%, rgba(106, 170, 100, 0.05) 100%)';
                     }
                   }}
                 >
                   {isUnavailable ? (
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      style={{ marginBottom: 4 }}
-                    >
-                      <path
-                        d="M12 9V11M12 15H12.01M5 12C5 16.9706 9.02944 21 14 21C18.9706 21 23 16.9706 23 12C23 7.02944 18.9706 3 14 3C9.02944 3 5 7.02944 5 12Z"
-                        stroke="#818384"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                    <div style={{ 
+                      width: 32, 
+                      height: 32, 
+                      borderRadius: '50%',
+                      backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: 4,
+                    }}>
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <circle cx="12" cy="12" r="10" stroke="#ef4444" strokeWidth="2" />
+                        <path d="M8 8L16 16M16 8L8 16" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" />
+                      </svg>
+                    </div>
                   ) : isLocked && (
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      style={{ marginBottom: 4 }}
-                    >
-                      <path
-                        d="M6 10V8C6 5.79086 7.79086 4 10 4H14C16.2091 4 18 5.79086 18 8V10M6 10H4C2.89543 10 2 10.8954 2 12V20C2 21.1046 2.89543 22 4 22H20C21.1046 22 22 21.1046 22 20V12C22 10.8954 21.1046 10 20 10H18M6 10V14M18 10V14"
-                        stroke={isLocked ? '#818384' : '#6aaa64'}
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                    <div style={{ 
+                      width: 32, 
+                      height: 32, 
+                      borderRadius: '50%',
+                      backgroundColor: 'rgba(156, 163, 175, 0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: 4,
+                    }}>
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M6 10V8C6 5.79086 7.79086 4 10 4H14C16.2091 4 18 5.79086 18 8V10M6 10H4C2.89543 10 2 10.8954 2 12V20C2 21.1046 2.89543 22 4 22H20C21.1046 22 22 21.1046 22 20V12C22 10.8954 21.1046 10 20 10H18M6 10V14M18 10V14"
+                          stroke="#9ca3af"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </div>
                   )}
-                  <div>{formatArchiveDate(dateString)}</div>
+                  {!isUnavailable && !isLocked && (
+                    <div style={{ 
+                      width: 32, 
+                      height: 32, 
+                      borderRadius: '50%',
+                      backgroundColor: 'rgba(106, 170, 100, 0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: 4,
+                    }}>
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
+                          stroke="#6aaa64"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </div>
+                  )}
+                  <div style={{ 
+                    fontSize: 13, 
+                    fontWeight: '600',
+                    lineHeight: 1.4,
+                    textAlign: 'center',
+                  }}>
+                    {formatArchiveDate(dateString)}
+                  </div>
                 </button>
               );
             })}
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            gap: 12,
+            paddingTop: 8,
+            borderTop: '1px solid #2b2b2e',
+          }}>
             <button
               onClick={handleClose}
               style={{
-                padding: '12px 24px',
-                borderRadius: 10,
-                border: '1px solid #3a3a3c',
+                padding: '14px 32px',
+                borderRadius: 12,
+                border: '2px solid #3a3a3c',
                 background: 'transparent',
-                color: '#ffffff',
+                color: '#d7dadc',
                 fontSize: 14,
-                fontWeight: 'bold',
+                fontWeight: '600',
                 cursor: 'pointer',
-                letterSpacing: 1,
+                letterSpacing: 0.5,
                 textTransform: 'uppercase',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#565758';
+                e.currentTarget.style.color = '#ffffff';
+                e.currentTarget.style.background = 'rgba(58, 58, 60, 0.3)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#3a3a3c';
+                e.currentTarget.style.color = '#d7dadc';
+                e.currentTarget.style.background = 'transparent';
               }}
             >
               Close
