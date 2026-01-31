@@ -7,6 +7,14 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
 }));
 
+vi.mock('../../hooks/useAuth', () => ({
+  useAuth: () => ({ user: null }),
+}));
+
+vi.mock('../../hooks/useSubscription', () => ({
+  useSubscription: () => ({ showSubscriptionGate: false }),
+}));
+
 vi.mock('../../hooks/useUserBadges', () => ({
   useUserBadges: () => ({ userBadges: {}, loading: false, error: null }),
   useBadgesForUser: () => ({ userBadges: {}, loading: false }),

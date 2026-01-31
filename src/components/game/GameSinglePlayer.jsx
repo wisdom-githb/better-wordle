@@ -15,6 +15,7 @@ import { useGameEngine } from "../../hooks/useGameEngine";
 import { FLIP_COMPLETE_MS, MESSAGE_TIMEOUT_MS, DEFAULT_MAX_TURNS, SPEEDRUN_COUNTDOWN_MS } from "../../lib/gameConstants";
 import { generateShareText, buildMarathonShareTotals } from "../../lib/gameUtils";
 import { getCurrentDateString } from "../../lib/dailyWords";
+import { formatArchiveDate } from "../../lib/archiveService";
 import { submitSpeedrunScore } from "../../hooks/useLeaderboard";
 import { useAuth } from "../../hooks/useAuth";
 import { useSubscription } from "../../hooks/useSubscription";
@@ -60,25 +61,37 @@ export default function GameSinglePlayer({
   const navigate = useNavigate();
   const { message, setMessage, setTimedMessage, clearMessageTimer } = useTimedMessage("");
   const { user: authUser, isVerifiedUser } = useAuth();
-  const { isSubscribed } = useSubscription(authUser);
+  const { isSubscribed, showSubscriptionGate } = useSubscription(authUser);
   const [showSubscribeModal, setShowSubscribeModal] = useState(false);
 
+  const archiveRedirectTimeoutRef = useRef(null);
+  const subscribeCloseRedirectRef = useRef(null);
+  const subscriptionStateRef = useRef({ isSubscribed });
+  subscriptionStateRef.current = { isSubscribed };
+
   // Check premium access for archive games
-  // Note: Date availability is checked in ArchiveModal before navigation
   useEffect(() => {
     if (archiveDate && !authUser) {
       // Must be signed in for archive games
       setTimedMessage('You must be signed in to play archive games.', 3000);
-      setTimeout(() => {
+      if (archiveRedirectTimeoutRef.current) clearTimeout(archiveRedirectTimeoutRef.current);
+      archiveRedirectTimeoutRef.current = setTimeout(() => {
+        archiveRedirectTimeoutRef.current = null;
         navigate('/profile');
       }, 2000);
-      return;
+      return () => {
+        if (archiveRedirectTimeoutRef.current) {
+          clearTimeout(archiveRedirectTimeoutRef.current);
+          archiveRedirectTimeoutRef.current = null;
+        }
+      };
     }
-    if (archiveDate && authUser && !isSubscribed) {
-      // Archive games require premium subscription
+    if (archiveDate && authUser && showSubscriptionGate) {
       setShowSubscribeModal(true);
+    } else if (isSubscribed) {
+      setShowSubscribeModal(false);
     }
-  }, [archiveDate, authUser, isSubscribed, navigate, setTimedMessage]);
+  }, [archiveDate, authUser, isSubscribed, showSubscriptionGate, navigate, setTimedMessage]);
 
   // Best-effort helper to mirror local single-player progress into the
   // authenticated user's Firebase profile so daily/marathon games can be
@@ -1050,15 +1063,24 @@ export default function GameSinglePlayer({
 
   const { handleShare } = useShare(shareText, setTimedMessage);
 
-  const pageTitle =
-    mode === "marathon"
+  const getModeLabel = () => {
+    const modeLabel = mode === "marathon" ? "Marathon" : mode === "daily" ? "Daily" : "Game";
+    const variant = speedrunEnabled ? " Speedrun" : " Standard";
+    return `${modeLabel}${variant}`;
+  };
+
+  const pageTitle = archiveDate
+    ? `Archive ${formatArchiveDate(archiveDate)} – ${getModeLabel()} | Better Wordle`
+    : mode === "marathon"
       ? "Marathon & Speedrun – Multi‑Board Game | Better Wordle"
       : mode === "daily"
       ? "Daily Multi‑Board Wordle-Style Game – Better Wordle"
       : "Game – Better Wordle";
 
   const pageDescription =
-    mode === "marathon"
+    archiveDate
+      ? `Play the Better Wordle ${getModeLabel()} puzzle from ${formatArchiveDate(archiveDate)}.`
+      : mode === "marathon"
       ? "Play Better Wordle marathon and speedrun modes with multi-board Wordle-style puzzles, cumulative times and increasing difficulty across stages."
       : mode === "daily"
       ? "Play Better Wordle daily multi-board Wordle-style puzzles with standard and speedrun options, tracking your guesses and scores across boards."
@@ -1114,6 +1136,7 @@ export default function GameSinglePlayer({
         mode={mode}
         numBoards={numBoards}
         speedrunEnabled={speedrunEnabled}
+        archiveDate={archiveDate}
         allSolved={allSolved}
         finished={finished}
         solutionsText={solutionsText}
@@ -1175,9 +1198,11 @@ export default function GameSinglePlayer({
           onRequestClose={() => {
             setShowSubscribeModal(false);
             if (archiveDate) {
-              // Redirect away from archive game if not subscribed
-              setTimeout(() => {
-                navigate('/profile');
+              if (subscribeCloseRedirectRef.current) clearTimeout(subscribeCloseRedirectRef.current);
+              subscribeCloseRedirectRef.current = setTimeout(() => {
+                subscribeCloseRedirectRef.current = null;
+                // Only redirect if still not subscribed (avoids redirect when race resolved)
+                if (!subscriptionStateRef.current.isSubscribed) navigate('/profile');
               }, 1000);
             }
           }}

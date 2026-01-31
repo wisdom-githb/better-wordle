@@ -6,22 +6,29 @@ import { grantBadge } from '../lib/badgeService';
 
 const PREMIUM_BADGE_ID = 'premium_member';
 
+/** Delay before treating user as "not subscribed" for gating (avoids race with Firestore/custom claim) */
+const SUBSCRIPTION_GATE_SETTLE_MS = 600;
+
 /**
  * Hook to manage user subscription status
  * Checks both Firestore (from Stripe Extension) and custom claims (stripeRole)
  * Also syncs to Realtime Database for backward compatibility
  * @param {{ uid: string } | null} user - Current auth user
- * @returns {{ isSubscribed: boolean; loading: boolean; error: string | null; subscriptionData: any }}
+ * @returns {{ isSubscribed: boolean; loading: boolean; showSubscriptionGate: boolean; error: string | null; subscriptionData: any }}
  */
 export function useSubscription(user) {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showSubscriptionGate, setShowSubscriptionGate] = useState(false);
   const [error, setError] = useState(/** @type {string | null} */ (null));
   const [subscriptionData, setSubscriptionData] = useState(null);
   const [stripeRole, setStripeRole] = useState(null);
   const subscriptionRef = useRef(null);
   const firestoreUnsubscribeRef = useRef(null);
   const stripeRoleRef = useRef(null);
+  const gateTimeoutRef = useRef(null);
+  const stateRef = useRef({ isSubscribed, loading });
+  stateRef.current = { isSubscribed, loading };
 
   // Check custom claim (stripeRole) from Firebase Auth
   // This is set by the extension when user subscribes
@@ -41,9 +48,14 @@ export function useSubscription(user) {
     if (!user?.uid) {
       setIsSubscribed(false);
       setLoading(false);
+      setShowSubscriptionGate(false);
       setError(null);
       setSubscriptionData(null);
       setStripeRole(null);
+      if (gateTimeoutRef.current) {
+        clearTimeout(gateTimeoutRef.current);
+        gateTimeoutRef.current = null;
+      }
       return;
     }
 
@@ -208,7 +220,30 @@ export function useSubscription(user) {
     };
   }, [user?.uid]);
 
-  return { isSubscribed, loading, error, subscriptionData, stripeRole };
+  // Only show subscription gate (paywall / lock / CTA) after subscription has "settled" for a short period.
+  // Avoids briefly gating subscribed users when loading flips to false before Firestore/custom claim resolve.
+  useEffect(() => {
+    if (loading || isSubscribed) {
+      if (gateTimeoutRef.current) {
+        clearTimeout(gateTimeoutRef.current);
+        gateTimeoutRef.current = null;
+      }
+      setShowSubscriptionGate(false);
+      return;
+    }
+    gateTimeoutRef.current = setTimeout(() => {
+      gateTimeoutRef.current = null;
+      if (!stateRef.current.isSubscribed) setShowSubscriptionGate(true);
+    }, SUBSCRIPTION_GATE_SETTLE_MS);
+    return () => {
+      if (gateTimeoutRef.current) {
+        clearTimeout(gateTimeoutRef.current);
+        gateTimeoutRef.current = null;
+      }
+    };
+  }, [loading, isSubscribed]);
+
+  return { isSubscribed, loading, showSubscriptionGate, error, subscriptionData, stripeRole };
 }
 
 /**

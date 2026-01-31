@@ -95,10 +95,6 @@ export function validateMultiplayerGameState(gameState) {
     return { isValid: false, errors: ['Game state must be an object'] };
   }
   
-  if (typeof gameState.hostId !== 'string' || gameState.hostId.length === 0) {
-    errors.push('Game state must have a valid hostId');
-  }
-  
   if (!gameState.players || typeof gameState.players !== 'object') {
     errors.push('Game state must have a players object');
   } else {
@@ -107,7 +103,10 @@ export function validateMultiplayerGameState(gameState) {
     if (playerIds.length === 0) {
       errors.push('Game state must have at least one player');
     }
-    
+    const hasHost = playerIds.some((pid) => gameState.players[pid]?.isHost === true);
+    if (!hasHost) {
+      errors.push('Game state must have at least one host in the players map');
+    }
     playerIds.forEach((playerId) => {
       const player = gameState.players[playerId];
       if (!player || typeof player !== 'object') {

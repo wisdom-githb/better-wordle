@@ -150,8 +150,6 @@ describe('useMultiplayerGame – DB operations', () => {
     const stored = __dbData[`multiplayer/${code}`];
     expect(stored).toBeTruthy();
     expect(stored).toMatchObject({
-      hostId: 'host-1',
-      hostName: 'Host Player',
       status: 'waiting',
       speedrun: false,
       maxPlayers: 2,
@@ -326,11 +324,13 @@ describe('useMultiplayerGame – DB operations', () => {
 
   it('switchTurn toggles between host and guest in non-speedrun mode', async () => {
     __dbData['multiplayer/901234'] = {
-      hostId: 'host-1',
-      guestId: 'guest-1',
       status: 'playing',
       speedrun: false,
       currentTurn: 'host',
+      players: {
+        'host-1': { id: 'host-1', name: 'Host', isHost: true },
+        'guest-1': { id: 'guest-1', name: 'Guest', isHost: false },
+      },
     };
 
     auth.currentUser = { uid: 'host-1', displayName: 'Host' };
@@ -396,10 +396,12 @@ describe('useMultiplayerGame – DB operations', () => {
 
   it('setFriendRequestStatus sets pending and clears on declined', async () => {
     __dbData['multiplayer/345678'] = {
-      hostId: 'host-1',
       friendRequestStatus: null,
       friendRequestFrom: null,
       guestFriendRequestSent: false,
+      players: {
+        'host-1': { id: 'host-1', name: 'Host', isHost: true },
+      },
     };
 
     // Host sends request

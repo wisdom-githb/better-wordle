@@ -3,6 +3,14 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import OutOfGuessesPopup from './OutOfGuessesPopup';
 
+vi.mock('../../hooks/useAuth', () => ({
+  useAuth: () => ({ user: null }),
+}));
+
+vi.mock('../../hooks/useSubscription', () => ({
+  useSubscription: () => ({ showSubscriptionGate: false }),
+}));
+
 describe('OutOfGuessesPopup', () => {
   it('renders message with maxTurns and mode text', () => {
     render(

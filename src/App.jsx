@@ -8,6 +8,7 @@ import { useAuth } from "./hooks/useAuth";
 import "./Game.css"; // For utility classes like loadingContainer
 const Game = lazy(() => import("./Game"));
 const Profile = lazy(() => import("./Profile"));
+const AdvancedStats = lazy(() => import("./AdvancedStats"));
 const Leaderboard = lazy(() => import("./components/Leaderboard"));
 const Faq = lazy(() => import("./Faq"));
 const HowToPlay = lazy(() => import("./HowToPlay"));
@@ -147,6 +148,7 @@ function App() {
         <Route path="/game/multiplayer/:code/:variant" element={<Game marathonLevels={marathonLevelsMemo} />} />
         {/* Static pages */}
         <Route path="/profile" element={<Profile />} />
+        <Route path="/stats" element={<AdvancedStats />} />
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/faq" element={<Faq />} />
         <Route path="/how-to-play" element={<HowToPlay />} />

@@ -15,7 +15,7 @@ export default function OutOfGuessesPopup({
   setShowPopup
 }) {
   const { user } = useAuth();
-  const { isSubscribed } = useSubscription(user);
+  const { showSubscriptionGate } = useSubscription(user);
   const [showSubscribeModal, setShowSubscribeModal] = useState(false);
 
   const handleNextStage = () => {
@@ -112,7 +112,7 @@ export default function OutOfGuessesPopup({
             Continue
           </button>
 
-          {user && isSubscribed !== true && (
+          {user && showSubscriptionGate && (
             <button
               onClick={handleOpenSubscribe}
               style={{

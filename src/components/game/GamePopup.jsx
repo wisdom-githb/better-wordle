@@ -42,7 +42,7 @@ export default function GamePopup({
 }) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { isSubscribed } = useSubscription(user);
+  const { showSubscriptionGate } = useSubscription(user);
   const [showSubscribeModal, setShowSubscribeModal] = useState(false);
   
   const handleBackdropClick = (e) => {
@@ -125,23 +125,8 @@ export default function GamePopup({
             const safeGuesses = Array.isArray(guesses) ? guesses : [];
             const guessCount = safeGuesses.length;
 
-            // Derive a reliable timeMs for this player. Prefer the explicit
-            // per-player value, but fall back to host/guest time fields
-            // when using the legacy 2-player structure.
-            let effectiveTimeMs = typeof timeMs === "number" ? timeMs : null;
-            if (effectiveTimeMs == null && multiplayerGameState) {
-              if (id && multiplayerGameState.hostId === id) {
-                effectiveTimeMs =
-                  typeof multiplayerGameState.hostTimeMs === "number"
-                    ? multiplayerGameState.hostTimeMs
-                    : null;
-              } else if (id && multiplayerGameState.guestId === id) {
-                effectiveTimeMs =
-                  typeof multiplayerGameState.guestTimeMs === "number"
-                    ? multiplayerGameState.guestTimeMs
-                    : null;
-              }
-            }
+            // Per-player timeMs from the players map
+            const effectiveTimeMs = typeof timeMs === "number" ? timeMs : null;
 
             let solvedAll = false;
             if (solutionList.length > 0) {
@@ -173,24 +158,6 @@ export default function GamePopup({
               const timeMs = p.timeMs;
               players.push(makePlayerStats(id, name, guesses, timeMs));
             });
-          } else if (multiplayerGameState) {
-            const hostId = multiplayerGameState.hostId || null;
-            const guestId = multiplayerGameState.guestId || null;
-            const hostName = multiplayerGameState.hostName || (hostId ? "Host" : null);
-            const guestName = multiplayerGameState.guestName || (guestId ? "Guest" : null);
-            const hostGuesses = multiplayerGameState.hostGuesses || [];
-            const guestGuesses = multiplayerGameState.guestGuesses || [];
-
-            if (hostId || hostName) {
-              players.push(
-                makePlayerStats(hostId || "host", hostName || "Host", hostGuesses, multiplayerGameState.hostTimeMs),
-              );
-            }
-            if (guestId || guestName) {
-              players.push(
-                makePlayerStats(guestId || "guest", guestName || "Guest", guestGuesses, multiplayerGameState.guestTimeMs),
-              );
-            }
           }
 
           const metricForPlayer = (p) => {
@@ -298,10 +265,7 @@ export default function GamePopup({
                   color: "#c9b458",
                 }}>
                   {(() => {
-                    const isPlayerHostLocal = isPlayerHost;
                     const players = multiplayerGameState?.players;
-                    
-                    // Check players map first for multiplayer rooms
                     let myRematch = false;
                     let allPlayersRematched = false;
                     let somePlayersRematched = false;
@@ -342,16 +306,9 @@ export default function GamePopup({
                   {(() => {
                     if (isSpeedrun) {
                       if (!multiplayerGameState) return "N/A";
-                      // Check players map first for multiplayer rooms
                       let myTimeMs = null;
                       if (currentUserId && multiplayerGameState.players && multiplayerGameState.players[currentUserId]) {
                         myTimeMs = multiplayerGameState.players[currentUserId].timeMs ?? null;
-                      }
-                      // Fallback to legacy host/guest structure
-                      if (myTimeMs == null) {
-                        myTimeMs = isPlayerHost
-                          ? multiplayerGameState?.hostTimeMs ?? null
-                          : multiplayerGameState?.guestTimeMs ?? null;
                       }
                       return myTimeMs != null ? formatElapsed(myTimeMs) : "N/A";
                     }
@@ -386,7 +343,6 @@ export default function GamePopup({
                   {(() => {
                     if (isSpeedrun) {
                       if (!multiplayerGameState) return "N/A";
-                      // For multiplayer, find the first opponent's time
                       let opponentTimeMs = null;
                       if (multiplayerGameState.players && typeof multiplayerGameState.players === "object") {
                         const opponent = Object.values(multiplayerGameState.players).find(
@@ -395,12 +351,6 @@ export default function GamePopup({
                         if (opponent) {
                           opponentTimeMs = opponent.timeMs ?? null;
                         }
-                      }
-                      // Fallback to legacy host/guest structure
-                      if (opponentTimeMs == null) {
-                        opponentTimeMs = isPlayerHost
-                          ? multiplayerGameState?.guestTimeMs ?? null
-                          : multiplayerGameState?.hostTimeMs ?? null;
                       }
                       return opponentTimeMs != null ? formatElapsed(opponentTimeMs) : "N/A";
                     }
@@ -457,10 +407,7 @@ export default function GamePopup({
                     }}
                   >
                     {rankedPlayers.map((p) => {
-                      const isMe =
-                        (currentUserId && p.id === currentUserId) ||
-                        (!currentUserId && isPlayerHost && multiplayerGameState?.hostId === p.id) ||
-                        (!currentUserId && !isPlayerHost && multiplayerGameState?.guestId === p.id);
+                      const isMe = currentUserId && p.id === currentUserId;
 
                       const primaryStat = isSpeedrun
                         ? p.timeMs != null
@@ -802,7 +749,7 @@ export default function GamePopup({
             </button>
           )}
 
-          {user && isSubscribed !== true && (
+          {user && showSubscriptionGate && (
             <button
               onClick={handleOpenSubscribe}
               style={{

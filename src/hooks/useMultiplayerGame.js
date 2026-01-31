@@ -25,11 +25,13 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const gameRef = useRef(null);
+  const isMountedRef = useRef(true);
   const user = auth.currentUser;
 
   // Cleanup listener on unmount
   useEffect(() => {
     return () => {
+      isMountedRef.current = false;
       // Listener cleanup is handled via the unsubscribe function returned from
       // onValue in the gameState subscription effect; we simply clear the ref.
       gameRef.current = null;
@@ -48,6 +50,7 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
     const unsubscribe = onValue(
       dbRef,
       (snapshot) => {
+        if (!isMountedRef.current) return;
         // In some test setups the snapshot may be undefined/null; treat this as
         // an empty/missing game.
         const data = snapshot && typeof snapshot.val === 'function' ? snapshot.val() : null;
@@ -66,6 +69,7 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
         setError(null);
       },
       (err) => {
+        if (!isMountedRef.current) return;
         setError(err.message);
         setLoading(false);
       },
@@ -118,8 +122,6 @@ const createGame = useCallback(async (options = {}) => {
     const now = Date.now();
 
     const gameData = {
-      hostId: user.uid,
-      hostName,
       status: 'waiting', // waiting, ready, playing, finished
       solution: null,
       solutions: [], // Array of solutions (one per board)
@@ -131,7 +133,7 @@ const createGame = useCallback(async (options = {}) => {
       maxPlayers,
       isPublic,
       configBoards,
-      // All game state now lives in the players map - no legacy host/guest duplication
+      // All game state lives in the players map
       players: {
         [user.uid]: {
           id: user.uid,
@@ -191,8 +193,8 @@ const createGame = useCallback(async (options = {}) => {
         return code;
       }
       
-      // Backward compatibility: check if user is host (hostId is still needed for host checks)
-      if (gameData.hostId === user.uid) {
+      // Host is in players with isHost: true
+      if (players && players[user.uid]?.isHost) {
         return code;
       }
 
@@ -347,12 +349,11 @@ const createGame = useCallback(async (options = {}) => {
           throw new Error('Game not found');
         }
 
-        const isHost = currentData.hostId === user.uid;
+        const players = currentData.players || null;
+        const isHost = players && players[user.uid]?.isHost;
         if (!isHost) {
           throw new Error('Only host can start the game');
         }
-
-        const players = currentData.players || null;
         if (!players) {
           throw new Error('Invalid game state: no players map found');
         }
@@ -507,7 +508,8 @@ const createGame = useCallback(async (options = {}) => {
         // No turn switching in speedrun mode.
         return;
       }
-      const isHost = gameData.hostId === user.uid;
+      const players = gameData.players || {};
+      const isHost = players[user.uid]?.isHost === true;
       const isMyTurn = gameData.currentTurn === (isHost ? 'host' : 'guest');
 
       if (!isMyTurn) {
@@ -569,7 +571,8 @@ const createGame = useCallback(async (options = {}) => {
       }
 
       const gameData = snapshot.val();
-      const isHost = gameData.hostId === user.uid;
+      const players = gameData.players || {};
+      const isHost = players[user.uid]?.isHost === true;
 
       if (status === 'pending') {
         const updateData = {
@@ -678,7 +681,8 @@ const createGame = useCallback(async (options = {}) => {
       }
 
       const gameData = snapshot.val();
-      if (gameData.hostId !== user.uid) {
+      const players = gameData.players || {};
+      if (!players[user.uid]?.isHost) {
         throw new Error('Only host can update game configuration');
       }
 
@@ -775,8 +779,8 @@ const createGame = useCallback(async (options = {}) => {
 
         if (snapshot.exists()) {
           const gameData = snapshot.val();
-          const isHost = gameData.hostId === user.uid;
           const players = gameData.players || null;
+          const isHost = players && players[user.uid]?.isHost === true;
 
           if (isHost) {
             // If the host leaves, delete the room entirely (current behavior).
@@ -835,15 +839,15 @@ const createGame = useCallback(async (options = {}) => {
       }
 
       const gameData = snapshot.val();
-      if (gameData.hostId !== user.uid) {
+      const players = gameData.players || {};
+      if (!players[user.uid]?.isHost) {
         throw new Error('Only the host can update room settings');
       }
       if (gameData.status !== 'waiting') {
         throw new Error('Settings can only be changed before the game starts');
       }
 
-      const players = gameData.players || null;
-      const playerCount = players ? Object.keys(players).length : 1;
+      const playerCount = Object.keys(players).length || 1;
 
       const updatePayload = {};
 

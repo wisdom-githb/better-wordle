@@ -19,6 +19,7 @@ export default function SinglePlayerGameView({
   mode,
   numBoards,
   speedrunEnabled,
+  archiveDate = null,
   allSolved,
   finished,
   solutionsText,
@@ -127,6 +128,7 @@ export default function SinglePlayerGameView({
           mode={mode}
           numBoards={numBoards}
           speedrunEnabled={speedrunEnabled}
+          archiveDate={archiveDate}
         />
 
         {solutionsText && solutionsText.length > 0 && (

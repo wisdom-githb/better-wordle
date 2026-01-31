@@ -22,33 +22,13 @@ export default function OneVOneWaitingRoom({
   const { status } = gameState || {};
 
   const players = React.useMemo(() => {
-    if (!gameState) return [];
-    if (gameState.players && typeof gameState.players === 'object') {
-      return Object.values(gameState.players).map((p) => ({
-        id: p.id,
-        name: p.name,
-        isHost: !!p.isHost || p.id === gameState.hostId,
-        ready: !!p.ready,
-      }));
-    }
-    const list = [];
-    if (gameState.hostName || gameState.hostId) {
-      list.push({
-        id: gameState.hostId || 'host',
-        name: gameState.hostName || 'Host',
-        isHost: true,
-        ready: !!gameState.hostReady,
-      });
-    }
-    if (gameState.guestName || gameState.guestId) {
-      list.push({
-        id: gameState.guestId || 'guest',
-        name: gameState.guestName || 'Guest',
-        isHost: false,
-        ready: !!gameState.guestReady,
-      });
-    }
-    return list;
+    if (!gameState || !gameState.players || typeof gameState.players !== 'object') return [];
+    return Object.values(gameState.players).map((p) => ({
+      id: p.id,
+      name: p.name,
+      isHost: !!p.isHost,
+      ready: !!p.ready,
+    }));
   }, [gameState]);
 
   const effectiveMaxPlayers = Number.isFinite(maxPlayers) ? maxPlayers : (gameState?.maxPlayers || 2);
@@ -73,7 +53,8 @@ export default function OneVOneWaitingRoom({
   const allPlayersReady = players.length >= 2 && players.every((p) => p.ready);
   const roomFull = players.length >= effectiveMaxPlayers;
   const hasOnlyHost = players.length === 1 && players[0]?.isHost;
-  const effectiveRoomName = roomName || (gameState?.hostName ? `${gameState.hostName}'s room` : 'Room');
+  const hostPlayer = players.find((p) => p.isHost);
+  const effectiveRoomName = roomName || (hostPlayer?.name ? `${hostPlayer.name}'s room` : 'Room');
   const [roomNameDraft, setRoomNameDraft] = React.useState(effectiveRoomName);
 
   React.useEffect(() => {
@@ -363,9 +344,10 @@ export default function OneVOneWaitingRoom({
               >
                 {friendRequestSent
                   ? "Friend request sent"
-                  : `Add ${gameState?.guestName || 'Player'} as Friend`}
+                  : `Add ${opponentName || 'Player'} as Friend`}
               </button>
-            )}
+            );
+            })()}
 
             {Array.isArray(friends) && friends.length > 0 && onInviteFriend && (
               <div style={{ marginTop: '24px', textAlign: 'left' }}>

@@ -22,7 +22,7 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete }) {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { userBadges } = useUserBadges(user);
-  const { isSubscribed } = useSubscription(user);
+  const { showSubscriptionGate } = useSubscription(user);
   const earnedBadges = getAllEarnedSorted(userBadges);
   const resetTime = useDailyResetTimer();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -236,7 +236,7 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete }) {
               size="sm"
               earnedBadges={earnedBadges}
             />
-            {!isSubscribed && (
+            {showSubscriptionGate && (
               <button
                 type="button"
                 className="homeBtn"

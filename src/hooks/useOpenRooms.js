@@ -33,9 +33,7 @@ export function useOpenRooms() {
             if (!room) return null;
 
             const playersMap = room.players && typeof room.players === 'object' ? room.players : null;
-            const currentPlayers = playersMap
-              ? Object.keys(playersMap).length
-              : ((room.hostId ? 1 : 0) + (room.guestId ? 1 : 0));
+            const currentPlayers = playersMap ? Object.keys(playersMap).length : 0;
 
             const maxPlayers = Number.isFinite(room.maxPlayers) ? room.maxPlayers : 2;
             const speedrun = room.speedrun === true;
@@ -47,7 +45,8 @@ export function useOpenRooms() {
             const explicitBoards = Number.isFinite(room.numBoards) ? room.numBoards : null;
             const boards = explicitBoards || solutions.length || 1;
 
-            const hostName = room.hostName || 'Host';
+            const hostEntry = playersMap ? Object.values(playersMap).find((p) => p && p.isHost) : null;
+            const hostName = hostEntry?.name || 'Host';
             const roomName = room.roomName || `${hostName}'s room`;
 
             return {

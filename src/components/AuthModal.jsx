@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import Modal from './Modal';
 
 export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpComplete }) {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -79,39 +80,16 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
   const handleEmailChange = useCallback((e) => setEmail(e.target.value), []);
   const handlePasswordChange = useCallback((e) => setPassword(e.target.value), []);
 
-  if (!isOpen) return null;
-
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 10000,
-        padding: '20px'
-      }}
-      onClick={handleClose}
+    <Modal
+      isOpen={isOpen}
+      onRequestClose={handleClose}
+      titleId="auth-modal-title"
+      zIndex={10000}
     >
-      <div
-        style={{
-          backgroundColor: '#1a1a1b',
-          borderRadius: '12px',
-          padding: '32px',
-          maxWidth: '400px',
-          width: '100%',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
-          position: 'relative'
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div style={{ position: 'relative', padding: '8px 0', textAlign: 'left' }}>
         <div style={{ marginBottom: '24px' }}>
-          <h2 style={{ margin: 0, marginBottom: '8px', fontSize: '24px', fontWeight: 'bold', color: '#ffffff' }}>
+          <h2 id="auth-modal-title" style={{ margin: 0, marginBottom: '8px', fontSize: '24px', fontWeight: 'bold', color: '#ffffff' }}>
             {isSignUp ? 'Create Account' : 'Sign In'}
           </h2>
           <p style={{ margin: 0, fontSize: '14px', color: '#d7dadc' }}>
@@ -301,8 +279,8 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
           onClick={handleClose}
           style={{
             position: 'absolute',
-            top: '16px',
-            right: '16px',
+            top: '0',
+            right: '0',
             background: 'none',
             border: 'none',
             color: '#818384',
@@ -319,6 +297,6 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
           ×
         </button>
       </div>
-    </div>
+    </Modal>
   );
 });

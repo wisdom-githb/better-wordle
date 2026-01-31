@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useSubscription } from '../hooks/useSubscription';
 import { loadGameRecords, calculateAdvancedStats, formatTime } from '../lib/statsService';
+import Modal from './Modal';
 import SubscribeModal from './SubscribeModal';
 
 /**
@@ -14,7 +15,7 @@ export default function CrossModeComparisonModal({
   onRequestClose
 }) {
   const { user } = useAuth();
-  const { isSubscribed } = useSubscription(user);
+  const { showSubscriptionGate } = useSubscription(user);
   const [showSubscribeModal, setShowSubscribeModal] = useState(false);
   const [comparisonData, setComparisonData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -177,26 +178,15 @@ export default function CrossModeComparisonModal({
 
   if (!isOpen) return null;
 
-  // Premium check
-  if (!isSubscribed) {
+  // Premium check (only after subscription has settled to avoid flash for subscribed users)
+  if (showSubscriptionGate) {
     return (
       <>
-        <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) onRequestClose();
-          }}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.82)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 3000,
-          }}
+        <Modal
+          isOpen={isOpen}
+          onRequestClose={onRequestClose}
+          titleId="cross-mode-modal-title"
+          zIndex={3000}
         >
           <div
             style={{
@@ -211,7 +201,7 @@ export default function CrossModeComparisonModal({
             }}
           >
             <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
-            <h2 style={{
+            <h2 id="cross-mode-modal-title" style={{
               margin: 0,
               marginBottom: 16,
               fontSize: 24,
@@ -283,7 +273,7 @@ export default function CrossModeComparisonModal({
               </button>
             </div>
           </div>
-        </div>
+        </Modal>
 
         <SubscribeModal
           isOpen={showSubscribeModal}
@@ -298,22 +288,11 @@ export default function CrossModeComparisonModal({
 
   return (
     <>
-      <div
-        onClick={(e) => {
-          if (e.target === e.currentTarget) onRequestClose();
-        }}
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.82)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 3000,
-        }}
+      <Modal
+        isOpen={isOpen}
+        onRequestClose={onRequestClose}
+        titleId="cross-mode-comparison-title"
+        zIndex={3000}
       >
         <div
           style={{
@@ -330,6 +309,7 @@ export default function CrossModeComparisonModal({
         >
           <div style={{ marginBottom: 32, textAlign: 'center' }}>
             <h2
+              id="cross-mode-comparison-title"
               style={{
                 margin: 0,
                 marginBottom: 8,
@@ -698,7 +678,7 @@ export default function CrossModeComparisonModal({
             </button>
           </div>
         </div>
-      </div>
+      </Modal>
     </>
   );
 }

@@ -528,7 +528,7 @@ export default function GameMultiplayer() {
         speedrunDraft={multiplayerConfigSpeedrunDraft}
         onChangeSpeedrunDraft={(value) => setMultiplayerConfigSpeedrunDraft(value)}
         onSave={applyMultiplayerConfig}
-        isHost={gameState && authUser ? gameState.hostId === authUser.uid : false}
+        isHost={gameState && authUser && gameState.players ? gameState.players[authUser.uid]?.isHost === true : false}
       />
 
       <MultiplayerGameView
@@ -613,8 +613,8 @@ export default function GameMultiplayer() {
           multiplayerGameState={multiplayerGame.gameState}
           winner={multiplayerGame.gameState ? multiplayerGame.gameState.winner : null}
           isPlayerHost={
-            multiplayerGame.gameState && authUser
-              ? multiplayerGame.gameState.hostId === authUser.uid
+            multiplayerGame.gameState && authUser && multiplayerGame.gameState.players
+              ? multiplayerGame.gameState.players[authUser.uid]?.isHost === true
               : false
           }
           currentUserId={authUser ? authUser.uid : null}

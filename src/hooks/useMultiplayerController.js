@@ -181,11 +181,9 @@ export function useMultiplayerController({
 
     let myGuesses = [];
 
-    // Prefer per-player guesses from the players map when available.
+    // Per-player guesses from the players map
     if (gs.players && gs.players[authUser.uid]) {
       myGuesses = gs.players[authUser.uid].guesses || [];
-    } else {
-      myGuesses = gs.hostId === authUser.uid ? gs.hostGuesses || [] : gs.guestGuesses || [];
     }
 
     return solutionArray.every((sol) => myGuesses.includes(sol));
@@ -255,8 +253,7 @@ export function useMultiplayerController({
           // Check if user is already part of the game via gameState
           if (multiplayerGame.gameState) {
             const players = multiplayerGame.gameState.players || {};
-            const isAlreadyInGame = players[authUser.uid] || 
-                                   multiplayerGame.gameState.hostId === authUser.uid;
+            const isAlreadyInGame = !!players[authUser.uid];
 
             if (isAlreadyInGame) {
               // User is already part of the game, no need to join
@@ -722,7 +719,7 @@ export function useMultiplayerController({
     const gameState = multiplayerGame.gameState;
     if (!gameState) return;
     
-    const isPlayerHost = gameState.hostId === authUser.uid;
+    const isPlayerHost = gameState.players && gameState.players[authUser.uid]?.isHost === true;
     if (!isPlayerHost) {
       setTimedMessage('Only the host can start a rematch', MESSAGE_TIMEOUT_MS);
       return;

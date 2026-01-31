@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useSubscription } from '../hooks/useSubscription';
-import { getArchiveDates, formatArchiveDate, loadArchiveSolution } from '../lib/archiveService';
+import { getArchiveDates, formatArchiveDate } from '../lib/archiveService';
+import Modal from './Modal';
 import SubscribeModal from './SubscribeModal';
 
 /**
@@ -18,45 +19,16 @@ export default function ArchiveModal({
 }) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { isSubscribed } = useSubscription(user);
+  const { isSubscribed, loading: subscriptionLoading, showSubscriptionGate } = useSubscription(user);
   const [showSubscribeModal, setShowSubscribeModal] = useState(false);
   const [archiveDates, setArchiveDates] = useState([]);
-  const [dateAvailability, setDateAvailability] = useState({}); // Map of dateString -> boolean
-  const [checkingDates, setCheckingDates] = useState(false);
-  const [unavailableDateMessage, setUnavailableDateMessage] = useState(null);
 
-  // Check which dates are available in Firebase
+  // All dates in the 14-day archive window are playable (solutions are seeded on demand when the game loads)
   useEffect(() => {
-    if (isOpen && user) {
-      const dates = getArchiveDates();
-      setArchiveDates(dates);
-      setCheckingDates(true);
-      
-      // Check availability for all dates
-      const checkAvailability = async () => {
-        const availability = {};
-        for (const dateString of dates) {
-          try {
-            const solutions = await loadArchiveSolution({
-              mode,
-              speedrunEnabled,
-              dateString,
-            });
-            availability[dateString] = solutions !== null && solutions.length > 0;
-          } catch (err) {
-            availability[dateString] = false;
-          }
-        }
-        setDateAvailability(availability);
-        setCheckingDates(false);
-      };
-      
-      checkAvailability();
-    } else if (isOpen) {
-      const dates = getArchiveDates();
-      setArchiveDates(dates);
-    }
-  }, [isOpen, mode, speedrunEnabled, user]);
+    if (!isOpen) return;
+    const dates = getArchiveDates();
+    setArchiveDates(dates);
+  }, [isOpen, mode, speedrunEnabled]);
 
   const getModeDisplayName = () => {
     const modeName = mode === 'daily' ? 'Daily' : 'Marathon';
@@ -65,51 +37,13 @@ export default function ArchiveModal({
     return `${modeName} ${variantName}${boardText ? ' ' + boardText : ''}`;
   };
 
-  const handleDateClick = async (dateString) => {
-    // First check if date is available
-    const isAvailable = dateAvailability[dateString];
-    
-    if (isAvailable === false) {
-      // Date doesn't exist in Firebase
-      setUnavailableDateMessage(`This Wordle doesn't exist for ${formatArchiveDate(dateString)}. Archive games are only available for dates for which better wordle has tracked the words.`);
-      setTimeout(() => {
-        setUnavailableDateMessage(null);
-      }, 4000);
-      return;
-    }
-    
-    // If checking or unknown, check now
-    if (isAvailable === undefined) {
-      try {
-        const solutions = await loadArchiveSolution({
-          mode,
-          speedrunEnabled,
-          dateString,
-        });
-        
-        if (!solutions || solutions.length === 0) {
-          setUnavailableDateMessage(`This Wordle doesn't exist for ${formatArchiveDate(dateString)}. Archive games are only available for dates for which better wordle has tracked the words.`);
-          setTimeout(() => {
-            setUnavailableDateMessage(null);
-          }, 4000);
-          return;
-        }
-      } catch (err) {
-        setUnavailableDateMessage(`This Wordle doesn't exist for ${formatArchiveDate(dateString)}. Archive games are only available for dates for which better wordle has tracked the words.`);
-        setTimeout(() => {
-          setUnavailableDateMessage(null);
-        }, 4000);
-        return;
-      }
-    }
-    
-    // Date exists - check subscription
-    if (!isSubscribed) {
+  const handleDateClick = (dateString) => {
+    if (showSubscriptionGate) {
       setShowSubscribeModal(true);
       return;
     }
 
-    // Navigate to game with archive date
+    // Navigate to game with archive date (solutions are seeded on demand if missing)
     // Format: /game?mode=daily&boards=1&archiveDate=2026-01-24
     const modeParam = mode;
     const boardsParam = mode === 'daily' ? 1 : null; // Marathon will use default
@@ -133,51 +67,57 @@ export default function ArchiveModal({
     onRequestClose();
   };
 
-  if (!isOpen) return null;
+  const isLocked = showSubscriptionGate;
 
   return (
     <>
       <style>{`
-        @keyframes archiveSpinner {
-          to { transform: rotate(360deg); }
+        .modalPanel--archive {
+          max-height: 85vh;
+          overflow-y: auto;
+          overflow-x: hidden;
+        }
+        .modalPanel--archive::-webkit-scrollbar {
+          width: 8px;
+        }
+        .modalPanel--archive::-webkit-scrollbar-track {
+          background: #1a1a1b;
+          border-radius: 4px;
+        }
+        .modalPanel--archive::-webkit-scrollbar-thumb {
+          background: #3a3a3c;
+          border-radius: 4px;
+        }
+        .modalPanel--archive::-webkit-scrollbar-thumb:hover {
+          background: #565758;
         }
       `}</style>
-      <div
-        onClick={(e) => {
-          if (e.target === e.currentTarget) handleClose();
-        }}
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.82)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 3000,
-        }}
+      <Modal
+        isOpen={isOpen}
+        onRequestClose={handleClose}
+        titleId="archive-modal-title"
+        zIndex={3000}
+        panelClassName="modalPanel--wide modalPanel--archive"
       >
         <div
           style={{
             backgroundColor: '#1a1a1b',
             borderRadius: 20,
-            padding: '40px 32px',
-            maxWidth: 700,
-            width: '92vw',
-            maxHeight: '85vh',
-            overflowY: 'auto',
+            padding: '28px 24px 24px',
+            maxWidth: 640,
+            width: '100%',
+            boxSizing: 'border-box',
             boxShadow: '0 25px 70px rgba(0,0,0,0.9)',
             border: '1px solid #2b2b2e',
           }}
         >
-          <div style={{ marginBottom: 32, textAlign: 'center' }}>
+          <div style={{ marginBottom: 24, textAlign: 'center', flexShrink: 0 }}>
             <h2
+              id="archive-modal-title"
               style={{
                 margin: 0,
-                marginBottom: 8,
-                fontSize: 28,
+                marginBottom: 6,
+                fontSize: 22,
                 fontWeight: 'bold',
                 color: '#ffffff',
                 letterSpacing: 0.5,
@@ -185,115 +125,88 @@ export default function ArchiveModal({
             >
               {getModeDisplayName()} Archive
             </h2>
-            <div
+            <p
               style={{
-                fontSize: 14,
+                margin: 0,
+                fontSize: 13,
                 color: '#9ca3af',
-                marginTop: 8,
+                lineHeight: 1.4,
               }}
             >
-              {checkingDates 
-                ? (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                    <div style={{ 
-                      width: 16, 
-                      height: 16, 
-                      border: '2px solid #6aaa64',
-                      borderTopColor: 'transparent',
-                      borderRadius: '50%',
-                      animation: 'archiveSpinner 0.8s linear infinite',
-                      flexShrink: 0,
-                    }} />
-                    <span>Checking available dates...</span>
-                  </div>
-                )
-                : isSubscribed 
+              {subscriptionLoading
+                ? 'Loading...'
+                : isSubscribed
                   ? 'Select a date to play that day\'s game'
                   : 'Subscribe to unlock archive access'}
-            </div>
-          </div>
-
-          {unavailableDateMessage && (
-            <div
-              style={{
-                marginBottom: 24,
-                padding: '14px 18px',
-                borderRadius: 12,
-                backgroundColor: 'rgba(220, 38, 38, 0.15)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                color: '#f87171',
-                fontSize: 13,
-                textAlign: 'center',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-              }}
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
+            </p>
+            {isLocked && (
+              <button
+                type="button"
+                onClick={() => setShowSubscribeModal(true)}
+                style={{
+                  marginTop: 16,
+                  padding: '12px 24px',
+                  borderRadius: 12,
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #6aaa64 0%, #5a9a54 100%)',
+                  color: '#ffffff',
+                  fontSize: 14,
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  letterSpacing: 0.5,
+                  textTransform: 'uppercase',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.opacity = '0.95';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = '1';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
               >
-                <circle cx="12" cy="12" r="10" stroke="#f87171" strokeWidth="2" />
-                <path d="M8 8L16 16M16 8L8 16" stroke="#f87171" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-              <span>{unavailableDateMessage}</span>
-            </div>
-          )}
+                Subscribe to unlock
+              </button>
+            )}
+          </div>
 
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-              gap: 16,
-              marginBottom: 32,
+              gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+              gap: 12,
+              marginBottom: 24,
             }}
           >
-            {archiveDates.map((dateString) => {
-              const isAvailable = dateAvailability[dateString];
-              const isLocked = !isSubscribed && isAvailable !== false; // Only lock if subscribed and date exists
-              const isUnavailable = isAvailable === false;
-              
-              return (
+            {archiveDates.map((dateString) => (
                 <button
                   key={dateString}
                   onClick={() => handleDateClick(dateString)}
-                  disabled={isUnavailable}
                   style={{
-                    padding: '20px 16px',
+                    padding: '16px 12px',
                     borderRadius: 14,
-                    border: isUnavailable 
-                      ? '2px solid rgba(239, 68, 68, 0.4)' 
-                      : isLocked 
-                        ? '2px solid #3a3a3c' 
-                        : '2px solid #6aaa64',
-                    background: isUnavailable 
-                      ? 'linear-gradient(135deg, rgba(220, 38, 38, 0.1) 0%, rgba(181, 23, 23, 0.05) 100%)' 
-                      : isLocked 
-                        ? 'linear-gradient(135deg, #18181a 0%, #1a1a1b 100%)' 
-                        : 'linear-gradient(135deg, rgba(106, 170, 100, 0.15) 0%, rgba(106, 170, 100, 0.05) 100%)',
-                    color: isUnavailable 
-                      ? '#f87171' 
-                      : isLocked 
-                        ? '#9ca3af' 
-                        : '#ffffff',
+                    border: isLocked 
+                      ? '2px solid #3a3a3c' 
+                      : '2px solid #6aaa64',
+                    background: isLocked 
+                      ? 'linear-gradient(135deg, #18181a 0%, #1a1a1b 100%)' 
+                      : 'linear-gradient(135deg, rgba(106, 170, 100, 0.15) 0%, rgba(106, 170, 100, 0.05) 100%)',
+                    color: isLocked ? '#9ca3af' : '#ffffff',
                     fontSize: 13,
                     fontWeight: '600',
-                    cursor: isUnavailable ? 'not-allowed' : 'pointer',
+                    cursor: 'pointer',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
                     gap: 8,
                     transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                    opacity: (isLocked || isUnavailable) ? 0.7 : 1,
+                    opacity: isLocked ? 0.7 : 1,
                     position: 'relative',
                     overflow: 'hidden',
                   }}
                   onMouseEnter={(e) => {
-                    if (!isLocked && !isUnavailable) {
+                    if (!isLocked) {
                       e.currentTarget.style.transform = 'translateY(-2px)';
                       e.currentTarget.style.boxShadow = '0 8px 20px rgba(106, 170, 100, 0.3)';
                       e.currentTarget.style.borderColor = '#7bb87b';
@@ -301,7 +214,7 @@ export default function ArchiveModal({
                     }
                   }}
                   onMouseLeave={(e) => {
-                    if (!isLocked && !isUnavailable) {
+                    if (!isLocked) {
                       e.currentTarget.style.transform = 'translateY(0)';
                       e.currentTarget.style.boxShadow = 'none';
                       e.currentTarget.style.borderColor = '#6aaa64';
@@ -309,57 +222,16 @@ export default function ArchiveModal({
                     }
                   }}
                 >
-                  {isUnavailable ? (
+                  {isLocked && (
                     <div style={{ 
-                      width: 32, 
-                      height: 32, 
-                      borderRadius: '50%',
-                      backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      fontSize: 24,
                       marginBottom: 4,
+                      lineHeight: 1,
                     }}>
-                      <svg
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <circle cx="12" cy="12" r="10" stroke="#ef4444" strokeWidth="2" />
-                        <path d="M8 8L16 16M16 8L8 16" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" />
-                      </svg>
-                    </div>
-                  ) : isLocked && (
-                    <div style={{ 
-                      width: 32, 
-                      height: 32, 
-                      borderRadius: '50%',
-                      backgroundColor: 'rgba(156, 163, 175, 0.15)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginBottom: 4,
-                    }}>
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M6 10V8C6 5.79086 7.79086 4 10 4H14C16.2091 4 18 5.79086 18 8V10M6 10H4C2.89543 10 2 10.8954 2 12V20C2 21.1046 2.89543 22 4 22H20C21.1046 22 22 21.1046 22 20V12C22 10.8954 21.1046 10 20 10H18M6 10V14M18 10V14"
-                          stroke="#9ca3af"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      🔒
                     </div>
                   )}
-                  {!isUnavailable && !isLocked && (
+                  {!isLocked && (
                     <div style={{ 
                       width: 32, 
                       height: 32, 
@@ -396,18 +268,17 @@ export default function ArchiveModal({
                     {formatArchiveDate(dateString)}
                   </div>
                 </button>
-              );
-            })}
+            ))}
           </div>
 
           <div style={{ 
             display: 'flex', 
             justifyContent: 'center', 
-            gap: 12,
-            paddingTop: 8,
+            paddingTop: 16,
             borderTop: '1px solid #2b2b2e',
           }}>
             <button
+              type="button"
               onClick={handleClose}
               style={{
                 padding: '14px 32px',
@@ -437,7 +308,7 @@ export default function ArchiveModal({
             </button>
           </div>
         </div>
-      </div>
+      </Modal>
 
       <SubscribeModal
         isOpen={showSubscribeModal}

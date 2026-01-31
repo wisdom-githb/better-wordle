@@ -114,9 +114,6 @@ export default function CommentsSection({ threadId }) {
         text: trimmedComment,
         createdAt: Date.now(),
         uid: user?.uid || null,
-        // Legacy aggregate reactions map is kept for backward compatibility,
-        // but new logic prefers per-user reactions in `userReactions`.
-        reactions: {},
         userReactions: {},
       });
       setComment("");
@@ -315,10 +312,7 @@ export default function CommentsSection({ threadId }) {
                   myReactionEmoji = userReactions[reactionUserId];
                 }
               } else {
-                // Fallback for legacy comments that only have an aggregate
-                // reactions map.
-                reactionCounts =
-                  c.reactions && typeof c.reactions === "object" ? c.reactions : {};
+                reactionCounts = {};
               }
 
               return (

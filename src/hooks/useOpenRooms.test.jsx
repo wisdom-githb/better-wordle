@@ -151,7 +151,7 @@ describe('useOpenRooms', () => {
     });
   });
 
-  it('falls back to legacy hostId/guestId for player count', async () => {
+  it('uses players map for player count', async () => {
     const mockRef = {};
     ref.mockReturnValue(mockRef);
 
@@ -163,8 +163,10 @@ describe('useOpenRooms', () => {
           status: 'waiting',
           isPublic: true,
           createdAt: Date.now(),
-          hostId: 'host-uid',
-          guestId: 'guest-uid',
+          players: {
+            'host-uid': { id: 'host-uid', name: 'Host', isHost: true },
+            'guest-uid': { id: 'guest-uid', name: 'Guest', isHost: false },
+          },
         },
       }),
     };

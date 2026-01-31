@@ -13,7 +13,6 @@ import BadgeIcon from "./components/BadgeIcon";
 
 const FeedbackModal = lazy(() => import("./components/FeedbackModal"));
 import ArchiveModal from "./components/ArchiveModal";
-import AdvancedStatsModal from "./components/AdvancedStatsModal";
 import CrossModeComparisonModal from "./components/CrossModeComparisonModal";
 import "./Profile.css";
 
@@ -356,7 +355,7 @@ export default function Profile() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setStatsModal({ isOpen: true, mode: 'daily', speedrunEnabled: false })}
+                            onClick={() => navigate('/stats?mode=daily&speedrun=false')}
                             className="homeBtn homeBtnOutline"
                             style={{
                               flex: 1,
@@ -395,7 +394,7 @@ export default function Profile() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setStatsModal({ isOpen: true, mode: 'daily', speedrunEnabled: true })}
+                            onClick={() => navigate('/stats?mode=daily&speedrun=true')}
                             className="homeBtn homeBtnOutline"
                             style={{
                               flex: 1,
@@ -434,7 +433,7 @@ export default function Profile() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setStatsModal({ isOpen: true, mode: 'marathon', speedrunEnabled: false })}
+                            onClick={() => navigate('/stats?mode=marathon&speedrun=false')}
                             className="homeBtn homeBtnOutline"
                             style={{
                               flex: 1,
@@ -598,13 +597,6 @@ export default function Profile() {
           onRequestClose={() => setArchiveModal({ isOpen: false, mode: null, speedrunEnabled: false })}
           mode={archiveModal.mode}
           speedrunEnabled={archiveModal.speedrunEnabled}
-        />
-
-        <AdvancedStatsModal
-          isOpen={statsModal.isOpen}
-          onRequestClose={() => setStatsModal({ isOpen: false, mode: null, speedrunEnabled: false })}
-          mode={statsModal.mode}
-          speedrunEnabled={statsModal.speedrunEnabled}
         />
 
         <CrossModeComparisonModal

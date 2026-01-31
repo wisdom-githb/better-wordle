@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useSubscription } from '../hooks/useSubscription';
 import { loadGameRecords, calculateAdvancedStats, formatTime } from '../lib/statsService';
+import Modal from './Modal';
 import SubscribeModal from './SubscribeModal';
 
 /**
@@ -15,7 +16,7 @@ export default function AdvancedStatsModal({
   speedrunEnabled 
 }) {
   const { user } = useAuth();
-  const { isSubscribed } = useSubscription(user);
+  const { showSubscriptionGate } = useSubscription(user);
   const [showSubscribeModal, setShowSubscribeModal] = useState(false);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -117,26 +118,13 @@ export default function AdvancedStatsModal({
     return content;
   };
 
-  if (!isOpen) return null;
-
   return (
     <>
-      <div
-        onClick={(e) => {
-          if (e.target === e.currentTarget) onRequestClose();
-        }}
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.82)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 3000,
-        }}
+      <Modal
+        isOpen={isOpen}
+        onRequestClose={onRequestClose}
+        titleId="advanced-stats-modal-title"
+        zIndex={3000}
       >
         <div
           style={{
@@ -153,6 +141,7 @@ export default function AdvancedStatsModal({
         >
           <div style={{ marginBottom: 32, textAlign: 'center' }}>
             <h2
+              id="advanced-stats-modal-title"
               style={{
                 margin: 0,
                 marginBottom: 8,
@@ -171,7 +160,7 @@ export default function AdvancedStatsModal({
                 marginTop: 8,
               }}
             >
-              {!isSubscribed && 'Subscribe to unlock all statistics'}
+              {showSubscriptionGate && 'Subscribe to unlock all statistics'}
             </div>
           </div>
 
@@ -290,60 +279,60 @@ export default function AdvancedStatsModal({
                   <StatCard
                     title="Win Rate"
                     value={`${stats.winRate}%`}
-                    locked={!isSubscribed}
-                    onClick={() => !isSubscribed && setShowSubscribeModal(true)}
+                    locked={showSubscriptionGate}
+                    onClick={() => showSubscriptionGate && setShowSubscribeModal(true)}
                   />
 
                   <StatCard
                     title="Average Guesses"
                     value={stats.averageGuesses.toFixed(2)}
-                    locked={!isSubscribed}
-                    onClick={() => !isSubscribed && setShowSubscribeModal(true)}
+                    locked={showSubscriptionGate}
+                    onClick={() => showSubscriptionGate && setShowSubscribeModal(true)}
                   />
 
                   <StatCard
                     title="Median Guesses"
                     value={stats.medianGuesses}
-                    locked={!isSubscribed}
-                    onClick={() => !isSubscribed && setShowSubscribeModal(true)}
+                    locked={showSubscriptionGate}
+                    onClick={() => showSubscriptionGate && setShowSubscribeModal(true)}
                   />
 
                   <StatCard
                     title="Best Performance"
                     value={stats.bestPerformance !== null ? `${stats.bestPerformance} guess${stats.bestPerformance === 1 ? '' : 'es'}` : 'N/A'}
-                    locked={!isSubscribed}
-                    onClick={() => !isSubscribed && setShowSubscribeModal(true)}
+                    locked={showSubscriptionGate}
+                    onClick={() => showSubscriptionGate && setShowSubscribeModal(true)}
                   />
 
                   <StatCard
                     title="Worst Performance"
                     value={stats.worstPerformance !== null ? `${stats.worstPerformance} guesses` : 'N/A'}
-                    locked={!isSubscribed}
-                    onClick={() => !isSubscribed && setShowSubscribeModal(true)}
+                    locked={showSubscriptionGate}
+                    onClick={() => showSubscriptionGate && setShowSubscribeModal(true)}
                   />
 
                   <StatCard
                     title="Perfect Games"
                     value={stats.perfectGames}
                     subtitle={`${stats.perfectGamesPercentage}% of solved games`}
-                    locked={!isSubscribed}
-                    onClick={() => !isSubscribed && setShowSubscribeModal(true)}
+                    locked={showSubscriptionGate}
+                    onClick={() => showSubscriptionGate && setShowSubscribeModal(true)}
                   />
 
                   <StatCard
                     title="Solved in 3 or Fewer"
                     value={stats.gamesSolvedIn3OrFewer}
                     subtitle={`${stats.gamesSolvedIn3OrFewerPercentage}% of solved games`}
-                    locked={!isSubscribed}
-                    onClick={() => !isSubscribed && setShowSubscribeModal(true)}
+                    locked={showSubscriptionGate}
+                    onClick={() => showSubscriptionGate && setShowSubscribeModal(true)}
                   />
 
                   <StatCard
                     title="Solved in 4 or Fewer"
                     value={stats.gamesSolvedIn4OrFewer}
                     subtitle={`${stats.gamesSolvedIn4OrFewerPercentage}% of solved games`}
-                    locked={!isSubscribed}
-                    onClick={() => !isSubscribed && setShowSubscribeModal(true)}
+                    locked={showSubscriptionGate}
+                    onClick={() => showSubscriptionGate && setShowSubscribeModal(true)}
                   />
                 </div>
               </div>
@@ -369,36 +358,36 @@ export default function AdvancedStatsModal({
                     <StatCard
                       title="Average Solve Time"
                       value={stats.averageTimeMs !== null ? formatTime(stats.averageTimeMs) : 'N/A'}
-                      locked={!isSubscribed}
-                      onClick={() => !isSubscribed && setShowSubscribeModal(true)}
+                      locked={showSubscriptionGate}
+                      onClick={() => showSubscriptionGate && setShowSubscribeModal(true)}
                     />
 
                     <StatCard
                       title="Median Solve Time"
                       value={stats.medianTimeMs !== null ? formatTime(stats.medianTimeMs) : 'N/A'}
-                      locked={!isSubscribed}
-                      onClick={() => !isSubscribed && setShowSubscribeModal(true)}
+                      locked={showSubscriptionGate}
+                      onClick={() => showSubscriptionGate && setShowSubscribeModal(true)}
                     />
 
                     <StatCard
                       title="Fastest Solve"
                       value={stats.fastestTimeMs !== null ? formatTime(stats.fastestTimeMs) : 'N/A'}
-                      locked={!isSubscribed}
-                      onClick={() => !isSubscribed && setShowSubscribeModal(true)}
+                      locked={showSubscriptionGate}
+                      onClick={() => showSubscriptionGate && setShowSubscribeModal(true)}
                     />
 
                     <StatCard
                       title="Slowest Solve"
                       value={stats.slowestTimeMs !== null ? formatTime(stats.slowestTimeMs) : 'N/A'}
-                      locked={!isSubscribed}
-                      onClick={() => !isSubscribed && setShowSubscribeModal(true)}
+                      locked={showSubscriptionGate}
+                      onClick={() => showSubscriptionGate && setShowSubscribeModal(true)}
                     />
 
                     <StatCard
                       title="Average Time per Guess"
                       value={stats.averageTimePerGuess !== null ? formatTime(stats.averageTimePerGuess) : 'N/A'}
-                      locked={!isSubscribed}
-                      onClick={() => !isSubscribed && setShowSubscribeModal(true)}
+                      locked={showSubscriptionGate}
+                      onClick={() => showSubscriptionGate && setShowSubscribeModal(true)}
                     />
                   </div>
                 </div>
@@ -455,7 +444,7 @@ export default function AdvancedStatsModal({
             </button>
           </div>
         </div>
-      </div>
+      </Modal>
 
       <SubscribeModal
         isOpen={showSubscribeModal}

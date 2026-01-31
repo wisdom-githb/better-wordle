@@ -73,6 +73,10 @@ vi.mock('../../hooks/useAuth', () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+vi.mock('../../hooks/useSubscription', () => ({
+  useSubscription: () => ({ isSubscribed: false, showSubscriptionGate: false }),
+}));
+
 vi.mock('../../hooks/useLeaderboard', () => ({
   submitSpeedrunScore: (...args) => {
     submitSpeedrunScoreMock(...args);

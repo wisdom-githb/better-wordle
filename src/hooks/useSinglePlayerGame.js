@@ -86,8 +86,10 @@ export function useSinglePlayerGame({
   // Note: We can't use useSubscription here directly due to hook rules,
   // so we'll check premium access in the component level
   const flipPopupTimeoutRef = useRef(null);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
+    isMountedRef.current = true;
     // Defer initialization until Firebase auth has resolved so we know
     // whether to use remote or local state.
     if (authLoading) return;
@@ -99,13 +101,15 @@ export function useSinglePlayerGame({
       // Premium check for archive games is handled at component level
       // Archive games require signed-in user
       if (archiveDate && !authUser) {
-        setIsLoading(false);
-        setTimedMessage('You must be signed in to play archive games.', 5000);
+        if (isMountedRef.current) {
+          setIsLoading(false);
+          setTimedMessage('You must be signed in to play archive games.', 5000);
+        }
         return;
       }
 
       try {
-        setIsLoading(true);
+        if (isMountedRef.current) setIsLoading(true);
 
         // For archive games, use archiveDate; for regular games, use current date
         const dateString = archiveDate || getCurrentDateString();
@@ -177,6 +181,7 @@ export function useSinglePlayerGame({
 
           const patchedSolvedState = { ...solvedState, boards: patchedBoards };
           savedSolvedStateRef.current = patchedSolvedState;
+          if (!isMountedRef.current) return;
           setBoards(patchedBoards);
           setCurrentGuess("");
           setMessage("");
@@ -193,6 +198,7 @@ export function useSinglePlayerGame({
           setMaxTurns(turns);
 
           const { ALLOWED_GUESSES } = await loadWordLists();
+          if (!isMountedRef.current) return;
           setAllowedSet(new Set(ALLOWED_GUESSES));
 
           setIsLoading(false);
@@ -208,7 +214,7 @@ export function useSinglePlayerGame({
             if (flipPopupTimeoutRef.current) clearTimeout(flipPopupTimeoutRef.current);
             flipPopupTimeoutRef.current = setTimeout(() => {
               flipPopupTimeoutRef.current = null;
-              setShowPopup(true);
+              if (isMountedRef.current) setShowPopup(true);
             }, FLIP_COMPLETE_MS);
           }
           return;
@@ -230,12 +236,14 @@ export function useSinglePlayerGame({
         }
 
         // Check if there's an incomplete game state to resume (regular or archive)
+        // For archive games only use archiveGameState; getGameStateKey() uses current date,
+        // so loading it would load today's state and can trigger validation errors.
         const gameStateKey = getGameStateKey();
-        const savedGameState = archiveGameState || await loadGameState({
+        const savedGameState = archiveGameState || (archiveDate ? null : await loadGameState({
           authUser,
           database,
           gameStateKey,
-        });
+        }));
 
         const savedBoardsCount =
           savedGameState && Array.isArray(savedGameState.boards)
@@ -250,6 +258,7 @@ export function useSinglePlayerGame({
           if (!allSolvedInSaved) {
             // Resume incomplete game
             const { ALLOWED_GUESSES } = await loadWordLists();
+            if (!isMountedRef.current) return;
             setAllowedSet(new Set(ALLOWED_GUESSES));
 
             setBoards(savedGameState.boards);
@@ -283,34 +292,47 @@ export function useSinglePlayerGame({
 
         // No saved state - start new game (or archive game)
         const { ANSWER_WORDS, ALLOWED_GUESSES } = await loadWordLists();
+        if (!isMountedRef.current) return;
         setAllowedSet(new Set(ALLOWED_GUESSES));
 
         const turns = getMaxTurns(numBoards);
         setMaxTurns(turns);
 
-        // For archive games, load solution words from archive
+        // For archive games, load solution words from archive or seed on demand
+        const marathonIndexForSeed = mode === "marathon" ? marathonIndex : null;
+        const marathonLevelsForSelection = mode === "marathon" ? (marathonLevels || [1, 2, 3, 4]) : [1, 2, 3, 4];
         let dailySolutions;
         if (archiveDate) {
-          const { loadArchiveSolution } = await import('../lib/archiveService');
+          const { loadArchiveSolution, saveArchiveSolution } = await import('../lib/archiveService');
           const archiveSolutions = await loadArchiveSolution({
             mode,
             speedrunEnabled,
             dateString: archiveDate,
           });
-          
+
           if (archiveSolutions && archiveSolutions.length >= numBoards) {
-            // Use archive solutions
             dailySolutions = archiveSolutions.slice(0, numBoards);
           } else {
-            // Archive not found - show error message and don't start game
-            setIsLoading(false);
-            setTimedMessage(`This Wordle doesn't exist for ${archiveDate}. Archive games are only available for dates for which better wordle has tracked the words.`, 6000);
-            return;
+            // Seed on demand: compute solutions for this date, save to Firebase, then use
+            dailySolutions = selectDailyWords(
+              ANSWER_WORDS,
+              numBoards,
+              mode,
+              speedrunEnabled,
+              marathonIndexForSeed,
+              marathonLevelsForSelection,
+              archiveDate
+            );
+            await saveArchiveSolution({
+              mode,
+              speedrunEnabled,
+              dateString: archiveDate,
+              solutions: dailySolutions,
+              numBoards,
+            });
           }
         } else {
           // Regular game - select daily words deterministically based on current date
-          const marathonIndexForSeed = mode === "marathon" ? marathonIndex : null;
-          const marathonLevelsForSelection = mode === "marathon" ? (marathonLevels || [1, 2, 3, 4]) : [1, 2, 3, 4];
           dailySolutions = selectDailyWords(
             ANSWER_WORDS,
             numBoards,
@@ -323,6 +345,7 @@ export function useSinglePlayerGame({
         
         const newBoards = dailySolutions.map((solution) => createBoardState(solution));
 
+        if (!isMountedRef.current) return;
         setBoards(newBoards);
         setCurrentGuess("");
         setMessage("");
@@ -350,15 +373,18 @@ export function useSinglePlayerGame({
         setIsLoading(false);
       } catch (error) {
         logError(error, 'useSinglePlayerGame.initGame');
-        setIsLoading(false);
-        const errorMessage = formatError(error) || "Failed to load word lists. Please refresh the page.";
-        setTimedMessage(errorMessage, LONG_MESSAGE_TIMEOUT_MS);
+        if (isMountedRef.current) {
+          setIsLoading(false);
+          const errorMessage = formatError(error) || "Failed to load word lists. Please refresh the page.";
+          setTimedMessage(errorMessage, LONG_MESSAGE_TIMEOUT_MS);
+        }
       }
     }
 
     initGame();
 
     return () => {
+      isMountedRef.current = false;
       if (flipPopupTimeoutRef.current) {
         clearTimeout(flipPopupTimeoutRef.current);
         flipPopupTimeoutRef.current = null;

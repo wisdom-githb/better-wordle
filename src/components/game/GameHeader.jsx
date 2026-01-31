@@ -1,13 +1,25 @@
 import React from "react";
+import { formatArchiveDate } from "../../lib/archiveService";
 
 export default function GameHeader({
   mode,
   numBoards,
   speedrunEnabled,
+  archiveDate = null,
 }) {
   let title = "BETTER WORDLE";
 
-  if (mode === "marathon") {
+  if (archiveDate) {
+    const formattedDate = formatArchiveDate(archiveDate);
+    if (mode === "marathon") {
+      title = `ARCHIVE OF ${formattedDate.toUpperCase()} · MARATHON (${numBoards} boards)`;
+    } else if (mode === "daily") {
+      title = `ARCHIVE OF ${formattedDate.toUpperCase()} · DAILY`;
+    } else {
+      title = `ARCHIVE OF ${formattedDate.toUpperCase()}`;
+    }
+    if (speedrunEnabled) title += " · SPEEDRUN";
+  } else if (mode === "marathon") {
     title = `MARATHON (${numBoards} boards)`;
   } else if (mode === "daily") {
     title = "DAILY GAME";
@@ -15,7 +27,7 @@ export default function GameHeader({
     title = `MULTIPLAYER (${numBoards} board${numBoards > 1 ? "s" : ""})`;
   }
 
-  if (speedrunEnabled) {
+  if (!archiveDate && speedrunEnabled) {
     title += " · SPEEDRUN";
   }
 

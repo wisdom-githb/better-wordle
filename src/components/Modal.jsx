@@ -21,6 +21,7 @@ export default function Modal({
   children,
   zIndex = 2000,
   disableAutoFocus = false,
+  panelClassName = "",
 }) {
   const panelRef = useRef(null);
   const lastFocusedRef = useRef(null);
@@ -100,7 +101,7 @@ export default function Modal({
   return (
     <div className="modalOverlay" style={{ zIndex }} onMouseDown={onRequestClose}>
       <div
-        className="modalPanel"
+        className={`modalPanel ${panelClassName}`.trim()}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

@@ -207,13 +207,13 @@ export default function MultiplayerGameView({
 
   // Waiting room view
   if (gameState && gameState.status === "waiting") {
-    // Determine host from players map for multiplayer rooms, fallback to hostId for legacy
+    // Determine host from players map
     const playersMapForHost = gameState.players && typeof gameState.players === "object" ? gameState.players : null;
-    const isPlayerHost = authUser && (
-      (playersMapForHost && playersMapForHost[authUser.uid]?.isHost) ||
-      gameState.hostId === authUser.uid
-    );
-    const opponentId = isPlayerHost ? gameState.guestId : gameState.hostId;
+    const isPlayerHost = authUser && playersMapForHost && playersMapForHost[authUser.uid]?.isHost === true;
+    const opponentEntry = playersMapForHost && authUser
+      ? Object.values(playersMapForHost).find((p) => p && p.id !== authUser.uid)
+      : null;
+    const opponentId = opponentEntry?.id ?? null;
     const isFriendWithOpponent =
       !!opponentId && Array.isArray(friends)
         ? friends.some((f) => f.id === opponentId)
@@ -809,16 +809,7 @@ export default function MultiplayerGameView({
                 >
                   {summaryPlayers.map((p) => {
                     const isSelf = authUser && p.id === authUser.uid;
-
-                    let guesses = Array.isArray(p.guesses) ? p.guesses : [];
-                    if (!guesses.length) {
-                      if (p.id === gameState.hostId) {
-                        guesses = gameState.hostGuesses || [];
-                      } else if (p.id === gameState.guestId) {
-                        guesses = gameState.guestGuesses || [];
-                      }
-                    }
-
+                    const guesses = Array.isArray(p.guesses) ? p.guesses : [];
                     const perBoard = buildPerBoardStats(guesses);
 
                     return (

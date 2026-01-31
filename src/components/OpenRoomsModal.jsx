@@ -60,13 +60,7 @@ export default function OpenRoomsModal({ isOpen, onRequestClose, adminMode = fal
             if (status !== "waiting") return false;
 
             const playersMap = data.players || null;
-            const playerCount = playersMap
-              ? Object.keys(playersMap).length
-              : data.guestId
-              ? 2
-              : data.hostId
-              ? 1
-              : 0;
+            const playerCount = playersMap ? Object.keys(playersMap).length : 0;
             const maxPlayers = Number.isFinite(data.maxPlayers) ? data.maxPlayers : 2;
 
             // Hide rooms that are already full so players only see joinable lobbies.
@@ -174,13 +168,7 @@ export default function OpenRoomsModal({ isOpen, onRequestClose, adminMode = fal
           <div className="openRoomsList">
             {rooms.map(({ code, data }) => {
               const playersMap = data.players || null;
-              const playerCount = playersMap
-                ? Object.keys(playersMap).length
-                : data.guestId
-                ? 2
-                : data.hostId
-                ? 1
-                : 0;
+              const playerCount = playersMap ? Object.keys(playersMap).length : 0;
               const maxPlayers = Number.isFinite(data.maxPlayers) ? data.maxPlayers : 2;
               const boards = Array.isArray(data.solutions) && data.solutions.length > 0
                 ? data.solutions.length
@@ -188,7 +176,8 @@ export default function OpenRoomsModal({ isOpen, onRequestClose, adminMode = fal
                 ? 1
                 : 1;
               const speedrun = !!data.speedrun;
-              const hostName = data.hostName || (playersMap && playersMap[data.hostId]?.name) || "Host";
+              const hostEntry = playersMap ? Object.values(playersMap).find((p) => p && p.isHost) : null;
+              const hostName = hostEntry?.name || "Host";
               const roomDisplayName = data.roomName || `${hostName}'s room`;
 
               const createdAt = typeof data.createdAt === "number" ? data.createdAt : null;

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { collection, addDoc, onSnapshot } from 'firebase/firestore';
 import { firestore } from '../config/firebase';
+import Modal from './Modal';
 
 /**
  * Modal for subscription payment
@@ -159,25 +160,12 @@ export default function SubscribeModal({ isOpen, onRequestClose, onSubscriptionC
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) handleClose();
-      }}
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.82)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 3000,
-      }}
+    <Modal
+      isOpen={isOpen}
+      onRequestClose={handleClose}
+      titleId="subscribe-modal-title"
+      zIndex={3100}
     >
       <div
         style={{
@@ -191,6 +179,7 @@ export default function SubscribeModal({ isOpen, onRequestClose, onSubscriptionC
         }}
       >
         <h2
+          id="subscribe-modal-title"
           style={{
             margin: 0,
             marginBottom: 16,
@@ -323,6 +312,6 @@ export default function SubscribeModal({ isOpen, onRequestClose, onSubscriptionC
           By subscribing, you agree to our terms of service. Payment will be processed securely.
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

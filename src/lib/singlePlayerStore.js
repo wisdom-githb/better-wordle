@@ -287,6 +287,8 @@ export async function saveStreakRemoteAware({
 /**
  * Sync local streaks to Firebase when user logs in and remote is missing.
  * Ensures guest-play streaks are persisted after sign-in.
+ * Only uploads when remote has no data for that variant—never overwrites
+ * higher remote values with lower local ones.
  * @param {{ uid: string }} authUser
  * @param {object} database
  */
@@ -312,7 +314,7 @@ export async function syncLocalStreaksToRemoteOnLogin(authUser, database) {
 
     for (const { mode, speedrunEnabled } of variants) {
       const key = remoteKey(mode, speedrunEnabled);
-      if (remote[key]) continue;
+      if (remote[key]) continue; // Never overwrite existing remote data
 
       const local = loadStreak(mode, speedrunEnabled);
       const hasData =

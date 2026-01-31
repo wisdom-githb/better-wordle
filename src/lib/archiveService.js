@@ -5,7 +5,9 @@ import { getCurrentDateString } from './dailyWords';
 
 /**
  * Archive service for storing and retrieving past game solutions and states
- * Archives are maintained for 14 days and are premium-only content
+ * Archives are maintained for 14 days and are premium-only content.
+ * Archive entries are created when a user completes a game (saveArchiveSolution on win),
+ * or on first load for a date when the game seeds on demand (compute + saveArchiveSolution).
  */
 
 const ARCHIVE_DAYS = 14;
