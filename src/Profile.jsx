@@ -31,7 +31,6 @@ export default function Profile() {
   const [streakLoadError, setStreakLoadError] = useState(null);
   const [streakRetryCount, setStreakRetryCount] = useState(0);
   const [archiveModal, setArchiveModal] = useState({ isOpen: false, mode: null, speedrunEnabled: false });
-  const [statsModal, setStatsModal] = useState({ isOpen: false, mode: null, speedrunEnabled: false });
   const [showCrossModeComparison, setShowCrossModeComparison] = useState(false);
   const { userBadges, loading: badgesLoading } = useUserBadges(user);
   const earnedBadges = getEarnedBadgeDefs(userBadges);
@@ -472,7 +471,7 @@ export default function Profile() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setStatsModal({ isOpen: true, mode: 'marathon', speedrunEnabled: true })}
+                            onClick={() => navigate('/stats?mode=marathon&speedrun=true')}
                             className="homeBtn homeBtnOutline"
                             style={{
                               flex: 1,

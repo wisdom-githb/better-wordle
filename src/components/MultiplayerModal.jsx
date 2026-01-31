@@ -20,14 +20,11 @@ export default function MultiplayerModal({ isOpen, onRequestClose, showConfigFir
   const [isPublic, setIsPublic] = useState(true);
 
   const handleHost = useCallback(() => {
-    // Show config modal first
     setShowConfig(true);
     onConfigOpen?.();
   }, [onConfigOpen]);
 
   const handleHostWithConfig = useCallback(() => {
-    // Navigate with query params so Game can create the multiplayer room,
-    // then redirect into the waiting room with the real game code.
     const clampedMaxPlayers = Math.max(2, Math.min(8, maxPlayers));
     navigate(
       `/game?mode=multiplayer&host=true&speedrun=${isSpeedrun}&boards=${numBoards}&maxPlayers=${clampedMaxPlayers}&isPublic=${isPublic}`

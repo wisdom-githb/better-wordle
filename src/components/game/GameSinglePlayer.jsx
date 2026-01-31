@@ -109,7 +109,10 @@ export default function GameSinglePlayer({
     }
   }, [authUser]);
 
-  // Load marathon meta for current speedrun/daily config.
+  // Force re-render when marathon advances to next stage (in-app, no full page nav).
+  const [marathonStageKey, setMarathonStageKey] = useState(0);
+
+  // Load marathon meta for current speedrun/daily config (standard and speedrun are separate).
   const marathonMeta = loadMarathonMeta(speedrunEnabled);
   const marathonIndex = marathonMeta.index || 0;
   const marathonCumulativeMs = marathonMeta.cumulativeMs || 0;
@@ -867,15 +870,19 @@ export default function GameSinglePlayer({
   const goNextStage = useCallback(() => {
     if (marathonHasNext) {
       const newIndex = marathonIndex + 1;
+      // Save meta for this variant only (standard and speedrun are separate).
       const updatedMeta = saveMarathonMeta(speedrunEnabled, { index: newIndex });
       const metaKey = marathonMetaKey(speedrunEnabled);
-      // Keep marathon stage index in sync across devices for signed-in users.
       persistForUser(`singlePlayer/meta/${metaKey}`, updatedMeta);
-      // Navigate to the next marathon stage. Use direct href navigation instead of
-      // navigate() + reload() to ensure the navigation happens before the page reload.
-      // Respect app base URL (e.g. /better-wordle/) when deployed.
-      const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '') || '';
-      window.location.href = `${base}/game?mode=marathon&speedrun=${speedrunEnabled}`;
+      // Clear in-progress game state for this variant so next stage loads fresh boards.
+      const gameStateKey = makeMarathonKey(speedrunEnabled);
+      saveJSON(gameStateKey, null);
+      persistForUser(`singlePlayer/gameStates/${gameStateKey}`, null);
+      // Reset timer seed and start flag so the next stage runs countdown and starts the speedrun timer.
+      setStageTimerSeed({ elapsedMs: 0, frozen: false });
+      hasStartedStageTimerRef.current = false;
+      // Re-render so we read new meta and useSinglePlayerGame runs with new marathonIndex/numBoards.
+      setMarathonStageKey((k) => k + 1);
     }
   }, [marathonHasNext, marathonIndex, speedrunEnabled]);
 

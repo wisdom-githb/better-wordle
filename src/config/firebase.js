@@ -6,6 +6,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getDatabase } from 'firebase/database';
 import { getFirestore } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 // Your web app's Firebase configuration
 // TODO: Replace with your Firebase project config
@@ -57,6 +58,13 @@ export const database = getDatabase(app);
 
 // Initialize Cloud Firestore
 export const firestore = getFirestore(app);
+
+// Cloud Functions
+export const functions = getFunctions(app);
+
+// Callable helpers for gift subscription
+export const createGiftCheckoutSessionCallable = () => httpsCallable(functions, 'createGiftCheckoutSession');
+export const adminGiftSubscriptionCallable = () => httpsCallable(functions, 'adminGiftSubscription');
 
 // Google Auth Provider
 export const googleProvider = new GoogleAuthProvider();

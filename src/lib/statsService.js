@@ -303,6 +303,13 @@ export function calculateAdvancedStats(gameRecords) {
       fastestTimeMs: null,
       slowestTimeMs: null,
       averageTimePerGuess: null,
+      sub30Count: 0,
+      sub30Percentage: 0,
+      sub60Count: 0,
+      sub60Percentage: 0,
+      sub120Count: 0,
+      sub120Percentage: 0,
+      avgTimeMsByGuesses: { 1: null, 2: null, 3: null, 4: null, 5: null, 6: null },
     };
   }
 
@@ -362,6 +369,41 @@ export function calculateAdvancedStats(gameRecords) {
     ? averageTimeMs / averageGuesses
     : null;
 
+  // Speed categories (sub-30s, sub-1m, sub-2m) and avg time by guess count (for speedrun)
+  const sub30Ms = 30 * 1000;
+  const sub60Ms = 60 * 1000;
+  const sub120Ms = 120 * 1000;
+  let sub30Count = 0;
+  let sub60Count = 0;
+  let sub120Count = 0;
+  const avgTimeMsByGuesses = { 1: null, 2: null, 3: null, 4: null, 5: null, 6: null };
+  const sumByGuesses = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+  const countByGuesses = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+
+  solvedGames.forEach((g) => {
+    const ms = g.solveTimeMs;
+    if (ms != null && ms > 0) {
+      if (ms < sub30Ms) sub30Count += 1;
+      if (ms < sub60Ms) sub60Count += 1;
+      if (ms < sub120Ms) sub120Count += 1;
+      const guesses = g.guesses;
+      if (guesses >= 1 && guesses <= 6) {
+        sumByGuesses[guesses] += ms;
+        countByGuesses[guesses] += 1;
+      }
+    }
+  });
+
+  [1, 2, 3, 4, 5, 6].forEach((g) => {
+    if (countByGuesses[g] > 0) {
+      avgTimeMsByGuesses[g] = Math.round(sumByGuesses[g] / countByGuesses[g]);
+    }
+  });
+
+  const sub30Percentage = solvedCount > 0 ? Math.round((sub30Count / solvedCount) * 10000) / 100 : 0;
+  const sub60Percentage = solvedCount > 0 ? Math.round((sub60Count / solvedCount) * 10000) / 100 : 0;
+  const sub120Percentage = solvedCount > 0 ? Math.round((sub120Count / solvedCount) * 10000) / 100 : 0;
+
   return {
     totalGames,
     solvedGames: solvedCount,
@@ -382,6 +424,150 @@ export function calculateAdvancedStats(gameRecords) {
     fastestTimeMs,
     slowestTimeMs,
     averageTimePerGuess: averageTimePerGuess !== null ? Math.round(averageTimePerGuess * 100) / 100 : null,
+    sub30Count,
+    sub30Percentage,
+    sub60Count,
+    sub60Percentage,
+    sub120Count,
+    sub120Percentage,
+    avgTimeMsByGuesses,
+  };
+}
+
+/**
+ * Calculate per-stage statistics for marathon mode
+ * @param {Array} stageRecords - Array of stage completion records (stageBoards, guesses, solveTimeMs)
+ * @param {boolean} speedrunEnabled - Whether speedrun timing is present
+ * @returns {{ byStage: Object, totals: Object }}
+ */
+export function calculateMarathonStageStats(stageRecords, speedrunEnabled = false) {
+  const byStage = { 1: null, 2: null, 3: null, 4: null };
+  const stageBoardsList = [1, 2, 3, 4];
+
+  stageBoardsList.forEach((numBoards) => {
+    const records = (stageRecords || []).filter((r) => {
+      const boards = Number(r.stageBoards);
+      const g = Number(r.guesses);
+      return boards === numBoards && r.solved !== false && g >= 1 && g <= 6;
+    });
+    const solvedCount = records.length;
+    const guesses = records.map((r) => Number(r.guesses));
+    const guessDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+    guesses.forEach((g) => { guessDistribution[g] = (guessDistribution[g] || 0) + 1; });
+
+    const averageGuesses = guesses.length > 0
+      ? guesses.reduce((sum, g) => sum + g, 0) / guesses.length
+      : 0;
+    const sortedGuesses = [...guesses].sort((a, b) => a - b);
+    const medianGuesses = sortedGuesses.length > 0
+      ? (sortedGuesses.length % 2 === 0
+        ? (sortedGuesses[sortedGuesses.length / 2 - 1] + sortedGuesses[sortedGuesses.length / 2]) / 2
+        : sortedGuesses[Math.floor(sortedGuesses.length / 2)])
+      : 0;
+    const bestPerformance = guesses.length > 0 ? Math.min(...guesses) : null;
+    const worstPerformance = guesses.length > 0 ? Math.max(...guesses) : null;
+
+    let averageTimeMs = null;
+    let medianTimeMs = null;
+    let fastestTimeMs = null;
+    let slowestTimeMs = null;
+    let averageTimePerGuess = null;
+
+    if (speedrunEnabled) {
+      const times = records.map((r) => r.solveTimeMs).filter((t) => t != null && t > 0);
+      if (times.length > 0) {
+        averageTimeMs = times.reduce((sum, t) => sum + t, 0) / times.length;
+        const sortedTimes = [...times].sort((a, b) => a - b);
+        medianTimeMs = sortedTimes.length % 2 === 0
+          ? (sortedTimes[sortedTimes.length / 2 - 1] + sortedTimes[sortedTimes.length / 2]) / 2
+          : sortedTimes[Math.floor(sortedTimes.length / 2)];
+        fastestTimeMs = Math.min(...times);
+        slowestTimeMs = Math.max(...times);
+        if (averageGuesses > 0) {
+          averageTimePerGuess = averageTimeMs / averageGuesses;
+        }
+      }
+    }
+
+    byStage[numBoards] = {
+      guessDistribution,
+      solvedGames: solvedCount,
+      averageGuesses: Math.round(averageGuesses * 100) / 100,
+      medianGuesses,
+      bestPerformance,
+      worstPerformance,
+      averageTimeMs: averageTimeMs != null ? Math.round(averageTimeMs) : null,
+      medianTimeMs: medianTimeMs != null ? Math.round(medianTimeMs) : null,
+      fastestTimeMs: fastestTimeMs ?? null,
+      slowestTimeMs: slowestTimeMs ?? null,
+      averageTimePerGuess: averageTimePerGuess != null ? Math.round(averageTimePerGuess * 100) / 100 : null,
+    };
+  });
+
+  const totalStages = (stageRecords || []).filter((r) => {
+    const g = Number(r.guesses);
+    return r.solved !== false && g >= 1 && g <= 6;
+  }).length;
+  const totals = { totalStages };
+
+  return { byStage, totals };
+}
+
+/**
+ * Calculate full-marathon summary from game records (completed marathons only)
+ * @param {Array} gameRecords - Array of full marathon completion records (guesses = total guesses, solveTimeMs for speedrun)
+ * @param {boolean} speedrunEnabled - Whether speedrun timing is present
+ * @returns {Object}
+ */
+export function calculateMarathonSummaryFromGames(gameRecords, speedrunEnabled = false) {
+  if (!gameRecords || gameRecords.length === 0) {
+    return {
+      totalMarathons: 0,
+      averageTotalGuesses: 0,
+      bestMarathonGuesses: null,
+      worstMarathonGuesses: null,
+      averageTimeMs: null,
+      medianTimeMs: null,
+      fastestTimeMs: null,
+      slowestTimeMs: null,
+    };
+  }
+
+  const totalMarathons = gameRecords.length;
+  const guesses = gameRecords.map((r) => r.guesses).filter((g) => g > 0);
+  const averageTotalGuesses = guesses.length > 0
+    ? guesses.reduce((sum, g) => sum + g, 0) / guesses.length
+    : 0;
+  const bestMarathonGuesses = guesses.length > 0 ? Math.min(...guesses) : null;
+  const worstMarathonGuesses = guesses.length > 0 ? Math.max(...guesses) : null;
+
+  let averageTimeMs = null;
+  let medianTimeMs = null;
+  let fastestTimeMs = null;
+  let slowestTimeMs = null;
+
+  if (speedrunEnabled) {
+    const times = gameRecords.map((r) => r.solveTimeMs).filter((t) => t != null && t > 0);
+    if (times.length > 0) {
+      averageTimeMs = times.reduce((sum, t) => sum + t, 0) / times.length;
+      const sortedTimes = [...times].sort((a, b) => a - b);
+      medianTimeMs = sortedTimes.length % 2 === 0
+        ? (sortedTimes[sortedTimes.length / 2 - 1] + sortedTimes[sortedTimes.length / 2]) / 2
+        : sortedTimes[Math.floor(sortedTimes.length / 2)];
+      fastestTimeMs = Math.min(...times);
+      slowestTimeMs = Math.max(...times);
+    }
+  }
+
+  return {
+    totalMarathons,
+    averageTotalGuesses: Math.round(averageTotalGuesses * 100) / 100,
+    bestMarathonGuesses,
+    worstMarathonGuesses,
+    averageTimeMs: averageTimeMs != null ? Math.round(averageTimeMs) : null,
+    medianTimeMs: medianTimeMs != null ? Math.round(medianTimeMs) : null,
+    fastestTimeMs: fastestTimeMs ?? null,
+    slowestTimeMs: slowestTimeMs ?? null,
   };
 }
 
