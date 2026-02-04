@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, Suspense, lazy } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import Modal from './Modal';
@@ -6,6 +6,7 @@ import SignInRequiredModal from './SignInRequiredModal';
 import { MAX_BOARDS } from '../lib/gameConstants';
 import { validateGameCode } from '../lib/validation';
 
+const OpenRoomsModal = lazy(() => import('./OpenRoomsModal'));
 const BOARD_OPTIONS = Array.from({ length: MAX_BOARDS }, (_, i) => i + 1);
 
 export default function MultiplayerModal({ isOpen, onRequestClose, showConfigFirst = false, onConfigClose, onConfigOpen }) {
@@ -18,6 +19,7 @@ export default function MultiplayerModal({ isOpen, onRequestClose, showConfigFir
   const [isSpeedrun, setIsSpeedrun] = useState(false);
   const [maxPlayers, setMaxPlayers] = useState(2);
   const [isPublic, setIsPublic] = useState(true);
+  const [showOpenRoomsModal, setShowOpenRoomsModal] = useState(false);
 
   const handleHost = useCallback(() => {
     setShowConfig(true);
@@ -113,6 +115,14 @@ export default function MultiplayerModal({ isOpen, onRequestClose, showConfigFir
             <p style={{ fontSize: 12, color: '#818384', marginTop: '8px', textAlign: 'center' }}>
               Create a new room and share the code with friends.
             </p>
+            <button
+              type="button"
+              onClick={() => setShowOpenRoomsModal(true)}
+              className="homeBtn homeBtnOutline homeBtnLg"
+              style={{ width: '100%', marginTop: '12px' }}
+            >
+              View open rooms
+            </button>
           </div>
 
           <div style={{ borderTop: '1px solid #3a3a3c', paddingTop: '20px' }}>
@@ -172,6 +182,13 @@ export default function MultiplayerModal({ isOpen, onRequestClose, showConfigFir
         </div>
       </div>
       </Modal>
+
+      <Suspense fallback={null}>
+        <OpenRoomsModal
+          isOpen={showOpenRoomsModal}
+          onRequestClose={() => setShowOpenRoomsModal(false)}
+        />
+      </Suspense>
 
       <Modal
         isOpen={isOpen && showConfig}

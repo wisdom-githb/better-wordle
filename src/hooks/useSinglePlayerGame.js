@@ -55,7 +55,6 @@ function applySavedGameCommitState({ speedrunEnabled, savedGameState, committedR
  * Encapsulates single-player (non-multiplayer) game initialization and resume logic.
  */
 export function useSinglePlayerGame({
-  isOneVOne,
   mode,
   speedrunEnabled,
   numBoards,
@@ -95,9 +94,6 @@ export function useSinglePlayerGame({
     if (authLoading) return;
 
     async function initGame() {
-      // Skip regular init for multiplayer mode
-      if (isOneVOne) return;
-
       // Premium check for archive games is handled at component level
       // Archive games require signed-in user
       if (archiveDate && !authUser) {
@@ -181,7 +177,6 @@ export function useSinglePlayerGame({
 
           const patchedSolvedState = { ...solvedState, boards: patchedBoards };
           savedSolvedStateRef.current = patchedSolvedState;
-          if (!isMountedRef.current) return;
           setBoards(patchedBoards);
           setCurrentGuess("");
           setMessage("");
@@ -198,7 +193,6 @@ export function useSinglePlayerGame({
           setMaxTurns(turns);
 
           const { ALLOWED_GUESSES } = await loadWordLists();
-          if (!isMountedRef.current) return;
           setAllowedSet(new Set(ALLOWED_GUESSES));
 
           setIsLoading(false);
@@ -258,7 +252,6 @@ export function useSinglePlayerGame({
           if (!allSolvedInSaved) {
             // Resume incomplete game
             const { ALLOWED_GUESSES } = await loadWordLists();
-            if (!isMountedRef.current) return;
             setAllowedSet(new Set(ALLOWED_GUESSES));
 
             setBoards(savedGameState.boards);
@@ -292,7 +285,6 @@ export function useSinglePlayerGame({
 
         // No saved state - start new game (or archive game)
         const { ANSWER_WORDS, ALLOWED_GUESSES } = await loadWordLists();
-        if (!isMountedRef.current) return;
         setAllowedSet(new Set(ALLOWED_GUESSES));
 
         const turns = getMaxTurns(numBoards);
@@ -345,7 +337,6 @@ export function useSinglePlayerGame({
         
         const newBoards = dailySolutions.map((solution) => createBoardState(solution));
 
-        if (!isMountedRef.current) return;
         setBoards(newBoards);
         setCurrentGuess("");
         setMessage("");
@@ -390,6 +381,8 @@ export function useSinglePlayerGame({
         flipPopupTimeoutRef.current = null;
       }
     };
+    // initGame uses stable imports (loadWordLists, loadGameState, selectDailyWords, etc.),
+    // refs (isMountedRef, committedRef, flipPopupTimeoutRef), and config in deps below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOneVOne, numBoards, mode, speedrunEnabled, marathonIndex, authUser, authLoading, archiveDate]);
+  }, [numBoards, mode, speedrunEnabled, marathonIndex, authUser, authLoading, archiveDate]);
 }

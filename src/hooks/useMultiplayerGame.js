@@ -7,6 +7,38 @@ import { clampBoards, clampPlayers, validateGameCode } from '../lib/validation';
 import { MAX_BOARDS, ABSOLUTE_MAX_PLAYERS, DEFAULT_MAX_PLAYERS, SPEEDRUN_COUNTDOWN_MS } from '../lib/gameConstants';
 import { logError } from '../lib/errorUtils';
 
+const GAME_NOT_FOUND_HINT =
+  'Ensure VITE_FIREBASE_DATABASE_URL in .env matches your Firebase Console Realtime Database URL.';
+
+/** Message shown to guests when the host closes the room (path removed). */
+export const ROOM_CLOSED_MESSAGE = 'This room has been closed.';
+
+const BOOTSTRAP_CACHE_KEY_PREFIX = 'multiplayer_bootstrap_';
+
+function getBootstrapFromStorage(code) {
+  try {
+    const key = BOOTSTRAP_CACHE_KEY_PREFIX + String(code);
+    const raw = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(key) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function setBootstrapInStorage(code, data) {
+  try {
+    if (data && typeof data === 'object' && typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem(BOOTSTRAP_CACHE_KEY_PREFIX + String(code), JSON.stringify(data));
+    }
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * Generate a random 6-digit game code
  */
@@ -20,12 +52,15 @@ function generateGameCode() {
 /**
  * Hook for managing multiplayer game state in Firebase Realtime Database
  */
-export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = false) {
+export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = false, initialGameState = null) {
   const [gameState, setGameState] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const gameRef = useRef(null);
   const isMountedRef = useRef(true);
+  const unsubscribeRef = useRef(null);
+  const effectRunIdRef = useRef(0);
+  const dataReceivedRef = useRef(false);
   const user = auth.currentUser;
 
   // Cleanup listener on unmount
@@ -38,46 +73,116 @@ export function useMultiplayerGame(gameCode = null, isHost = false, speedrun = f
     };
   }, []);
 
-  // Listen to game state changes
+  // Listen to game state changes: initial get() for deterministic feedback, then onValue for live updates
+  const CONNECTION_TIMEOUT_MS = 10000;
+
   useEffect(() => {
     if (!gameCode) return;
+
+    isMountedRef.current = true;
 
     const gamePath = `multiplayer/${gameCode}`;
     const dbRef = ref(database, gamePath);
     gameRef.current = dbRef;
 
-    setLoading(true);
-    const unsubscribe = onValue(
-      dbRef,
-      (snapshot) => {
+    let cancelled = false;
+    const runId = ++effectRunIdRef.current;
+    const hasInitialState = initialGameState && typeof initialGameState === 'object';
+    dataReceivedRef.current = false;
+
+    const timeoutId = setTimeout(() => {
+      if (effectRunIdRef.current !== runId || cancelled) return;
+      if (dataReceivedRef.current) return;
+      setError('Connection timed out. Please check your connection and try again.');
+      setLoading(false);
+    }, CONNECTION_TIMEOUT_MS);
+
+    const successCallback = (snapshot) => {
+      const data = snapshot && typeof snapshot.val === 'function' ? snapshot.val() : null;
+      clearTimeout(timeoutId);
+      if (data == null) {
         if (!isMountedRef.current) return;
-        // In some test setups the snapshot may be undefined/null; treat this as
-        // an empty/missing game.
-        const data = snapshot && typeof snapshot.val === 'function' ? snapshot.val() : null;
+        setGameState(null);
+        setLoading(false);
+        setError(ROOM_CLOSED_MESSAGE);
+        return;
+      }
+      dataReceivedRef.current = true;
+      setBootstrapInStorage(gameCode, data);
+      setGameState(data);
+      setLoading(false);
+      setError(null);
+    };
 
-        // If there is no game data at this code, surface a clear error so the UI
-        // can show an error screen instead of an endless "Connecting to game...".
-        if (data == null) {
-          setGameState(null);
-          setLoading(false);
-          setError('Game not found or has expired.');
-          return;
-        }
+    const errorCallback = (err) => {
+      if (!isMountedRef.current) return;
+      setError(err.message);
+      setLoading(false);
+    };
 
-        setGameState(data);
+    // Attach listener synchronously so it is always present (onValue fires with current value when attached)
+    unsubscribeRef.current = onValue(dbRef, successCallback, errorCallback);
+
+    // When we have initialGameState, set it so host/guest see the room immediately even if get() bails later
+    // immediately even if get() bails later (e.g. isMountedRef false after Strict Mode unmount).
+    // The listener will still overwrite with latest data when it fires.
+    if (initialGameState && typeof initialGameState === 'object') {
+      setBootstrapInStorage(gameCode, initialGameState);
+      setGameState(initialGameState);
+      setLoading(false);
+      setError(null);
+      clearTimeout(timeoutId);
+    } else {
+      const cached = getBootstrapFromStorage(gameCode);
+      if (cached && typeof cached === 'object') {
+        setGameState(cached);
         setLoading(false);
         setError(null);
-      },
-      (err) => {
-        if (!isMountedRef.current) return;
+        clearTimeout(timeoutId);
+      } else {
+        setLoading(true);
+        setError(null);
+      }
+    }
+
+    (async () => {
+      try {
+        const snapshot = await get(dbRef);
+        if (cancelled) return;
+        if (!snapshot.exists()) {
+          if (!isMountedRef.current) return;
+          if (!hasInitialState) {
+            clearTimeout(timeoutId);
+            setGameState(null);
+            setError(ROOM_CLOSED_MESSAGE);
+            setLoading(false);
+            return;
+          }
+          clearTimeout(timeoutId);
+          // Host just created the room; keep state/error as-is, still subscribe for future updates
+        } else {
+          clearTimeout(timeoutId);
+          if (dataReceivedRef.current) return;
+          dataReceivedRef.current = true;
+          const val = snapshot.val();
+          setBootstrapInStorage(gameCode, val);
+          setGameState(val);
+          setError(null);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (cancelled || !isMountedRef.current) return;
         setError(err.message);
         setLoading(false);
-      },
-    );
+      }
+    })();
 
     return () => {
-      if (typeof unsubscribe === 'function') {
-        unsubscribe();
+      cancelled = true;
+      clearTimeout(timeoutId);
+      if (typeof unsubscribeRef.current === 'function') {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
       } else {
         off(dbRef);
       }
@@ -129,6 +234,7 @@ const createGame = useCallback(async (options = {}) => {
       speedrun: effectiveSpeedrun, // Whether speedrun mode is enabled
       createdAt: now,
       startedAt: null,
+      hostId: user.uid, // Set hostId for Firebase security rules
       // Multiplayer room settings
       maxPlayers,
       isPublic,
@@ -151,7 +257,7 @@ const createGame = useCallback(async (options = {}) => {
 
     try {
       await set(ref(database, gamePath), gameData);
-      return code;
+      return { code, gameData };
     } catch (err) {
       setError(err.message);
       throw err;
@@ -161,9 +267,7 @@ const createGame = useCallback(async (options = {}) => {
 /**
    * Join an existing game/room.
    *
-   * This now supports N players by using the `players` map and `maxPlayers`.
-   * We continue to mirror the first non-host player into legacy `guestId`/
-   * `guestName` for compatibility with older logic and data.
+   * This supports N players via the `players` map and `maxPlayers`.
    */
   const joinGame = useCallback(async (code) => {
     if (!user) throw new Error('User must be signed in to join a game');
@@ -174,28 +278,26 @@ const createGame = useCallback(async (options = {}) => {
       throw new Error(`Invalid game code: ${codeValidation.errors.join(', ')}`);
     }
 
-    const gamePath = `multiplayer/${code}`;
+    const codeToUse = codeValidation.value ?? code;
+    const gamePath = `multiplayer/${codeToUse}`;
     const gameDataRef = ref(database, gamePath);
 
     try {
-      // Check if game exists
       const snapshot = await get(gameDataRef);
 
       if (!snapshot.exists()) {
-        throw new Error('Game code not found');
+        throw new Error(`Game code not found at path: ${gamePath}. ${GAME_NOT_FOUND_HINT}`);
       }
 
-      const gameData = snapshot.val();
+      let gameData = snapshot.val();
+      if (!gameData || typeof gameData !== 'object') {
+        throw new Error('Invalid game state');
+      }
       const players = gameData.players || null;
 
       // If user is already part of the room (in players map), allow them to continue.
       if (players && players[user.uid]) {
-        return code;
-      }
-      
-      // Host is in players with isHost: true
-      if (players && players[user.uid]?.isHost) {
-        return code;
+        return { code: codeToUse, gameData };
       }
 
       const status = gameData.status || 'waiting';
@@ -218,7 +320,7 @@ const createGame = useCallback(async (options = {}) => {
       // Use transaction to prevent race conditions when multiple players join simultaneously
       await runTransaction(gameDataRef, (currentData) => {
         if (!currentData) {
-          throw new Error('Game not found');
+          return {}; // Force retry: server will send real value, callback runs again
         }
 
         const currentPlayers = currentData.players || null;
@@ -237,9 +339,8 @@ const createGame = useCallback(async (options = {}) => {
           }
         }
 
-        // Check if game has started (for 2-player games)
-        const isMultiRoom = currentPlayers && Object.keys(currentPlayers).length > 2;
-        if (!isMultiRoom && currentStatus !== 'waiting') {
+        // No one can join once the game has started
+        if (currentStatus !== 'waiting') {
           throw new Error('Game has already started');
         }
 
@@ -265,7 +366,10 @@ const createGame = useCallback(async (options = {}) => {
         };
       });
 
-      return code;
+      // Re-read so guest gets state that includes themselves (same as host getting initial state from createGame)
+      const afterSnapshot = await get(gameDataRef);
+      const finalGameData = afterSnapshot.exists() ? afterSnapshot.val() : gameData;
+      return { code: codeToUse, gameData: finalGameData };
     } catch (err) {
       setError(err.message);
       throw err;
@@ -280,30 +384,27 @@ const createGame = useCallback(async (options = {}) => {
   const setReady = useCallback(async (code, ready = true) => {
     if (!user) throw new Error('User must be signed in');
 
-    // Validate game code
     const codeValidation = validateGameCode(code);
     if (!codeValidation.isValid) {
       throw new Error(`Invalid game code: ${codeValidation.errors.join(', ')}`);
     }
 
-    const gamePath = `multiplayer/${code}`;
+    const codeToUse = codeValidation.value ?? code;
+    const gamePath = `multiplayer/${codeToUse}`;
     const gameDataRef = ref(database, gamePath);
 
     try {
-      // Use transaction to prevent race conditions when multiple players click ready simultaneously
       await runTransaction(gameDataRef, (currentData) => {
         if (!currentData) {
-          throw new Error('Game not found');
+          return {}; // Force retry: server will send real value, callback runs again
         }
 
         const players = currentData.players || null;
 
-        // All games now use the players map for ready status.
         if (!players || !players[user.uid]) {
           throw new Error('Player not in game');
         }
 
-        // Update ready status atomically
         return {
           ...currentData,
           players: {
@@ -312,6 +413,17 @@ const createGame = useCallback(async (options = {}) => {
               ...players[user.uid],
               ready,
             },
+          },
+        };
+      });
+      // Optimistic update: onValue may not fire for the writing client, so update local state so host UI reflects ready immediately
+      setGameState((prev) => {
+        if (!prev || !prev.players || !prev.players[user.uid]) return prev;
+        return {
+          ...prev,
+          players: {
+            ...prev.players,
+            [user.uid]: { ...prev.players[user.uid], ready },
           },
         };
       });
@@ -332,21 +444,19 @@ const createGame = useCallback(async (options = {}) => {
   const startGame = useCallback(async (code, solutionsOrSolution, options = {}) => {
     if (!user) throw new Error('User must be signed in');
 
-    // Validate game code
     const codeValidation = validateGameCode(code);
     if (!codeValidation.isValid) {
       throw new Error(`Invalid game code: ${codeValidation.errors.join(', ')}`);
     }
 
-    const gamePath = `multiplayer/${code}`;
+    const codeToUse = codeValidation.value ?? code;
+    const gamePath = `multiplayer/${codeToUse}`;
     const gameDataRef = ref(database, gamePath);
 
     try {
-      // Use transaction to prevent race conditions when host clicks start multiple times
-      // or when multiple players become ready simultaneously
       await runTransaction(gameDataRef, (currentData) => {
         if (!currentData) {
-          throw new Error('Game not found');
+          return {}; // Force retry: server will send real value, callback runs again
         }
 
         const players = currentData.players || null;
@@ -411,6 +521,12 @@ const createGame = useCallback(async (options = {}) => {
           nextGameConfig: null,
         };
       });
+
+      // Re-read and set state so host UI updates immediately (same pattern as setReady / guest join)
+      const afterSnapshot = await get(gameDataRef);
+      if (afterSnapshot.exists()) {
+        setGameState(afterSnapshot.val());
+      }
     } catch (err) {
       setError(err.message);
       throw err;
@@ -438,6 +554,9 @@ const createGame = useCallback(async (options = {}) => {
       }
 
       const gameData = snapshot.val();
+      if (!gameData || typeof gameData !== 'object') {
+        throw new Error('Invalid game state');
+      }
       const players = gameData.players || null;
       
       if (!players) {
@@ -446,7 +565,8 @@ const createGame = useCallback(async (options = {}) => {
       
       const playerCount = Object.keys(players).length;
 
-      const isHost = gameData.hostId === user.uid;
+      const hostEntry = Object.values(players).find((p) => p && p.isHost) || null;
+      const isHost = !!(hostEntry && hostEntry.id === user.uid);
       const isSpeedrun = gameData.speedrun || false;
 
       const now = Date.now();
@@ -481,6 +601,11 @@ const createGame = useCallback(async (options = {}) => {
       }
 
       await update(gameDataRef, updateData);
+
+      const afterSnapshot = await get(gameDataRef);
+      if (afterSnapshot.exists()) {
+        setGameState(afterSnapshot.val());
+      }
     } catch (err) {
       setError(err.message);
       throw err;
@@ -504,6 +629,9 @@ const createGame = useCallback(async (options = {}) => {
       }
 
       const gameData = snapshot.val();
+      if (!gameData || typeof gameData !== 'object') {
+        throw new Error('Invalid game state');
+      }
       if (gameData.speedrun) {
         // No turn switching in speedrun mode.
         return;
@@ -542,9 +670,19 @@ const createGame = useCallback(async (options = {}) => {
     const gameDataRef = ref(database, gamePath);
 
     try {
+      const snapshot = await get(gameDataRef);
+      if (!snapshot.exists()) {
+        throw new Error('Game not found');
+      }
+      const gameData = snapshot.val();
+      if (!gameData || typeof gameData !== 'object') {
+        throw new Error('Invalid game state');
+      }
+
       await update(gameDataRef, {
         status: 'finished',
-        winner: winner
+        winner: winner,
+        hostId: gameData.hostId  // Preserve hostId
       });
     } catch (err) {
       setError(err.message);
@@ -552,7 +690,7 @@ const createGame = useCallback(async (options = {}) => {
     }
   }, [user]);
 
-/**
+  /**
    * Update friendRequestStatus for this multiplayer game (e.g. 'pending', 'declined').
    * We also track who initiated the request in `friendRequestFrom` so that only
    * that player sees their button disabled.
@@ -571,6 +709,9 @@ const createGame = useCallback(async (options = {}) => {
       }
 
       const gameData = snapshot.val();
+      if (!gameData || typeof gameData !== 'object') {
+        throw new Error('Invalid game state');
+      }
       const players = gameData.players || {};
       const isHost = players[user.uid]?.isHost === true;
 
@@ -589,6 +730,7 @@ const createGame = useCallback(async (options = {}) => {
           updateData.guestFriendRequestSent = true;
           updateData.hostFriendRequestSent = false;
         }
+        updateData.hostId = gameData.hostId; // Preserve hostId
         await update(gameDataRef, updateData);
       } else if (status === 'declined') {
         await update(gameDataRef, {
@@ -596,12 +738,14 @@ const createGame = useCallback(async (options = {}) => {
           friendRequestFrom: null,
           hostFriendRequestSent: false,
           guestFriendRequestSent: false,
+          hostId: gameData.hostId  // Preserve hostId
         });
       } else {
         // Fallback / explicit clear.
         await update(gameDataRef, {
           friendRequestStatus: null,
           friendRequestFrom: null,
+          hostId: gameData.hostId  // Preserve hostId
         });
       }
     } catch (err) {
@@ -628,6 +772,9 @@ const createGame = useCallback(async (options = {}) => {
       }
 
       const gameData = snapshot.val();
+      if (!gameData || typeof gameData !== 'object') {
+        throw new Error('Invalid game state');
+      }
       const players = gameData.players || null;
 
       // All games now use the players map
@@ -654,9 +801,23 @@ const createGame = useCallback(async (options = {}) => {
     const gameDataRef = ref(database, gamePath);
 
     try {
+      const snapshot = await get(gameDataRef);
+      if (!snapshot.exists()) {
+        throw new Error('Game not found');
+      }
+      const gameData = snapshot.val();
+      if (!gameData || typeof gameData !== 'object') {
+        throw new Error('Invalid game state');
+      }
+      const players = gameData.players || {};
+      if (!players[user.uid]?.isHost) {
+        throw new Error('Only the host can update the room name');
+      }
+
       const trimmed = (roomName || '').toString().slice(0, 80).trim();
       await update(gameDataRef, {
         roomName: trimmed || null,
+        hostId: gameData.hostId  // Preserve hostId
       });
     } catch (err) {
       setError(err.message);
@@ -681,6 +842,9 @@ const createGame = useCallback(async (options = {}) => {
       }
 
       const gameData = snapshot.val();
+      if (!gameData || typeof gameData !== 'object') {
+        throw new Error('Invalid game state');
+      }
       const players = gameData.players || {};
       if (!players[user.uid]?.isHost) {
         throw new Error('Only host can update game configuration');
@@ -698,6 +862,7 @@ const createGame = useCallback(async (options = {}) => {
         };
       }
 
+      updateData.hostId = gameData.hostId; // Preserve hostId
       await update(gameDataRef, updateData);
     } catch (err) {
       setError(err.message);
@@ -723,6 +888,9 @@ const createGame = useCallback(async (options = {}) => {
       }
 
       const gameData = snapshot.val();
+      if (!gameData || typeof gameData !== 'object') {
+        throw new Error('Invalid game state');
+      }
       const players = gameData.players || null;
 
       let updatedPlayers = players || null;
@@ -748,7 +916,8 @@ const createGame = useCallback(async (options = {}) => {
         winner: null,
         startedAt: null,
         rematchRequested: false,
-        // Keep speedrun flag
+        // Keep speedrun flag and hostId
+        hostId: gameData.hostId,
       };
 
       if (updatedPlayers) {
@@ -773,12 +942,13 @@ const createGame = useCallback(async (options = {}) => {
 
     try {
       if (user) {
-        const snapshot = await new Promise((resolve, reject) => {
-          onValue(gameDataRef, resolve, reject, { onlyOnce: true });
-        });
+        const snapshot = await get(gameDataRef);
 
         if (snapshot.exists()) {
           const gameData = snapshot.val();
+          if (!gameData || typeof gameData !== 'object') {
+            return;
+          }
           const players = gameData.players || null;
           const isHost = players && players[user.uid]?.isHost === true;
 
@@ -839,6 +1009,9 @@ const createGame = useCallback(async (options = {}) => {
       }
 
       const gameData = snapshot.val();
+      if (!gameData || typeof gameData !== 'object') {
+        throw new Error('Invalid game state');
+      }
       const players = gameData.players || {};
       if (!players[user.uid]?.isHost) {
         throw new Error('Only the host can update room settings');
@@ -879,6 +1052,9 @@ const createGame = useCallback(async (options = {}) => {
       if (Object.keys(updatePayload).length === 0) {
         return;
       }
+
+      // Preserve hostId to maintain game ownership
+      updatePayload.hostId = gameData.hostId;
 
       await update(gameDataRef, updatePayload);
     } catch (err) {

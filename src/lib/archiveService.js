@@ -168,6 +168,9 @@ export function getArchiveDates() {
  */
 export function formatArchiveDate(dateString) {
   const date = new Date(dateString + 'T00:00:00');
+  if (Number.isNaN(date.getTime())) {
+    return dateString && typeof dateString === 'string' ? dateString : 'Invalid date';
+  }
   return date.toLocaleDateString('en-US', { 
     month: 'short', 
     day: 'numeric', 

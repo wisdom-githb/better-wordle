@@ -62,7 +62,7 @@ export default function Profile() {
         };
 
         if (!user) {
-          if (isMounted) setStreaks(local);
+          setStreaks(local);
           return;
         }
 
@@ -74,19 +74,30 @@ export default function Profile() {
           } catch (e) {
             // Non-fatal; we still show local streaks
           }
-          if (isMounted) setStreaks(local);
+          setStreaks(local);
           return;
         }
 
         const remote = snap.val() || {};
-        const merged = {
+        const raw = {
           dailyStandard: remote.daily_standard || local.dailyStandard,
           dailySpeedrun: remote.daily_speedrun || local.dailySpeedrun,
           marathonStandard: remote.marathon_standard || local.marathonStandard,
           marathonSpeedrun: remote.marathon_speedrun || local.marathonSpeedrun,
         };
+        const normalizeStreak = (s) => ({
+          current: Math.max(0, Number(s?.current)) || 0,
+          best: Math.max(0, Number(s?.best)) || 0,
+          lastDate: s?.lastDate ?? null,
+        });
+        const merged = {
+          dailyStandard: normalizeStreak(raw.dailyStandard),
+          dailySpeedrun: normalizeStreak(raw.dailySpeedrun),
+          marathonStandard: normalizeStreak(raw.marathonStandard),
+          marathonSpeedrun: normalizeStreak(raw.marathonSpeedrun),
+        };
 
-        if (isMounted) setStreaks(merged);
+        setStreaks(merged);
       } catch (err) {
         console.error("Failed to load streaks in profile", err);
         if (isMounted) {

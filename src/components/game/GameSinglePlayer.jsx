@@ -243,7 +243,7 @@ export default function GameSinglePlayer({
           mode,
           speedrunEnabled,
         });
-        if (!isMounted || !remoteAware) return;
+        if (!remoteAware) return;
         setStreakLabel(buildStreakLabel(mode, speedrunEnabled, remoteAware));
       } catch (err) {
         logError(err, 'GameSinglePlayer.loadStreakRemoteAware');
@@ -362,7 +362,6 @@ export default function GameSinglePlayer({
   }, [getGameStateKey, persistForUser]);
 
   useSinglePlayerGame({
-    isOneVOne: false,
     mode,
     speedrunEnabled,
     numBoards,
@@ -679,13 +678,14 @@ export default function GameSinglePlayer({
                   // For marathon, calculate total guesses and time when complete
                   let marathonTotalGuesses = null;
                   let marathonTotalTimeMs = null;
-                  
+                  const fallbackTotal = newBoards.reduce((sum, b) => sum + (b.guesses?.length ?? 0), 0) || currentTurnsUsed;
+
                   if (isMarathonComplete) {
                     // Calculate total guesses across all stages from Firebase solved states
+                    let totalGuesses = 0;
                     try {
                       const { loadSolvedState } = await import('../../lib/singlePlayerStore');
-                      let totalGuesses = 0;
-                      
+
                       // Sum guesses from all stages
                       for (let stageIdx = 0; stageIdx < marathonLevels.length; stageIdx++) {
                         const stageBoards = marathonLevels[stageIdx];
@@ -706,13 +706,17 @@ export default function GameSinglePlayer({
                         }
                       }
                       marathonTotalGuesses = totalGuesses;
-                      
+
                       // For speedrun, total time is already calculated
                       if (speedrunEnabled) {
                         marathonTotalTimeMs = savedPopupTotalMs || marathonCumulativeMs + finalStageMs;
                       }
                     } catch (err) {
                       logError(err, 'GameSinglePlayer.calculateMarathonTotals');
+                      marathonTotalGuesses = marathonTotalGuesses ?? totalGuesses ?? fallbackTotal;
+                      if (speedrunEnabled && marathonTotalTimeMs == null) {
+                        marathonTotalTimeMs = savedPopupTotalMs || marathonCumulativeMs + finalStageMs;
+                      }
                     }
                   }
                   
@@ -799,9 +803,9 @@ export default function GameSinglePlayer({
     onLetter: addLetter,
   });
 
-  // Persist game state when boards/guess/unlimited change. saveGameState is
-  // intentionally excluded from deps to avoid re-running on every callback
-  // identity change; if its implementation or deps change, re-evaluate.
+  // Persist game state when boards/guess/unlimited change. saveGameState and
+  // isLoading intentionally excluded from deps to avoid re-running on every
+  // callback identity change or when loading toggles; re-evaluate if logic changes.
   useEffect(() => {
     if (boards.length > 0 && !isLoading) {
       const allSolvedLocal = boards.every((b) => b.isSolved);

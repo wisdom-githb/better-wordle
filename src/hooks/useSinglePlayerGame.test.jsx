@@ -89,7 +89,6 @@ describe('useSinglePlayerGame', () => {
 
     const { rerender } = renderHook((props) => useSinglePlayerGame(props), {
       initialProps: {
-        isOneVOne: false,
         mode: 'daily',
         speedrunEnabled: false,
         numBoards: 2,
@@ -140,7 +139,6 @@ describe('useSinglePlayerGame', () => {
 
     // Changing numBoards should trigger re-init
     rerender({
-      isOneVOne: false,
       mode: 'daily',
       speedrunEnabled: false,
       numBoards: 3,
@@ -199,7 +197,6 @@ describe('useSinglePlayerGame', () => {
 
     renderHook((props) => useSinglePlayerGame(props), {
       initialProps: {
-        isOneVOne: false,
         mode: 'daily',
         speedrunEnabled: true,
         numBoards: 2,
@@ -289,7 +286,6 @@ describe('useSinglePlayerGame', () => {
 
     renderHook((props) => useSinglePlayerGame(props), {
       initialProps: {
-        isOneVOne: false,
         mode: 'daily',
         speedrunEnabled: true,
         numBoards: 1,

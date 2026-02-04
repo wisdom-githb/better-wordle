@@ -23,7 +23,7 @@ export default function MultiplayerWordleLanding() {
         "Host or join rooms using a simple code — perfect for quick games on Discord or in class.",
         "Multi-board matches: choose more than one puzzle at once for a harder, more strategic game.",
         "Speedrun option for time-based competition (solve cleanly, but also solve fast).",
-        "Friends + challenges (when signed in) so you can send 1v1 invites and track rivalries.",
+        "Friends + challenges (when signed in) so you can send invites and track rivalries.",
         "Global leaderboard so wins and performance feel like they actually count.",
         "Works on desktop and mobile — play anywhere a browser exists.",
       ]}
@@ -42,8 +42,8 @@ export default function MultiplayerWordleLanding() {
           a: "In a multiplayer room, players compete on the same Wordle-style puzzles for that match, so it’s a fair race.",
         },
         {
-          q: "Can we play 1v1?",
-          a: "Yep. Better Wordle supports 1v1-style battles as a variant of multiplayer. Use the dedicated 1v1 page for a focused head-to-head experience.",
+          q: "Can we play with one friend?",
+          a: "Yes. Multiplayer supports 2 or more players. Host a room and invite one friend for a head-to-head match.",
         },
         {
           q: "Does it work on mobile?",

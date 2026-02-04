@@ -39,6 +39,7 @@ export default function GamePopup({
   currentUserId,
   onAddFriend,
   friendRequestSent,
+  friendIds,
 }) {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -215,16 +216,6 @@ export default function GamePopup({
                 const byId = rankedPlayers.find((p) => p.id === currentUserId);
                 if (byId) return byId;
               }
-              if (multiplayerGameState) {
-                const hostId = multiplayerGameState.hostId || null;
-                const guestId = multiplayerGameState.guestId || null;
-                if (isPlayerHost && hostId) {
-                  return rankedPlayers.find((p) => p.id === hostId) || null;
-                }
-                if (!isPlayerHost && guestId) {
-                  return rankedPlayers.find((p) => p.id === guestId) || null;
-                }
-              }
               return null;
             };
 
@@ -276,14 +267,6 @@ export default function GamePopup({
                       myRematch = !!myPlayer?.rematch;
                       allPlayersRematched = playerEntries.length > 0 && playerEntries.every((p) => !!p.rematch);
                       somePlayersRematched = playerEntries.some((p) => !!p.rematch);
-                    } else {
-                      // Fallback to legacy 2-player structure
-                      const hostRematch = multiplayerGameState?.hostRematch;
-                      const guestRematch = multiplayerGameState?.guestRematch;
-                      myRematch = isPlayerHostLocal ? hostRematch : guestRematch;
-                      const opponentRematch = isPlayerHostLocal ? guestRematch : hostRematch;
-                      allPlayersRematched = !!hostRematch && !!guestRematch;
-                      somePlayersRematched = !!hostRematch || !!guestRematch;
                     }
                     
                     if (allPlayersRematched) return "Starting rematch...";
@@ -457,31 +440,28 @@ export default function GamePopup({
                                 <div style={{ fontSize: 11, color: "#9ca3af" }}>{secondary}</div>
                               )}
                             </div>
-                            {!isMe && onAddFriend && (
+                            {!isMe && onAddFriend && !friendIds?.includes(p.id) && (() => {
+                              const sent = typeof friendRequestSent === 'object' ? friendRequestSent[p.id] : !!friendRequestSent;
+                              return (
                               <button
-                                onClick={() => onAddFriend(p.id, p.name)}
-                                disabled={friendRequestSent && friendRequestSent[p.id]}
+                                onClick={() => onAddFriend(p.name, p.id)}
+                                disabled={sent}
                                 style={{
                                   padding: "4px 8px",
                                   fontSize: 12,
                                   borderRadius: 4,
                                   border: "none",
-                                  backgroundColor:
-                                    friendRequestSent && friendRequestSent[p.id]
-                                      ? "#818384"
-                                      : "#6aaa64",
+                                  backgroundColor: sent ? "#818384" : "#6aaa64",
                                   color: "#ffffff",
-                                  cursor:
-                                    friendRequestSent && friendRequestSent[p.id]
-                                      ? "default"
-                                      : "pointer",
+                                  cursor: sent ? "default" : "pointer",
                                   fontWeight: "bold",
                                   whiteSpace: "nowrap",
                                 }}
                               >
-                                {friendRequestSent && friendRequestSent[p.id] ? "✓" : "+"}
+                                {sent ? "✓" : "Add friend"}
                               </button>
-                            )}
+                              );
+                            })()}
                           </div>
                         </div>
                       );

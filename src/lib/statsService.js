@@ -20,6 +20,8 @@ function getStatsKey(mode, speedrunEnabled) {
   return `${modeKey}_${variantKey}`;
 }
 
+const DEFAULT_GUESS_DIST = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+
 /**
  * Save game completion data for statistics
  * This should be called when a game is completed (for streak-tracked modes)
@@ -152,7 +154,7 @@ async function updateAggregatedStats({ uid, statsKey, gameData }) {
       totalGames: 0,
       solvedGames: 0,
       totalGuesses: 0,
-      guessDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+      guessDistribution: { ...DEFAULT_GUESS_DIST },
       totalTimeMs: 0,
       fastestTimeMs: null,
       slowestTimeMs: null,
@@ -160,11 +162,17 @@ async function updateAggregatedStats({ uid, statsKey, gameData }) {
     };
 
     const updated = { ...current };
-    updated.totalGames += 1;
+    // Normalize for old or malformed data: ensure guessDistribution has all keys 1-6
+    updated.guessDistribution = { ...DEFAULT_GUESS_DIST };
+    for (let g = 1; g <= 6; g++) {
+      const v = current.guessDistribution && typeof current.guessDistribution[g] === 'number' ? current.guessDistribution[g] : 0;
+      updated.guessDistribution[g] = v;
+    }
+    updated.totalGames = (typeof current.totalGames === 'number' ? current.totalGames : 0) + 1;
     
     if (gameData.solved && gameData.guesses > 0 && gameData.guesses <= 6) {
-      updated.solvedGames += 1;
-      updated.totalGuesses += gameData.guesses;
+      updated.solvedGames = (typeof current.solvedGames === 'number' ? current.solvedGames : 0) + 1;
+      updated.totalGuesses = (typeof current.totalGuesses === 'number' ? current.totalGuesses : 0) + gameData.guesses;
       
       // Update guess distribution (already validated guesses is 1-6)
       updated.guessDistribution[gameData.guesses] = (updated.guessDistribution[gameData.guesses] || 0) + 1;

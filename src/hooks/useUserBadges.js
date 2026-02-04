@@ -37,15 +37,11 @@ export function useUserBadges(user) {
         const data = (snap.val() || {});
         const badges = typeof data === 'object' && !Array.isArray(data) ? data : {};
 
-        if (!isMounted) return;
-
         const hasRegistered = badges[REGISTERED_BADGE_ID] === true || badges[REGISTERED_BADGE_ID] != null;
         if (!hasRegistered && !ensuredRegisteredRef.current) {
           ensuredRegisteredRef.current = true;
           await set(badgesRef, { ...badges, [REGISTERED_BADGE_ID]: true });
-          if (isMounted) {
-            setUserBadges({ ...badges, [REGISTERED_BADGE_ID]: true });
-          }
+          setUserBadges({ ...badges, [REGISTERED_BADGE_ID]: true });
         } else {
           setUserBadges(badges);
         }
@@ -55,7 +51,7 @@ export function useUserBadges(user) {
           setUserBadges({});
         }
       } finally {
-        if (isMounted) setLoading(false);
+        setLoading(false);
       }
     }
 
@@ -91,13 +87,13 @@ export function useBadgesForUser(uid) {
       .then((snap) => {
         const data = snap.val() || {};
         const badges = typeof data === 'object' && !Array.isArray(data) ? data : {};
-        if (isMounted) setUserBadges(badges);
+        setUserBadges(badges);
       })
       .catch(() => {
         if (isMounted) setUserBadges({});
       })
       .finally(() => {
-        if (isMounted) setLoading(false);
+        setLoading(false);
       });
 
     return () => { isMounted = false; };

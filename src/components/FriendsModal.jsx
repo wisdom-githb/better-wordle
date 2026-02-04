@@ -15,7 +15,7 @@ import { MAX_BOARDS } from "../lib/gameConstants";
 
 const ADMIN_EMAIL = "abhijeetsridhar14@gmail.com";
 
-const ONE_V_ONE_BOARD_OPTIONS = Array.from({ length: MAX_BOARDS }, (_, i) => i + 1);
+const CHALLENGE_BOARD_OPTIONS = Array.from({ length: MAX_BOARDS }, (_, i) => i + 1);
 
 export default function FriendsModal({ isOpen, onRequestClose }) {
   const navigate = useNavigate();
@@ -56,6 +56,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
     if (!user?.uid || !friend?.id) return;
     const isAdmin = user.email === ADMIN_EMAIL;
     setGiftLoadingFriendId(friend.id);
+    const baseFullUrl = getBaseFullUrl();
     try {
       if (isAdmin) {
         const adminGift = adminGiftSubscriptionCallable();
@@ -63,7 +64,6 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
         setTimedMessage(`Premium granted to ${friend.name}.`, 4000);
       } else {
         const createGift = createGiftCheckoutSessionCallable();
-        const baseFullUrl = getBaseFullUrl();
         const result = await createGift({ recipientUid: friend.id, baseUrl: baseFullUrl });
         const url = result?.data?.url;
         if (url) {
@@ -73,8 +73,12 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
         setTimedMessage("Could not start gift checkout.", 5000);
       }
     } catch (err) {
-      const msg = err?.message || (err?.code ? `Error: ${err.code}` : "Could not complete gift.");
-      setTimedMessage(msg, 5000);
+      let msg = err?.message || (err?.code ? `Error: ${err.code}` : "Could not complete gift.");
+      if (err?.code === "functions/internal" || err?.code === "internal") {
+        msg =
+          "Gift checkout is unavailable. If you're setting this up, deploy the latest Cloud Functions and set STRIPE_PRICE_ID and STRIPE_SECRET_KEY (see gift-subs.md).";
+      }
+      setTimedMessage(msg, 7000);
     } finally {
       setGiftLoadingFriendId(null);
     }
@@ -409,7 +413,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                   cursor: "pointer",
                 }}
               >
-                {ONE_V_ONE_BOARD_OPTIONS.map((n) => (
+                {CHALLENGE_BOARD_OPTIONS.map((n) => (
                   <option key={n} value={n}>
                     {n}
                   </option>
@@ -524,12 +528,13 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                   if (!selectedFriendForChallenge || !user) return;
                   try {
                     const clampedMaxPlayers = Math.max(2, Math.min(8, challengeMaxPlayers));
-                    const code = await multiplayerHost.createGame({
+                    const result = await multiplayerHost.createGame({
                       speedrun: challengeSpeedrun,
                       maxPlayers: clampedMaxPlayers,
                       isPublic: challengeIsPublic,
                       boards: challengeBoards,
                     });
+                    const code = result.code;
                     const ok = await sendChallenge(
                       selectedFriendForChallenge.id,
                       selectedFriendForChallenge.name,

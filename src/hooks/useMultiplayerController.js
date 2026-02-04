@@ -7,6 +7,17 @@ import { MAX_BOARDS, ABSOLUTE_MAX_PLAYERS, DEFAULT_MAX_PLAYERS, MESSAGE_TIMEOUT_
 import { getSolutionArray } from '../lib/multiplayerConfig';
 import { formatError, logError } from '../lib/errorUtils';
 
+/** Derive a numeric seed from a string (e.g. alphanumeric game code) for SeededRandom. */
+function hashStringToNumber(str) {
+  let h = 0;
+  const s = String(str);
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h) + s.charCodeAt(i);
+    h = h | 0;
+  }
+  return Math.abs(h);
+}
+
 /**
  * Central controller for multiplayer mode. Encapsulates:
  * - initialisation/joining/hosting of games
@@ -63,6 +74,11 @@ export function useMultiplayerController({
 
   // Game config limits
   maxMultiplayerBoards,
+
+  // Called when host creates a game; parent can store { code, gameData } for initial state
+  onGameCreated,
+  // Called when guest joins a game; parent can store { code, gameData } for initial state (same as host)
+  onGameJoined,
 }) {
   // Internal next-round configuration selected from the end-of-game UI.
   // When null, rematches reuse the previous board count & speedrun flag.
@@ -140,14 +156,9 @@ export function useMultiplayerController({
 
   const getOpponentGuesses = (gs) => {
     if (!gs || !authUser || !gs.players) return [];
-    // For 2-player games, return the other player's guesses; for multi-player,
-    // callers typically handle all opponents explicitly.
     const entries = Object.values(gs.players);
-    if (entries.length === 2) {
-      const other = entries.find((p) => p.id !== authUser.uid);
-      return other && Array.isArray(other.guesses) ? other.guesses : [];
-    }
-    return [];
+    const other = entries.find((p) => p && p.id !== authUser.uid);
+    return other && Array.isArray(other.guesses) ? other.guesses : [];
   };
 
   const getPlayerCount = (gs) => {
@@ -193,14 +204,16 @@ export function useMultiplayerController({
   useEffect(() => {
     async function initMultiplayer() {
       if (!isMultiplayer || !authUser) {
-        // If not multiplayer mode or not authenticated, don't block loading
+        // If not multiplayer mode, don't block loading
         if (!isMultiplayer) return;
-        // If multiplayer but not authenticated, wait for auth
+        // If multiplayer but not authenticated, don't block loading but wait for auth
+        setIsLoading(false);
         return;
       }
 
       if (!isVerifiedUser) {
         setTimedMessage('You must verify your email or sign in with Google to play Multiplayer Mode.', LONG_MESSAGE_TIMEOUT_MS);
+        setIsLoading(false); // Stop loading even if user is not verified
         return;
       }
 
@@ -232,12 +245,16 @@ export function useMultiplayerController({
             }
           }
 
-          const code = await multiplayerGame.createGame({
+          const result = await multiplayerGame.createGame({
             speedrun: speedrunEnabled,
             maxPlayers: maxPlayersForRoom,
             isPublic: isPublicRoom,
             boards: boardsForRoom,
           });
+          const code = result.code;
+          if (typeof onGameCreated === 'function') {
+            onGameCreated(result);
+          }
           const boardsQuery = boardsParam ? `&boards=${boardsParam}` : '';
           const roomQuery = `&maxPlayers=${maxPlayersForRoom}&isPublic=${isPublicRoom}`;
           navigate(
@@ -259,22 +276,22 @@ export function useMultiplayerController({
               // User is already part of the game, no need to join
               setIsLoading(false);
             } else {
-              // User is not part of game, try to join
               try {
-                await multiplayerGame.joinGame(gameCode);
-                // Don't set loading to false yet - wait for gameState to load via the listener
+                const result = await multiplayerGame.joinGame(gameCode);
+                if (result && typeof onGameJoined === 'function') {
+                  onGameJoined(result);
+                }
               } catch (error) {
-                // Error joining - will be handled by error display
                 throw error;
               }
             }
           } else {
-            // No gameState yet, try to join (listener will load gameState)
             try {
-              await multiplayerGame.joinGame(gameCode);
-              // Don't set loading to false yet - wait for gameState to load via the listener
+              const result = await multiplayerGame.joinGame(gameCode);
+              if (result && typeof onGameJoined === 'function') {
+                onGameJoined(result);
+              }
             } catch (error) {
-              // Error joining - will be handled by error display
               throw error;
             }
           }
@@ -311,6 +328,7 @@ export function useMultiplayerController({
     setTimedMessage,
     setAllowedSet,
     setIsLoading,
+    onGameJoined,
   ]);
 
   // Handle multiplayer game state changes and initialization of local multi-board state.
@@ -321,6 +339,8 @@ export function useMultiplayerController({
         if (isMultiplayer && gameCode && !multiplayerGame.gameState) {
           return;
         }
+        // Otherwise, stop loading if not multiplayer or not authenticated
+        setIsLoading(false);
         return;
       }
 
@@ -336,19 +356,19 @@ export function useMultiplayerController({
         status,
         solution,
         solutions,
-        hostId,
         players,
       } = gameState;
-      const isPlayerHost = hostId === authUser.uid;
-      const isSpeedrun = gameState.speedrun || false;
-
       const playersMap = players || null;
-      
+
       if (!playersMap) {
         // All games now use the players map
         return;
       }
-      
+
+      const hostEntry = Object.values(playersMap).find((p) => p && p.isHost) || null;
+      const isPlayerHost = !!(hostEntry && hostEntry.id === authUser.uid);
+      const isSpeedrun = gameState.speedrun || false;
+
       const playerIds = Object.keys(playersMap);
       const playerCount = playerIds.length;
       const isMultiRoom = playerCount > 2;
@@ -590,7 +610,7 @@ export function useMultiplayerController({
       } else {
         boardsForThisGame = Math.max(1, numBoards || 1);
       }
-      const seed = parseInt(gameCode, 10) + Date.now();
+      const seed = hashStringToNumber(gameCode) + Date.now();
       const rng = new SeededRandom(seed);
       const solutions = Array.from({ length: boardsForThisGame }).map(() => {
         const index = Math.floor(rng.next() * ANSWER_WORDS.length);
@@ -756,7 +776,7 @@ export function useMultiplayerController({
       }
       
       // Generate new solutions
-      const seed = parseInt(gameCode, 10) + Date.now();
+      const seed = hashStringToNumber(gameCode) + Date.now();
       const rng = new SeededRandom(seed);
       const solutions = Array.from({ length: boardsForRematch }).map(() => {
         const index = Math.floor(rng.next() * ANSWER_WORDS.length);

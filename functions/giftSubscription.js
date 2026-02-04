@@ -52,8 +52,17 @@ exports.createGiftCheckoutSession = onCall(
       throw new HttpsError('invalid-argument', 'recipientUid is required.');
     }
 
-    const secret = stripeSecret.value();
-    const priceId = stripePriceId.value();
+    let secret;
+    let priceId;
+    try {
+      secret = (stripeSecret.value() || '').trim();
+      priceId = (stripePriceId.value() || '').trim();
+    } catch (paramErr) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Stripe is not configured. Set STRIPE_SECRET_KEY secret and STRIPE_PRICE_ID (e.g. in functions/.env).'
+      );
+    }
     if (!secret || !priceId) {
       throw new HttpsError(
         'failed-precondition',
@@ -83,19 +92,26 @@ exports.createGiftCheckoutSession = onCall(
     const successUrl = `${baseUrl}?subscription=success&gift=1`;
     const cancelUrl = `${baseUrl}?subscription=cancelled`;
 
-    const stripe = new Stripe(secret, { apiVersion: '2023-10-16' });
+    try {
+      const stripe = new Stripe(secret, { apiVersion: '2023-10-16' });
 
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      customer_email: recipientEmail,
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      metadata: { recipient_uid: recipientUid },
-      subscription_data: { metadata: { recipient_uid: recipientUid } },
-    });
+      const session = await stripe.checkout.sessions.create({
+        mode: 'subscription',
+        customer_email: recipientEmail,
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        metadata: { recipient_uid: recipientUid },
+        subscription_data: { metadata: { recipient_uid: recipientUid } },
+      });
 
-    return { url: session.url };
+      return { url: session.url };
+    } catch (stripeErr) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Unable to start gift checkout. Please try again or contact support.'
+      );
+    }
   }
 );
 
@@ -111,8 +127,8 @@ exports.stripeGiftWebhook = onRequest(
     }
 
     const sig = req.headers['stripe-signature'];
-    const secret = stripeSecret.value();
-    const giftWebhookSecretVal = giftWebhookSecret.value();
+    const secret = (stripeSecret.value() || '').trim();
+    const giftWebhookSecretVal = (giftWebhookSecret.value() || '').trim();
     if (!giftWebhookSecretVal || !secret) {
       console.error('Gift webhook or Stripe secret not configured');
       res.status(500).send('Webhook not configured');

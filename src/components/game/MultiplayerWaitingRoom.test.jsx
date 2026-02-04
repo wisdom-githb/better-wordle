@@ -161,13 +161,14 @@ describe('MultiplayerWaitingRoom', () => {
         authUserId="alice-id"
         onAddFriend={onAddFriend}
         friendRequestSent={false}
+        friends={[]}
       />,
     );
 
-    // The button has a "+" text but title attribute "Add Bob as friend"
+    // The button has title "Add Bob as friend"; callback receives (name, id)
     const addButton = screen.getByTitle('Add Bob as friend');
     fireEvent.click(addButton);
-    expect(onAddFriend).toHaveBeenCalledWith('Bob');
+    expect(onAddFriend).toHaveBeenCalledWith('Bob', 'bob-id');
 
     // friendRequestSent = true -> button disabled and title "Friend request sent"
     rerender(
@@ -184,10 +185,35 @@ describe('MultiplayerWaitingRoom', () => {
         authUserId="alice-id"
         onAddFriend={onAddFriend}
         friendRequestSent={true}
+        friends={[]}
       />,
     );
 
     const sentButton = screen.getByTitle('Friend request sent');
     expect(sentButton).toBeDisabled();
+  });
+
+  it('hides Add friend button when the other player is already in friends', () => {
+    const onAddFriend = vi.fn();
+
+    render(
+      <MultiplayerWaitingRoom
+        gameCode="123456"
+        gameState={{
+          status: 'waiting',
+          players: {
+            'alice-id': { id: 'alice-id', name: 'Alice', isHost: true, ready: true },
+            'bob-id': { id: 'bob-id', name: 'Bob', isHost: false, ready: false },
+          },
+        }}
+        isHost
+        authUserId="alice-id"
+        onAddFriend={onAddFriend}
+        friendRequestSent={false}
+        friends={[{ id: 'bob-id', name: 'Bob' }]}
+      />,
+    );
+
+    expect(screen.queryByTitle('Add Bob as friend')).not.toBeInTheDocument();
   });
 });

@@ -107,8 +107,6 @@ export default function Home({
         loadMetaFor(true),
       ]);
 
-      if (!isMounted) return;
-
       const standardIndex =
         standardMeta && typeof standardMeta.index === "number" ? standardMeta.index : 0;
       const speedrunIndex =
@@ -393,7 +391,7 @@ export default function Home({
                   global Better Wordle leaderboard
                 </Link>{" "}
                 to see top players.
-                You can also explore specific modes: <Link to="/multiplayer-wordle" className="homeLink">multiplayer / 1v1 battles</Link>,{" "}
+                You can also explore specific modes: <Link to="/multiplayer-wordle" className="homeLink">multiplayer battles</Link>,{" "}
                 <Link to="/multi-board-wordle" className="homeLink">multi-board Wordle</Link>,{" "}
                 <Link to="/wordle-speedrun" className="homeLink">Wordle speedrun</Link>, and{" "}
                 <Link to="/wordle-marathon" className="homeLink">Wordle marathon</Link>.

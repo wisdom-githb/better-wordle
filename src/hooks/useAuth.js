@@ -57,6 +57,7 @@ export function useAuth() {
   const [sentChallenges, setSentChallenges] = useState([]);
 
   useEffect(() => {
+    let isMounted = true;
     let unsubscribeFriends = null;
     let unsubscribeRequests = null;
     let unsubscribeChallenges = null;
@@ -100,8 +101,9 @@ export function useAuth() {
 
           updateProfile(authUser, { displayName: generatedUsername })
             .then(() => {
-              // Keep local user state in sync with the generated username.
-              setUser({ ...authUser, displayName: generatedUsername });
+              if (isMounted) {
+                setUser({ ...authUser, displayName: generatedUsername });
+              }
             })
             .catch((err) => {
               // Failing to assign a default username should not block auth.
@@ -245,6 +247,7 @@ export function useAuth() {
     });
 
     return () => {
+      isMounted = false;
       if (unsubscribeFriends) unsubscribeFriends();
       if (unsubscribeRequests) unsubscribeRequests();
       if (unsubscribeChallenges) unsubscribeChallenges();
@@ -461,27 +464,27 @@ export function useAuth() {
         throw new Error('Invalid friend ID');
       }
       
-      const usernameValidation = validateUsername(friendName || 'Unknown');
-      const fromName = usernameValidation.isValid ? usernameValidation.value : (auth.currentUser.displayName || 'Unknown');
-      
+      // fromName must be the sender's name so the recipient sees who sent the request
+      const senderDisplayName = auth.currentUser.displayName || auth.currentUser.email || 'Unknown';
+      const usernameValidation = validateUsername(senderDisplayName);
+      const fromName = usernameValidation.isValid ? usernameValidation.value : senderDisplayName;
       // Use transaction to prevent race conditions when both users send requests simultaneously
       const requestRef = ref(database, `users/${friendId}/friendRequests/${auth.currentUser.uid}`);
       const myRequestRef = ref(database, `users/${auth.currentUser.uid}/friendRequests/${friendId}`);
       
+      const senderUid = auth.currentUser.uid;
+      const payload = {
+        from: senderUid,
+        fromName,
+        sentAt: new Date().toISOString(),
+        timestamp: Date.now(),
+      };
       await runTransaction(requestRef, (currentData) => {
-        // Check if request already exists
-        if (currentData) {
-          // Request already exists, return current data (idempotent)
-          return currentData;
+        // Always write sender fields so existing (e.g. stale) requests get correct fromName/from
+        if (currentData && typeof currentData === 'object') {
+          return { ...currentData, ...payload };
         }
-        
-        // Create new request
-        return {
-          from: auth.currentUser.uid,
-          fromName,
-          sentAt: new Date().toISOString(),
-          timestamp: Date.now(),
-        };
+        return payload;
       });
       
       // Also check if the other user already sent us a request (mutual friend request detection)
@@ -727,7 +730,7 @@ export function useAuth() {
         }
       }
 
-      // If this dismissal corresponds to a specific 1v1 game, try to mark that
+      // If this dismissal corresponds to a specific multiplayer game, try to mark that
       // game as cancelled so the host waiting in the lobby sees a clear
       // message that their challenge was declined.
       if (effectiveGameCode) {
@@ -757,7 +760,7 @@ export function useAuth() {
 
   // Host-side helper for cancelling a sent challenge. This removes the
   // challenge from the sender's "Sent" list, from the friend's incoming
-  // challenges list, and attempts to mark the underlying 1v1 game as
+  // challenges list, and attempts to mark the underlying multiplayer game as
   // cancelled so that both players see a clear message.
   const cancelSentChallenge = useCallback(async (gameCode) => {
     try {

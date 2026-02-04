@@ -81,8 +81,6 @@ export function useSubscription(user) {
     const unsubscribeFirestore = onSnapshotFirestore(
       subscriptionsQuery,
       async (snapshot) => {
-        if (!isMounted) return;
-
         // Check if user has an active subscription
         const activeSubscriptions = snapshot.docs.filter((doc) => {
           const data = doc.data();
@@ -100,10 +98,8 @@ export function useSubscription(user) {
         // Re-check custom claim when subscription changes
         // This ensures we have the latest stripeRole after subscription updates
         const currentRole = await checkCustomClaim();
-        if (isMounted) {
-          stripeRoleRef.current = currentRole;
-          setStripeRole(currentRole);
-        }
+        stripeRoleRef.current = currentRole;
+        setStripeRole(currentRole);
 
         // User is subscribed if:
         // 1. Has active subscription in Firestore, OR
@@ -111,25 +107,23 @@ export function useSubscription(user) {
         const role = currentRole || stripeRole;
         const subscribed = hasActiveSubscription || role?.toLowerCase() === 'premium';
 
-        if (isMounted) {
-          setIsSubscribed(subscribed);
+        setIsSubscribed(subscribed);
 
-          // Sync to Realtime Database for backward compatibility
-          if (subscribed && latestSubscription) {
-            syncToRealtimeDatabase(user.uid, latestSubscription).catch((err) => {
-              console.error('Failed to sync subscription to Realtime Database:', err);
-            });
-          }
-
-          // Grant premium badge if subscribed
-          if (subscribed) {
-            grantBadge({ database, uid: user.uid, badgeId: PREMIUM_BADGE_ID }).catch((err) => {
-              console.error('Failed to grant premium badge:', err);
-            });
-          }
-
-          setLoading(false);
+        // Sync to Realtime Database for backward compatibility
+        if (subscribed && latestSubscription) {
+          syncToRealtimeDatabase(user.uid, latestSubscription).catch((err) => {
+            console.error('Failed to sync subscription to Realtime Database:', err);
+          });
         }
+
+        // Grant premium badge if subscribed
+        if (subscribed) {
+          grantBadge({ database, uid: user.uid, badgeId: PREMIUM_BADGE_ID }).catch((err) => {
+            console.error('Failed to grant premium badge:', err);
+          });
+        }
+
+        setLoading(false);
       },
       (err) => {
         if (!isMounted) return;
@@ -155,8 +149,6 @@ export function useSubscription(user) {
     const unsubscribeRealtime = onValue(
       subscriptionRefPath,
       (snap) => {
-        if (!isMounted) return;
-
         const data = snap.val();
         // Only use Realtime DB data if Firestore doesn't have subscription
         // This is for backward compatibility
@@ -169,8 +161,8 @@ export function useSubscription(user) {
             status === 'active' &&
             (expiresAt == null || (typeof expiresAt === 'number' && expiresAt > now));
 
-          if (active && !isSubscribed) {
-            // Only set if not already subscribed via Firestore
+          if (active && !stateRef.current.isSubscribed) {
+            // Only set if not already subscribed via Firestore (use ref for latest state)
             setIsSubscribed(true);
             grantBadge({ database, uid: user.uid, badgeId: PREMIUM_BADGE_ID }).catch((err) => {
               console.error('Failed to grant premium badge:', err);

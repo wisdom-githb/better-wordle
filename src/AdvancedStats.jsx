@@ -359,11 +359,12 @@ export default function AdvancedStats() {
                         <div className="stats-chart-x-label">Number of games</div>
                         <div className="stats-chart-body">
                           {[1, 2, 3, 4, 5, 6].map((guessCount) => {
-                            const count = stats.guessDistribution[guessCount] || 0;
+                            const dist = stats.guessDistribution || {};
+                            const count = dist[guessCount] || 0;
                             const percentage = stats.solvedGames > 0
                               ? Math.round((count / stats.solvedGames) * 100 * 100) / 100
                               : 0;
-                            const maxCount = Math.max(...Object.values(stats.guessDistribution), 1);
+                            const maxCount = Math.max(1, ...Object.values(dist));
                             const barWidthPct = (count / maxCount) * 100;
                             return (
                               <div key={guessCount} className="stats-chart-row">
