@@ -74,7 +74,6 @@ describe('useSinglePlayerGame resumed completed stage behaviour', () => {
 
     renderHook(() =>
       useSinglePlayerGame({
-        isOneVOne: false,
         mode: 'marathon',
         speedrunEnabled: false,
         numBoards: 2,

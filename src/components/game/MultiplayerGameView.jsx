@@ -9,6 +9,7 @@ import AuthModal from "../AuthModal";
 import { KEYBOARD_HEIGHT, formatElapsed as formatElapsedLib, scoreGuess } from "../../lib/wordle";
 import { FLIP_MS, SPEEDRUN_COUNTDOWN_MS } from "../../lib/gameConstants";
 import { MULTIPLAYER_WAITING_TIMEOUT_MS, getSolutionArray } from "../../lib/multiplayerConfig";
+import { ROOM_CLOSED_MESSAGE } from "../../hooks/useMultiplayerGame";
 
 /**
  * Presentation component for all multiplayer-specific game views.
@@ -19,6 +20,7 @@ export default function MultiplayerGameView({
   gameCode,
   authUser,
   authLoading,
+  isVerifiedUser,
   multiplayerGame,
   isLoading,
   maxTurns,
@@ -35,6 +37,7 @@ export default function MultiplayerGameView({
   onReady,
   onStartGame,
   onBack,
+  onHomeClick,
   onOpenFeedback,
   onRematch,
   setShowFeedbackModal,
@@ -67,7 +70,7 @@ export default function MultiplayerGameView({
           color: "#ffffff",
         }}
       >
-        <SiteHeader onOpenFeedback={onOpenFeedback} />
+        <SiteHeader onOpenFeedback={onOpenFeedback} onHomeClick={onHomeClick} />
         <div
           style={{
             flex: 1,
@@ -96,7 +99,7 @@ export default function MultiplayerGameView({
             color: "#ffffff",
           }}
         >
-          <SiteHeader onOpenFeedback={onOpenFeedback} />
+          <SiteHeader onOpenFeedback={onOpenFeedback} onHomeClick={onHomeClick} />
           <main
             style={{
               flex: 1,
@@ -169,7 +172,7 @@ export default function MultiplayerGameView({
     const declinedBy = gameState.cancelledByName || "Your friend";
     return (
       <div style={{ minHeight: "100vh", backgroundColor: "#121213", color: "#ffffff" }}>
-        <SiteHeader onOpenFeedback={onOpenFeedback} />
+        <SiteHeader onOpenFeedback={onOpenFeedback} onHomeClick={onHomeClick} />
         <div
           style={{
             minHeight: "60vh",
@@ -206,18 +209,10 @@ export default function MultiplayerGameView({
   }
 
   // Waiting room view
-  if (gameState && gameState.status === "waiting") {
+  if (gameState && gameState.status === "waiting" && isVerifiedUser) {
     // Determine host from players map
     const playersMapForHost = gameState.players && typeof gameState.players === "object" ? gameState.players : null;
     const isPlayerHost = authUser && playersMapForHost && playersMapForHost[authUser.uid]?.isHost === true;
-    const opponentEntry = playersMapForHost && authUser
-      ? Object.values(playersMapForHost).find((p) => p && p.id !== authUser.uid)
-      : null;
-    const opponentId = opponentEntry?.id ?? null;
-    const isFriendWithOpponent =
-      !!opponentId && Array.isArray(friends)
-        ? friends.some((f) => f.id === opponentId)
-        : false;
     const createdAt = typeof gameState.createdAt === "number" ? gameState.createdAt : null;
 
     // Boards/maxPlayers/room name for the waiting-room header and summary.
@@ -233,7 +228,7 @@ export default function MultiplayerGameView({
 
     return (
       <div style={{ minHeight: "100vh", backgroundColor: "#121213", color: "#ffffff" }}>
-        <SiteHeader onOpenFeedback={onOpenFeedback} />
+        <SiteHeader onOpenFeedback={onOpenFeedback} onHomeClick={onHomeClick} />
         <GameHeader
           mode={mode}
           numBoards={waitingBoards}
@@ -257,14 +252,9 @@ export default function MultiplayerGameView({
           initialBoards={initialNumBoards || 1}
           onUpdateConfig={isPlayerHost ? onUpdateConfig : undefined}
           onUpdateRoomName={isPlayerHost ? onUpdateRoomName : undefined}
-          onAddFriend={
-            !isFriendWithOpponent
-              ? (opponentName) => {
-                  if (!opponentId) return;
-                  onAddFriendRequest(opponentName, opponentId);
-                }
-              : undefined
-          }
+          onAddFriend={(name, id) => {
+            if (id) onAddFriendRequest(name, id);
+          }}
           friends={friends}
           authUserId={authUser ? authUser.uid : null}
           onInviteFriend={onInviteFriend}
@@ -275,7 +265,53 @@ export default function MultiplayerGameView({
     );
   }
 
-  // Error view
+  // Room closed view (host left the room; show clear message and Go home button)
+  const isRoomClosedError =
+    multiplayerGame?.error === ROOM_CLOSED_MESSAGE ||
+    (typeof multiplayerGame?.error === "string" &&
+      (multiplayerGame.error.includes("Game code not found") ||
+        multiplayerGame.error.includes("not found or has expired")));
+  if (isRoomClosedError) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "#121213",
+          color: "#ffffff",
+          flexDirection: "column",
+          gap: "16px",
+          padding: "20px",
+        }}
+      >
+        <div style={{ textAlign: "center", fontSize: 18 }}>
+          The host has left the room
+        </div>
+        <div style={{ color: "#9ca3af", textAlign: "center", fontSize: 14 }}>
+          {ROOM_CLOSED_MESSAGE}
+        </div>
+        <button
+          onClick={onBack}
+          style={{
+            padding: "12px 24px",
+            borderRadius: 8,
+            border: "none",
+            background: "#6aaa64",
+            color: "#ffffff",
+            fontSize: 16,
+            fontWeight: "bold",
+            cursor: "pointer",
+          }}
+        >
+          Go home
+        </button>
+      </div>
+    );
+  }
+
+  // Error view (other errors, e.g. connection timeout)
   if (multiplayerGame?.error) {
     return (
       <div
@@ -313,8 +349,14 @@ export default function MultiplayerGameView({
     );
   }
 
+  // Check if user is authenticated but not verified
+  const isAuthenticatedNotVerified = authUser && !isVerifiedUser;
+
   // Loading view while connecting or waiting for gameState
-  if (isLoading || multiplayerGame?.loading || (gameCode && !gameState)) {
+  // Only show "Connecting to game..." if user is verified and we have a game code but no game state
+  // If user is not verified, don't show "Connecting to game..." indefinitely
+  const shouldShowConnecting = gameCode && !gameState && isVerifiedUser;
+  if (isLoading || multiplayerGame?.loading || shouldShowConnecting) {
     return (
       <div
         style={{
@@ -330,7 +372,27 @@ export default function MultiplayerGameView({
       >
         {!authUser ? (
           <>Loading authentication...</>
-        ) : gameCode && !gameState ? (
+        ) : isAuthenticatedNotVerified ? (
+          <div style={{ textAlign: "center" }}>
+            <div>You must verify your email to play Multiplayer Mode.</div>
+            <button
+              onClick={onBack}
+              style={{
+                marginTop: "16px",
+                padding: "10px 18px",
+                borderRadius: 8,
+                border: "none",
+                background: "#6aaa64",
+                color: "#ffffff",
+                fontSize: 14,
+                fontWeight: "bold",
+                cursor: "pointer",
+              }}
+            >
+              Back to Home
+            </button>
+          </div>
+        ) : shouldShowConnecting ? (
           <>Connecting to game...</>
         ) : isLoading ? (
           <>Loading word lists...</>
@@ -341,7 +403,44 @@ export default function MultiplayerGameView({
     );
   }
 
+  // If user is authenticated but not verified and we don't have a game state, show verification message
+  // Note: isAuthenticatedNotVerified is defined earlier in the loading section
   if (!gameState) {
+    if (isAuthenticatedNotVerified) {
+      return (
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "#121213",
+            color: "#ffffff",
+            flexDirection: "column",
+            gap: "16px",
+            textAlign: "center",
+          }}
+        >
+          <div>You must verify your email to play Multiplayer Mode.</div>
+          <button
+            onClick={onBack}
+            style={{
+              marginTop: "16px",
+              padding: "10px 18px",
+              borderRadius: 8,
+              border: "none",
+              background: "#6aaa64",
+              color: "#ffffff",
+              fontSize: 14,
+              fontWeight: "bold",
+              cursor: "pointer",
+            }}
+          >
+            Back to Home
+          </button>
+        </div>
+      );
+    }
     return null;
   }
 
@@ -352,8 +451,7 @@ export default function MultiplayerGameView({
     ? playersMap[authUser.uid].isHost
     : false;
   
-  // For multiplayer, we don't have a single "opponent" - it's a free-for-all
-  // opponentId is only for legacy 2-player compatibility
+  // UI is driven from players map; no single "opponent" for N-player
   const opponentId = null;
   const isFriendWithOpponent = false;
 
@@ -495,7 +593,7 @@ export default function MultiplayerGameView({
           color: "#ffffff",
         }}
       >
-        <SiteHeader onOpenFeedback={onOpenFeedback} />
+        <SiteHeader onOpenFeedback={onOpenFeedback} onHomeClick={onHomeClick} />
 
         {isSpeedrun &&
           gameState.status === "playing" &&

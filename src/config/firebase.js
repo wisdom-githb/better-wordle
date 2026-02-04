@@ -2,24 +2,33 @@
 // Replace these values with your Firebase project configuration
 // Get these from Firebase Console > Project Settings > General > Your apps
 
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getDatabase } from 'firebase/database';
 import { getFirestore } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
-// Your web app's Firebase configuration
-// TODO: Replace with your Firebase project config
+// Your web app's Firebase configuration (env preferred; fallbacks from .env for local/dev)
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "your-api-key",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "your-auth-domain",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "your-project-id",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "your-storage-bucket",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "your-messaging-sender-id",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "your-app-id",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCr81IrmH5LQedoRSQHorEjK5-sWMdVf_k",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "better-wrodle.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "better-wrodle",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "better-wrodle.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "445700190808",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:445700190808:web:c4da4d756ac143583f102d",
   databaseURL:
-    import.meta.env.VITE_FIREBASE_DATABASE_URL ||
-    `https://${import.meta.env.VITE_FIREBASE_PROJECT_ID || "your-project-id"}-default-rtdb.firebaseio.com`,
+    (import.meta.env.VITE_FIREBASE_DATABASE_URL && import.meta.env.VITE_FIREBASE_DATABASE_URL.trim()) ||
+    "https://better-wrodle-default-rtdb.firebaseio.com",
 };
+
+if (import.meta.env.MODE === 'development') {
+  console.log('[Firebase] Realtime Database URL:', firebaseConfig.databaseURL);
+  if (!import.meta.env.VITE_FIREBASE_DATABASE_URL) {
+    console.warn(
+      '[Firebase] Realtime Database: VITE_FIREBASE_DATABASE_URL is not set. Set it in .env to the exact URL from Firebase Console (e.g. https://your-project-default-rtdb.firebaseio.com or ...europe-west1.firebasedatabase.app).'
+    );
+  }
+}
 
 // In non-development builds, guard against accidentally shipping a build that
 // still uses placeholder Firebase configuration values. Failing fast here
@@ -46,17 +55,29 @@ if (mode !== 'development' && mode !== 'test') {
   }
 }
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase (reuse existing app if present, e.g. HMR or Strict Mode)
+let app;
+try {
+  app = getApp();
+} catch {
+  app = initializeApp(firebaseConfig);
+}
 
 // Initialize Firebase Authentication and get a reference to the service
 export const auth = getAuth(app);
 
-// Initialize Firebase Realtime Database
-export const database = getDatabase(app);
+// Initialize Firebase Realtime Database (explicit URL so we use the same instance as config, not SDK default)
+export const database = getDatabase(app, firebaseConfig.databaseURL);
 
 // Initialize Cloud Firestore
 export const firestore = getFirestore(app);
+
+// Cloud Functions
+export const functions = getFunctions(app);
+
+// Callable helpers for gift subscription
+export const createGiftCheckoutSessionCallable = () => httpsCallable(functions, 'createGiftCheckoutSession');
+export const adminGiftSubscriptionCallable = () => httpsCallable(functions, 'adminGiftSubscription');
 
 // Google Auth Provider
 export const googleProvider = new GoogleAuthProvider();

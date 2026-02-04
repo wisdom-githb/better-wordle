@@ -217,4 +217,91 @@ describe('GamePopup - multiplayer mode', () => {
     // Change Mode button is also available for host
     expect(screen.getByRole('button', { name: /Change Mode/i })).toBeInTheDocument();
   });
+
+  it('shows Add friend for other players when onAddFriend provided and player not in friendIds', () => {
+    const onAddFriend = vi.fn();
+    const multiplayerGameState = {
+      speedrun: false,
+      status: 'finished',
+      players: {
+        'host-1': { id: 'host-1', name: 'Host', isHost: true },
+        'guest-1': { id: 'guest-1', name: 'Guest', isHost: false },
+      },
+    };
+
+    render(
+      <GamePopup
+        allSolved={false}
+        boards={[]}
+        speedrunEnabled={false}
+        stageElapsedMs={0}
+        popupTotalMs={0}
+        formatElapsed={(ms) => `${(ms / 1000).toFixed(1)}s`}
+        solvedCount={0}
+        mode="multiplayer"
+        marathonHasNext={false}
+        onShare={() => {}}
+        onClose={() => {}}
+        onNextStage={() => {}}
+        freezeStageTimer={() => 0}
+        isMarathonSpeedrun={false}
+        commitStageIfNeeded={() => {}}
+        isMultiplayer={true}
+        multiplayerGameState={multiplayerGameState}
+        winner={null}
+        isPlayerHost={true}
+        onRematch={() => {}}
+        onChangeMode={() => {}}
+        currentUserId="host-1"
+        onAddFriend={onAddFriend}
+        friendRequestSent={false}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /Add friend/i })).toBeInTheDocument();
+  });
+
+  it('hides Add friend for other players when they are in friendIds', () => {
+    const onAddFriend = vi.fn();
+    const multiplayerGameState = {
+      speedrun: false,
+      status: 'finished',
+      players: {
+        'host-1': { id: 'host-1', name: 'Host', isHost: true },
+        'guest-1': { id: 'guest-1', name: 'Guest', isHost: false },
+      },
+    };
+
+    render(
+      <GamePopup
+        allSolved={false}
+        boards={[]}
+        speedrunEnabled={false}
+        stageElapsedMs={0}
+        popupTotalMs={0}
+        formatElapsed={(ms) => `${(ms / 1000).toFixed(1)}s`}
+        solvedCount={0}
+        mode="multiplayer"
+        marathonHasNext={false}
+        onShare={() => {}}
+        onClose={() => {}}
+        onNextStage={() => {}}
+        freezeStageTimer={() => 0}
+        isMarathonSpeedrun={false}
+        commitStageIfNeeded={() => {}}
+        isMultiplayer={true}
+        multiplayerGameState={multiplayerGameState}
+        winner={null}
+        isPlayerHost={true}
+        onRematch={() => {}}
+        onChangeMode={() => {}}
+        currentUserId="host-1"
+        onAddFriend={onAddFriend}
+        friendRequestSent={false}
+        friendIds={['guest-1']}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /Add friend/i })).not.toBeInTheDocument();
+  });
 });

@@ -406,7 +406,8 @@ export default function MultiplayerWaitingRoom({
                 {playerEntries.map((p) => {
                   const isHostPlayer = !!p.isHost;
                   const isCurrent = currentUserId && p.id === currentUserId;
-                  const isOtherPlayer = !isCurrent && onAddFriend;
+                  const isAlreadyFriend = friends?.some((f) => f.id === p.id);
+                  const showAddFriend = !isCurrent && onAddFriend && !isAlreadyFriend;
                   return (
                     <div
                       key={p.id}
@@ -420,15 +421,15 @@ export default function MultiplayerWaitingRoom({
                           badges={isHostPlayer ? [{ id: 'host', label: 'Host' }] : []}
                           size="sm"
                         />
-                        {isOtherPlayer && (
+                        {showAddFriend && (
                           <button
                             type="button"
-                            onClick={() => !friendRequestSent && onAddFriend(p.name)}
+                            onClick={() => !friendRequestSent && onAddFriend(p.name, p.id)}
                             disabled={friendRequestSent}
                             className="waitingRoomPlayerFriendButton"
                             title={friendRequestSent ? 'Friend request sent' : `Add ${p.name} as friend`}
                           >
-                            +
+                            {friendRequestSent ? '✓' : 'Add friend'}
                           </button>
                         )}
                       </div>
@@ -461,7 +462,6 @@ export default function MultiplayerWaitingRoom({
                     <button
                       type="button"
                       onClick={handleToggleReady}
-                      disabled={allPlayersReady}
                       className={
                         allPlayersReady
                           ? 'waitingRoomSecondaryButton waitingRoomReadyButton waitingRoomReadyButtonDisabled'
@@ -469,7 +469,7 @@ export default function MultiplayerWaitingRoom({
                       }
                     >
                       {allPlayersReady
-                        ? 'All Ready - Starting...'
+                        ? 'All ready'
                         : 'Not Ready'}
                     </button>
                   )}

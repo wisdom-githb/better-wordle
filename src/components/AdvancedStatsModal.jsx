@@ -207,11 +207,12 @@ export default function AdvancedStatsModal({
                   marginBottom: 20,
                 }}>
                   {[1, 2, 3, 4, 5, 6].map(guessCount => {
-                    const count = stats.guessDistribution[guessCount] || 0;
+                    const dist = stats.guessDistribution || {};
+                    const count = dist[guessCount] || 0;
                     const percentage = stats.solvedGames > 0 
                       ? Math.round((count / stats.solvedGames) * 100 * 100) / 100 
                       : 0;
-                    const maxCount = Math.max(...Object.values(stats.guessDistribution));
+                    const maxCount = Math.max(0, ...Object.values(dist));
                     const barHeight = maxCount > 0 ? (count / maxCount) * 100 : 0;
                     
                     return (

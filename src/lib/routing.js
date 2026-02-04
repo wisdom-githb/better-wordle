@@ -96,14 +96,15 @@ export function parseGameUrl(params = {}, searchParams = null) {
   let mode = 'daily'; // Default
   const isMultiplayerQueryMode = rawMode === 'multiplayer';
   const isMultiplayerRoute = modeParam === 'multiplayer' || !!codeParam;
-  
+  const is1v1Alias = rawMode === '1v1' || modeParam === '1v1';
+
   if (modeParam === 'daily' || modeParam === 'marathon') {
     mode = validateGameMode(modeParam);
-  } else if (isMultiplayerRoute) {
+  } else if (isMultiplayerRoute || is1v1Alias) {
     mode = 'multiplayer';
-  } else if (rawMode === 'daily' || rawMode === 'marathon' || isMultiplayerQueryMode) {
-    mode = isMultiplayerQueryMode ? 'multiplayer' : validateGameMode(rawMode);
-  } else if (modeParam && modeParam !== 'multiplayer') {
+  } else if (rawMode === 'daily' || rawMode === 'marathon' || isMultiplayerQueryMode || is1v1Alias) {
+    mode = (isMultiplayerQueryMode || is1v1Alias) ? 'multiplayer' : validateGameMode(rawMode);
+  } else if (modeParam && modeParam !== 'multiplayer' && !is1v1Alias) {
     // Invalid mode in route params - log and default to daily
     logError(`Invalid mode in route params: ${modeParam}, defaulting to daily`, 'routing.parseGameUrl');
     mode = 'daily';
@@ -119,7 +120,7 @@ export function parseGameUrl(params = {}, searchParams = null) {
   // Determine speedrun with validation
   let speedrunEnabled = false;
   const supportsSpeedrunParam = modeConfig?.supportsSpeedrun && 
-    (rawMode === 'daily' || rawMode === 'marathon' || isMultiplayerQueryMode);
+    (rawMode === 'daily' || rawMode === 'marathon' || isMultiplayerQueryMode || is1v1Alias);
   
   if (variantParam === 'speedrun') {
     speedrunEnabled = modeConfig?.supportsSpeedrun || false;

@@ -18,11 +18,11 @@ export default function MultiplayerWordleLanding() {
       },
       {
         "@type": "Question",
-        name: "Is there a Wordle 1v1 mode?",
+        name: "Can I play with one friend?",
         acceptedAnswer: {
           "@type": "Answer",
           text:
-            "Yes—1v1 is just multiplayer with two players. Host a room, invite one friend, and race to solve the puzzle faster.",
+            "Yes. Multiplayer supports two or more players. Host a room, invite one friend, and race to solve the puzzle faster.",
         },
       },
       {
@@ -49,10 +49,10 @@ export default function MultiplayerWordleLanding() {
   return (
     <>
       <Helmet>
-        <title>Multiplayer Wordle & 1v1 Battles | Better Wordle</title>
+        <title>Multiplayer Wordle | Better Wordle</title>
         <meta
           name="description"
-          content="Play multiplayer Wordle-style battles in Better Wordle. Host or join a room, share a code with friends, and race through multi-board puzzles—1v1 included."
+          content="Play multiplayer Wordle-style battles in Better Wordle. Host or join a room, share a code with friends, and race through multi-board puzzles."
         />
         <link
           rel="canonical"
@@ -64,15 +64,15 @@ export default function MultiplayerWordleLanding() {
       </Helmet>
 
       <SeoLandingLayout
-        title="Multiplayer Wordle & 1v1 Battles"
-        subtitle="Better Wordle lets you host a room, share a code, and play the same puzzle with friends—whether it’s a full group or a clean 1v1 race."
+        title="Multiplayer Wordle"
+        subtitle="Better Wordle lets you host a room, share a code, and play the same puzzle with friends—whether it’s a full group or a head-to-head match."
         primaryCta={{
           label: "Open Multiplayer Mode",
           to: "/game?mode=multiplayer",
         }}
       >
         <p>
-          Searching for a <strong>multiplayer Wordle</strong> that actually works in a browser? Better Wordle’s Multiplayer Mode is built for quick “join by code” games and friendly trash talk. It also covers the classic <strong>Wordle 1v1</strong> use case—just host a room and invite one person.
+          Searching for a <strong>multiplayer Wordle</strong> that actually works in a browser? Better Wordle’s Multiplayer Mode is built for quick “join by code” games and friendly trash talk. It also works for a head-to-head match—just host a room and invite one person.
         </p>
 
         <h2>How to play</h2>

@@ -133,11 +133,13 @@ The head-to-head multiplayer mode requires Firebase Realtime Database to sync ga
    - Copy this URL
 
 3. **Add Database URL to Environment Variables**:
-   - Add this line to your `.env` file:
+   - Open Firebase Console > Realtime Database and copy the database URL (e.g. from the database root or project settings).
+   - Add this line to your `.env` file, using the **exact** URL from the Console:
      ```env
      VITE_FIREBASE_DATABASE_URL=https://your-project-id-default-rtdb.firebaseio.com
      ```
-   - Replace `your-project-id` with your actual project ID
+   - Replace with your actual URL (US region uses `...-default-rtdb.firebaseio.com`; other regions may use `...REGION.firebasedatabase.app`).
+   - **Restart the dev server** after editing `.env` so the app picks up the new URL.
 
 4. **Configure Security Rules** (Required):
    - In Firebase Console, go to "Realtime Database" > "Rules" tab

@@ -18,7 +18,7 @@ import UserCard from "./UserCard";
  * Line 2 - "Reset in" text on the left, Sign in/Sign out and Leaderboard buttons on the right.
  * Line 3 (when signed in) - UserCard only; click navigates to profile.
  */
-export default function SiteHeader({ onOpenFeedback, onSignUpComplete }) {
+export default function SiteHeader({ onOpenFeedback, onSignUpComplete, onHomeClick }) {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { userBadges } = useUserBadges(user);
@@ -91,7 +91,7 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete }) {
         >
           <button
             type="button"
-            onClick={handleHome}
+            onClick={onHomeClick ?? handleHome}
             aria-label="Home"
             style={{
               width: 32,

@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState, useEffect, Suspense, lazy } from "react";
 import { useSearchParams, useNavigate, useParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { WORD_LENGTH, buildLetterMapFromGuesses, getTurnsUsed, formatElapsed } from "../../lib/wordle";
+import { WORD_LENGTH, buildLetterMapFromGuesses, getTurnsUsed, formatElapsed, scoreGuess } from "../../lib/wordle";
 import { FLIP_COMPLETE_MS, MAX_BOARDS, TIMER_INTERVAL_MS, DEFAULT_MAX_TURNS, SPEEDRUN_COUNTDOWN_MS } from "../../lib/gameConstants";
 import { useAuth } from "../../hooks/useAuth";
 import { useMultiplayerGame } from "../../hooks/useMultiplayerGame";
@@ -59,7 +59,20 @@ export default function GameMultiplayer() {
   // friend opens a shared multiplayer link without being signed in.
   const effectiveGameCode = authUser ? gameCode : null;
 
-  const multiplayerGame = useMultiplayerGame(effectiveGameCode, isHost, speedrunEnabled);
+  const lastCreatedGameRef = useRef(null);
+  const [joinedGameResult, setJoinedGameResult] = useState(null);
+  const onGameCreated = useCallback((result) => {
+    lastCreatedGameRef.current = result;
+  }, []);
+  const onGameJoined = useCallback((result) => {
+    setJoinedGameResult(result);
+  }, []);
+  const initialGameState =
+    lastCreatedGameRef.current?.code === gameCode ? lastCreatedGameRef.current.gameData
+    : joinedGameResult?.code === gameCode ? joinedGameResult.gameData
+    : null;
+
+  const multiplayerGame = useMultiplayerGame(effectiveGameCode, isHost, speedrunEnabled, initialGameState);
 
   const [boards, setBoards] = useState([]);
   const [currentGuess, setCurrentGuess] = useState("");
@@ -252,6 +265,8 @@ export default function GameMultiplayer() {
     sendFriendRequest,
     cancelSentChallenge,
     maxMultiplayerBoards: MULTIPLAYER_BOARD_OPTIONS.length,
+    onGameCreated,
+    onGameJoined,
   });
 
   const { perBoardLetterMaps, focusedLetterMap, gridCols, gridRows } = useBoardLayout(
@@ -378,6 +393,13 @@ export default function GameMultiplayer() {
       setMessage("");
       clearMessageTimer();
 
+      const wordToColorCodes = (word, sol) =>
+        scoreGuess((word || '').toLowerCase(), (sol || '').toLowerCase()).map((c) => (c === "green" ? 2 : c === "yellow" ? 1 : 0));
+      const colors =
+        solutionArray.length === 1
+          ? [wordToColorCodes(guessToSubmit, solutionArray[0])]
+          : solutionArray.map((sol) => wordToColorCodes(guessToSubmit, sol));
+
       try {
         setRevealId((x) => x + 1);
         setIsFlipping(true);
@@ -386,7 +408,7 @@ export default function GameMultiplayer() {
           setIsFlipping(false);
         }, FLIP_COMPLETE_MS);
 
-        await multiplayerGame.submitGuess(gameCode, guessToSubmit, []);
+        await multiplayerGame.submitGuess(gameCode, guessToSubmit, colors);
       } catch (error) {
         // Reset flipping state on error
         setIsFlipping(false);
@@ -536,6 +558,7 @@ export default function GameMultiplayer() {
         gameCode={gameCode}
         authUser={authUser}
         authLoading={authLoading}
+        isVerifiedUser={isVerifiedUser}
         multiplayerGame={multiplayerGame}
         isLoading={isLoading}
         initialNumBoards={initialBoardsConfig}
@@ -553,6 +576,7 @@ export default function GameMultiplayer() {
         onReady={handleMultiplayerReady}
         onStartGame={handleMultiplayerStart}
         onBack={handleBack}
+        onHomeClick={handleBack}
         onOpenFeedback={() => setShowFeedbackModal(true)}
         onCancelChallenge={handleCancelHostedChallengeWithCleanup}
         onRematch={handleRematchStart}
@@ -620,6 +644,7 @@ export default function GameMultiplayer() {
           currentUserId={authUser ? authUser.uid : null}
           onAddFriend={handleAddFriendRequest}
           friendRequestSent={friendRequestSent}
+          friendIds={friends?.map(f => f.id) ?? []}
           onRematch={handleRematchStart}
           onChangeMode={() => {
             setShowPopup(false);

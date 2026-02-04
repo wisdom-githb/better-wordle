@@ -132,7 +132,7 @@
   box-shadow: 0 0 0 2px rgba(201, 180, 88, 0.4);
 }
 
-/* Popover: all earned badges */
+/* Popover: all earned badges. z-index must stay above highest overlay (e.g. AuthModal 10000). */
 .userCard-badgePopover {
   position: absolute;
   top: 100%;
@@ -144,12 +144,12 @@
   border: 1px solid #3a3a3c;
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  z-index: 1000;
+  z-index: 10050;
 }
 
-/* Portaled popover (leaderboard, etc.): avoid overflow clipping */
+/* Portaled popover (leaderboard, modals, etc.): avoid overflow clipping; above modals. */
 .userCard-badgePopoverAnchor {
-  z-index: 1000;
+  z-index: 10050;
 }
 .userCard-badgePopoverAnchor .userCard-badgePopover {
   position: static;

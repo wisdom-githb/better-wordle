@@ -141,11 +141,12 @@ describe('useMultiplayerGame – DB operations', () => {
 
     render(<HookWrapper gameCode={null} isHost={true} speedrun={false} />);
 
-    let code;
+    let result;
     await act(async () => {
-      code = await hookResult.createGame();
+      result = await hookResult.createGame();
     });
 
+    const code = result.code;
     expect(code).toHaveLength(6);
     const stored = __dbData[`multiplayer/${code}`];
     expect(stored).toBeTruthy();
@@ -182,7 +183,8 @@ describe('useMultiplayerGame – DB operations', () => {
 
     await act(async () => {
       const returned = await hookResult.joinGame('123456');
-      expect(returned).toBe('123456');
+      expect(returned).toMatchObject({ code: '123456' });
+      expect(returned.gameData).toBeDefined();
     });
 
     // joinGame now only adds to players map, not legacy guestId/guestName
