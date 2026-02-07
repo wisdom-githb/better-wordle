@@ -94,7 +94,7 @@ describe('FriendsModal', () => {
     expect(declineFriendRequest).toHaveBeenCalledWith('req1');
   });
 
-  it('renders friends list with Challenge and Remove actions', () => {
+  it('renders friends list with Challenge and Remove actions', async () => {
     const removeFriend = vi.fn();
 
     useAuth.mockReturnValue({
@@ -113,7 +113,7 @@ describe('FriendsModal', () => {
       createGame: vi.fn().mockResolvedValue('123456'),
     });
 
-    render(<FriendsModal isOpen onRequestClose={vi.fn()} />);
+    const { findAllByTestId } = render(<FriendsModal isOpen onRequestClose={vi.fn()} />);
 
     expect(screen.getByText(/friends \(1\)/i)).toBeInTheDocument();
     expect(screen.getByText('Bob')).toBeInTheDocument();
@@ -122,9 +122,46 @@ describe('FriendsModal', () => {
     fireEvent.click(screen.getByRole('button', { name: /challenge/i }));
     expect(screen.getByText(/multiplayer game configuration/i)).toBeInTheDocument();
 
-    // Remove friend
-    fireEvent.click(screen.getByRole('button', { name: /remove/i }));
+    // Click Remove on friend row to open confirm modal
+    fireEvent.click(screen.getByRole('button', { name: /^remove$/i }));
+    expect(screen.getByText(/remove friend\?/i)).toBeInTheDocument();
+
+    // Confirm removal in the confirm modal (last modal-root is the confirm modal)
+    const modalRoots = await findAllByTestId('modal-root');
+    const confirmModal = modalRoots[modalRoots.length - 1];
+    fireEvent.click(within(confirmModal).getByRole('button', { name: /^remove$/i }));
     expect(removeFriend).toHaveBeenCalledWith('f1');
+  });
+
+  it('cancel in remove-friend confirm modal does not call removeFriend', async () => {
+    const removeFriend = vi.fn();
+
+    useAuth.mockReturnValue({
+      isVerifiedUser: true,
+      user: { uid: 'u1' },
+      friends: [{ id: 'f1', name: 'Bob' }],
+      friendRequests: [],
+      incomingChallenges: [],
+      acceptFriendRequest: vi.fn(),
+      declineFriendRequest: vi.fn(),
+      removeFriend,
+      sendChallenge: vi.fn(),
+    });
+
+    useMultiplayerGame.mockReturnValue({
+      createGame: vi.fn(),
+    });
+
+    const { findAllByTestId } = render(<FriendsModal isOpen onRequestClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^remove$/i }));
+    expect(screen.getByText(/remove friend\?/i)).toBeInTheDocument();
+
+    const modalRoots = await findAllByTestId('modal-root');
+    const confirmModal = modalRoots[modalRoots.length - 1];
+    fireEvent.click(within(confirmModal).getByRole('button', { name: /cancel/i }));
+
+    expect(removeFriend).not.toHaveBeenCalled();
   });
 
   it('creates a challenge and navigates to multiplayer when sendChallenge succeeds', async () => {
@@ -144,7 +181,7 @@ describe('FriendsModal', () => {
     });
 
     useMultiplayerGame.mockReturnValue({
-      createGame,
+      createGame: createGame.mockResolvedValue({ code: '654321' }),
     });
 
     const { findAllByTestId } = render(<FriendsModal isOpen onRequestClose={vi.fn()} />);
@@ -165,6 +202,7 @@ describe('FriendsModal', () => {
         maxPlayers: 2,
         isPublic: false,
         boards: 1,
+        challengeOnly: true,
       });
       expect(sendChallenge).toHaveBeenCalledWith('f1', 'Bob', '654321', 1, false);
     });

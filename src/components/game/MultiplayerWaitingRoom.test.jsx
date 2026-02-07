@@ -135,7 +135,7 @@ describe('MultiplayerWaitingRoom', () => {
       />,
     );
 
-    const notReadyButton = screen.getByRole('button', { name: 'All Ready - Starting...' });
+    const notReadyButton = screen.getByRole('button', { name: 'All ready' });
     expect(notReadyButton).toBeDisabled();
 
     const startButton = screen.getByRole('button', { name: 'Start Game' });

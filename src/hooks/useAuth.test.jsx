@@ -20,6 +20,12 @@ vi.mock('firebase/firestore', () => ({
   getDoc: vi.fn(() => Promise.resolve({ exists: () => false, data: () => null })),
 }));
 
+// Mock firebase/functions so config/firebase.js getFunctions(app) does not throw
+vi.mock('firebase/functions', () => ({
+  getFunctions: vi.fn(() => ({})),
+  httpsCallable: vi.fn(() => vi.fn()),
+}));
+
 // Auth mock state lives entirely inside the mock factory so it is safe with Vitest hoisting
 vi.mock('firebase/auth', () => {
   const inMemoryAuth = { currentUser: null };
@@ -845,7 +851,7 @@ describe('useAuth - friends & challenges helpers', () => {
     const sentRef = ref(db, 'users/friend-1/sentChallenges/GM456');
     await set(sentRef, { toUserId: 'me', gameCode: 'GM456' });
     const gameRef = ref(db, 'multiplayer/GM456');
-    await set(gameRef, { status: 'waiting' });
+    await set(gameRef, { status: 'waiting', challengeOnly: true });
 
     const { result } = renderHook(() => useAuth());
     const listener = getAuthListener();
@@ -880,11 +886,11 @@ describe('useAuth - friends & challenges helpers', () => {
     const db = firebaseDb.getDatabase();
 
     const sentRef = ref(db, 'users/me/sentChallenges/GM1');
-    await set(sentRef, { toUserId: 'friend-1', gameCode: 'GM1' });
+    await set(sentRef, { toUserId: 'friend-1', gameCode: 'GM1', createdAt: Date.now() });
     const incomingRef = ref(db, 'users/friend-1/challenges/GM1');
     await set(incomingRef, { fromUserId: 'me', gameCode: 'GM1' });
     const gameRef = ref(db, 'multiplayer/GM1');
-    await set(gameRef, { status: 'waiting' });
+    await set(gameRef, { status: 'waiting', challengeOnly: true });
 
     const { result } = renderHook(() => useAuth());
     const listener = getAuthListener();

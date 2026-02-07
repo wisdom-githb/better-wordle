@@ -220,6 +220,8 @@ const createGame = useCallback(async (options = {}) => {
       : 1;
     const configBoards = clampBoards(rawBoards);
 
+    const challengeOnly = options.challengeOnly === true;
+
     const code = generateGameCode();
     const gamePath = `multiplayer/${code}`;
 
@@ -239,6 +241,7 @@ const createGame = useCallback(async (options = {}) => {
       maxPlayers,
       isPublic,
       configBoards,
+      ...(challengeOnly && { challengeOnly: true }),
       // All game state lives in the players map
       players: {
         [user.uid]: {

@@ -12,23 +12,50 @@ vi.mock('../hooks/useUserBadges', () => ({
   useBadgesForUser: () => ({ userBadges: {}, loading: false, error: null }),
 }));
 
+vi.mock('../hooks/useNotificationSeen', () => ({
+  useNotificationSeen: vi.fn(),
+  getUnseenNotificationCount: vi.fn((friendRequests, incomingChallenges, notificationSeenAt) =>
+    (friendRequests?.length || 0) + (incomingChallenges?.length || 0)
+  ),
+  getUnseenWithLabels: vi.fn(() => []),
+  CHALLENGE_EXPIRY_MS: 30 * 60 * 1000,
+}));
+
 vi.mock('../hooks/useDailyResetTimer', () => ({
   useDailyResetTimer: vi.fn(),
+}));
+
+vi.mock('./NotificationsModal', () => ({
+  default: ({ isOpen, onRequestClose }) =>
+    isOpen ? (
+      <div data-testid="notifications-modal">
+        <button type="button" onClick={onRequestClose}>
+          Close notifications
+        </button>
+      </div>
+    ) : null,
 }));
 
 const navigateMock = vi.fn();
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => navigateMock,
+  useLocation: () => ({ pathname: '/', search: '', hash: '' }),
 }));
 
 import { useAuth } from '../hooks/useAuth';
 import { useDailyResetTimer } from '../hooks/useDailyResetTimer';
+import { useNotificationSeen } from '../hooks/useNotificationSeen';
 import SiteHeader from './SiteHeader';
 
 beforeEach(() => {
   vi.clearAllMocks();
   navigateMock.mockReset();
+  useNotificationSeen.mockReturnValue({
+    notificationSeenAt: null,
+    markNotificationsSeen: vi.fn(),
+    loading: false,
+  });
 });
 
 describe('SiteHeader', () => {
@@ -54,6 +81,9 @@ describe('SiteHeader', () => {
     useAuth.mockReturnValue({
       user: { displayName: 'Alice', email: 'alice@example.com' },
       signOut: vi.fn(),
+      friendRequests: [],
+      incomingChallenges: [],
+      isVerifiedUser: true,
     });
     useDailyResetTimer.mockReturnValue('00:10:00');
 
@@ -89,6 +119,9 @@ describe('SiteHeader', () => {
     useAuth.mockReturnValue({
       user: { displayName: 'Bob', email: 'bob@example.com' },
       signOut,
+      friendRequests: [],
+      incomingChallenges: [],
+      isVerifiedUser: true,
     });
     useDailyResetTimer.mockReturnValue('00:10:00');
 
@@ -158,11 +191,96 @@ describe('SiteHeader', () => {
     // Received card: Bob
     expect(screen.getByText(/Bob/i)).toBeInTheDocument();
 
-    // Cancel button in Sent section should call cancelSentChallenge with game code
-    const cancelButton = screen.getByRole('button', { name: /cancel/i });
-    await user.click(cancelButton);
+    // Dismiss button in Sent section should call cancelSentChallenge with game code
+    const dismissButtons = screen.getAllByRole('button', { name: /dismiss/i });
+    await user.click(dismissButtons[0]);
 
     expect(cancelSentChallenge).toHaveBeenCalledTimes(1);
     expect(cancelSentChallenge).toHaveBeenCalledWith('654321');
+  });
+
+  it('shows notification icon when user is signed in and verified', () => {
+    useAuth.mockReturnValue({
+      user: { displayName: 'Alice', email: 'alice@example.com' },
+      signOut: vi.fn(),
+      friendRequests: [],
+      incomingChallenges: [],
+      isVerifiedUser: true,
+    });
+    useDailyResetTimer.mockReturnValue('00:10:00');
+
+    render(<SiteHeader onOpenFeedback={vi.fn()} onSignUpComplete={vi.fn()} />);
+
+    const notificationsButton = screen.getByRole('button', { name: /notifications/i });
+    expect(notificationsButton).toBeInTheDocument();
+  });
+
+  it('hides notification icon when user is not verified', () => {
+    useAuth.mockReturnValue({
+      user: { displayName: 'Alice', email: 'alice@example.com' },
+      signOut: vi.fn(),
+      friendRequests: [],
+      incomingChallenges: [],
+      isVerifiedUser: false,
+    });
+    useDailyResetTimer.mockReturnValue('00:10:00');
+
+    render(<SiteHeader onOpenFeedback={vi.fn()} onSignUpComplete={vi.fn()} />);
+
+    expect(screen.queryByRole('button', { name: /notifications/i })).not.toBeInTheDocument();
+  });
+
+  it('opens NotificationsModal when notification icon is clicked', async () => {
+    useAuth.mockReturnValue({
+      user: { displayName: 'Alice', email: 'alice@example.com' },
+      signOut: vi.fn(),
+      friendRequests: [],
+      incomingChallenges: [],
+      isVerifiedUser: true,
+    });
+    useDailyResetTimer.mockReturnValue('00:10:00');
+
+    const user = userEvent.setup();
+    render(<SiteHeader onOpenFeedback={vi.fn()} onSignUpComplete={vi.fn()} />);
+
+    const notificationsButton = screen.getByRole('button', { name: /notifications/i });
+    await user.click(notificationsButton);
+
+    expect(screen.getByTestId('notifications-modal')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /close notifications/i })).toBeInTheDocument();
+  });
+
+  it('shows no badge on notification icon when unseen count is 0', () => {
+    useAuth.mockReturnValue({
+      user: { displayName: 'Alice', email: 'alice@example.com' },
+      signOut: vi.fn(),
+      friendRequests: [],
+      incomingChallenges: [],
+      isVerifiedUser: true,
+    });
+    useDailyResetTimer.mockReturnValue('00:10:00');
+
+    render(<SiteHeader onOpenFeedback={vi.fn()} onSignUpComplete={vi.fn()} />);
+
+    const notificationsButton = screen.getByRole('button', { name: /^Notifications$/ });
+    expect(notificationsButton).toHaveAttribute('aria-label', 'Notifications');
+    expect(screen.queryByText('1')).not.toBeInTheDocument();
+  });
+
+  it('shows unseen count badge and aria-label when count > 0', () => {
+    useAuth.mockReturnValue({
+      user: { displayName: 'Alice', email: 'alice@example.com' },
+      signOut: vi.fn(),
+      friendRequests: [{ id: 'req1', fromName: 'Bob' }, { id: 'req2', fromName: 'Carol' }],
+      incomingChallenges: [],
+      isVerifiedUser: true,
+    });
+    useDailyResetTimer.mockReturnValue('00:10:00');
+
+    render(<SiteHeader onOpenFeedback={vi.fn()} onSignUpComplete={vi.fn()} />);
+
+    const notificationsButton = screen.getByRole('button', { name: /notifications, 2 unread/i });
+    expect(notificationsButton).toHaveAttribute('aria-label', 'Notifications, 2 unread');
+    expect(screen.getByText('2')).toBeInTheDocument();
   });
 });

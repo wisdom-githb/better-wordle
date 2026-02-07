@@ -85,6 +85,7 @@ const baseProps = {
   onCancelChallenge: () => {},
   onUpdateConfig: () => {},
   onInviteFriend: () => {},
+  isVerifiedUser: true,
 };
 
 describe('MultiplayerGameView unauthenticated multiplayer gating', () => {
@@ -158,8 +159,9 @@ describe('MultiplayerGameView connection / error handling', () => {
       </Suspense>,
     );
 
-    expect(screen.getByText('Error: Game not found or has expired.')).toBeInTheDocument();
-    const homeButton = screen.getByRole('button', { name: 'Home' });
+    // "Game not found or has expired." is treated as room-closed, so UI shows that message
+    expect(screen.getByText('The host has left the room')).toBeInTheDocument();
+    const homeButton = screen.getByRole('button', { name: 'Go home' });
     expect(homeButton).toBeInTheDocument();
   });
 });

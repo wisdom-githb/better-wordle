@@ -50,7 +50,7 @@ export function getEarnedBadgeDefs(userBadges) {
  * @param {unknown} val
  * @returns {number}
  */
-function getEarnedAt(val) {
+export function getEarnedAt(val) {
   if (val === true) return 0;
   if (val && typeof val === 'object' && typeof (/** @type {{ earnedAt?: number }} */ (val).earnedAt) === 'number') {
     return (/** @type {{ earnedAt: number }} */ (val)).earnedAt;

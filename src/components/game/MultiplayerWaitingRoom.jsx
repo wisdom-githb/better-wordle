@@ -462,6 +462,7 @@ export default function MultiplayerWaitingRoom({
                     <button
                       type="button"
                       onClick={handleToggleReady}
+                      disabled={allPlayersReady}
                       className={
                         allPlayersReady
                           ? 'waitingRoomSecondaryButton waitingRoomReadyButton waitingRoomReadyButtonDisabled'

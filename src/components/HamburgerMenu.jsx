@@ -1,9 +1,15 @@
 import React, { useState, useCallback, Suspense, lazy } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { CHALLENGE_EXPIRY_MS } from "../hooks/useNotificationSeen";
 import Modal from "./Modal";
 import SignInRequiredModal from "./SignInRequiredModal";
 import UserCardWithBadges from "./UserCardWithBadges";
+
+function isChallengeExpired(ch) {
+  const createdAt = ch?.createdAt || 0;
+  return createdAt + CHALLENGE_EXPIRY_MS < Date.now();
+}
 
 const FriendsModal = lazy(() => import("./FriendsModal"));
 const OpenRoomsModal = lazy(() => import("./OpenRoomsModal"));
@@ -445,54 +451,82 @@ export default function HamburgerMenu({ onOpenFeedback, onSignUpComplete }) {
                     marginBottom: "12px",
                   }}
                 >
-                  {sentChallenges.map((ch) => (
-                    <div
-                      key={ch.id}
-                      style={{
-                        padding: "10px 12px",
-                        borderRadius: 8,
-                        border: "1px solid #3a3a3c",
-                        background: "#2b2b2e",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: "10px",
-                      }}
-                    >
-                      <div style={{ textAlign: "left", flex: 1 }}>
-                        <div style={{ marginBottom: 2 }}>
-                          <UserCardWithBadges
-                            userId={ch.toUserId}
-                            username={ch.toUserName || ch.friendName || "Unknown friend"}
-                            size="sm"
-                          />
+                  {sentChallenges.map((ch) => {
+                    const expired = isChallengeExpired(ch);
+                    return (
+                      <div
+                        key={ch.id}
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: 8,
+                          border: "1px solid #3a3a3c",
+                          background: "#2b2b2e",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: "10px",
+                        }}
+                      >
+                        <div style={{ textAlign: "left", flex: 1 }}>
+                          <div style={{ marginBottom: 2 }}>
+                            <UserCardWithBadges
+                              userId={ch.toUserId}
+                              username={ch.toUserName || ch.friendName || "Unknown friend"}
+                              size="sm"
+                            />
+                          </div>
+                          <div style={{ color: "#d7dadc", fontSize: 12 }}>
+                            {ch.boards || 1} board{(ch.boards || 1) > 1 ? "s" : ""} · {ch.speedrun ? "Speedrun" : "Standard"}
+                            {expired && (
+                              <span style={{ marginLeft: 8, fontSize: 11, color: "#818384", fontWeight: "600" }}>Expired</span>
+                            )}
+                          </div>
                         </div>
-                        <div style={{ color: "#d7dadc", fontSize: 12 }}>
-                          {ch.boards || 1} board{(ch.boards || 1) > 1 ? "s" : ""} · {ch.speedrun ? "Speedrun" : "Standard"}
-                        </div>
+                        {expired ? (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await cancelSentChallenge(ch.gameCode || ch.id);
+                              } catch (err) {
+                                // eslint-disable-next-line no-alert
+                                alert(err?.message || 'Failed to dismiss challenge');
+                              }
+                            }}
+                            className="homeBtn homeBtnOutline"
+                            style={{
+                              padding: "6px 10px",
+                              fontSize: 11,
+                              borderRadius: 6,
+                              color: "#818384",
+                            }}
+                          >
+                            Dismiss
+                          </button>
+                        ) : (
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await cancelSentChallenge(ch.gameCode || ch.id);
+                                } catch (err) {
+                                  // eslint-disable-next-line no-alert
+                                  alert(err?.message || 'Failed to cancel challenge');
+                                }
+                              }}
+                              className="homeBtn homeBtnOutline"
+                              style={{
+                                padding: "6px 10px",
+                                fontSize: 11,
+                                borderRadius: 6,
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      <div style={{ display: "flex", gap: "6px" }}>
-                        <button
-                          onClick={async () => {
-                            try {
-                              await cancelSentChallenge(ch.gameCode || ch.id);
-                            } catch (err) {
-                              // eslint-disable-next-line no-alert
-                              alert(err?.message || 'Failed to cancel challenge');
-                            }
-                          }}
-                          className="homeBtn homeBtnOutline"
-                          style={{
-                            padding: "6px 10px",
-                            fontSize: 11,
-                            borderRadius: 6,
-                          }}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
@@ -529,79 +563,107 @@ export default function HamburgerMenu({ onOpenFeedback, onSignUpComplete }) {
                     marginBottom: "16px",
                   }}
                 >
-                  {incomingChallenges.map((ch) => (
-                    <div
-                      key={ch.id}
-                      style={{
-                        padding: "10px 12px",
-                        borderRadius: 8,
-                        border: "1px solid #3a3a3c",
-                        background: "#2b2b2e",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: "10px",
-                      }}
-                    >
-                      <div style={{ textAlign: "left", flex: 1 }}>
-                        <div style={{ marginBottom: 2 }}>
-                          <UserCardWithBadges
-                            userId={ch.fromUserId}
-                            username={ch.fromUserName || "Unknown"}
-                            size="sm"
-                          />
+                  {incomingChallenges.map((ch) => {
+                    const expired = isChallengeExpired(ch);
+                    return (
+                      <div
+                        key={ch.id}
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: 8,
+                          border: "1px solid #3a3a3c",
+                          background: "#2b2b2e",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: "10px",
+                        }}
+                      >
+                        <div style={{ textAlign: "left", flex: 1 }}>
+                          <div style={{ marginBottom: 2 }}>
+                            <UserCardWithBadges
+                              userId={ch.fromUserId}
+                              username={ch.fromUserName || "Unknown"}
+                              size="sm"
+                            />
+                          </div>
+                          <div style={{ color: "#d7dadc", fontSize: 12 }}>
+                            {ch.boards || 1} board{(ch.boards || 1) > 1 ? "s" : ""} · {ch.speedrun ? "Speedrun" : "Standard"}
+                            {expired && (
+                              <span style={{ marginLeft: 8, fontSize: 11, color: "#818384", fontWeight: "600" }}>Expired</span>
+                            )}
+                          </div>
                         </div>
-                        <div style={{ color: "#d7dadc", fontSize: 12 }}>
-                          {ch.boards || 1} board{(ch.boards || 1) > 1 ? "s" : ""} · {ch.speedrun ? "Speedrun" : "Standard"}
-                        </div>
+                        {!expired ? (
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const data = await acceptChallenge(ch.id);
+                                  setShowChallengesModal(false);
+                                  // Navigate into the multiplayer waiting room as the guest.
+                                  const boards = data.boards || 1;
+                                  const speedrun = !!data.speedrun;
+                                  navigate(
+                                    `/game?mode=multiplayer&code=${data.gameCode}&speedrun=${speedrun}&boards=${boards}`,
+                                  );
+                                } catch (err) {
+                                  // eslint-disable-next-line no-alert
+                                  alert(err?.message || 'Failed to accept challenge');
+                                }
+                              }}
+                              className="homeBtn homeBtnGreen"
+                              style={{
+                                padding: "6px 10px",
+                                fontSize: 11,
+                                borderRadius: 6,
+                              }}
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await dismissChallenge(ch.id, ch.gameCode);
+                                } catch (err) {
+                                  // eslint-disable-next-line no-alert
+                                  alert(err?.message || 'Failed to dismiss challenge');
+                                }
+                              }}
+                              className="homeBtn homeBtnOutline"
+                              style={{
+                                padding: "6px 10px",
+                                fontSize: 11,
+                                borderRadius: 6,
+                              }}
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await dismissChallenge(ch.id, ch.gameCode);
+                              } catch (err) {
+                                // eslint-disable-next-line no-alert
+                                alert(err?.message || 'Failed to dismiss challenge');
+                              }
+                            }}
+                            className="homeBtn homeBtnOutline"
+                            style={{
+                              padding: "6px 10px",
+                              fontSize: 11,
+                              borderRadius: 6,
+                              color: "#818384",
+                            }}
+                          >
+                            Dismiss
+                          </button>
+                        )}
                       </div>
-                      <div style={{ display: "flex", gap: "6px" }}>
-                        <button
-                          onClick={async () => {
-                            try {
-                              const data = await acceptChallenge(ch.id);
-                              setShowChallengesModal(false);
-                              // Navigate into the multiplayer waiting room as the guest.
-                              const boards = data.boards || 1;
-                              const speedrun = !!data.speedrun;
-                              navigate(
-                                `/game?mode=multiplayer&code=${data.gameCode}&speedrun=${speedrun}&boards=${boards}`,
-                              );
-                            } catch (err) {
-                              // eslint-disable-next-line no-alert
-                              alert(err?.message || 'Failed to accept challenge');
-                            }
-                          }}
-                          className="homeBtn homeBtnGreen"
-                          style={{
-                            padding: "6px 10px",
-                            fontSize: 11,
-                            borderRadius: 6,
-                          }}
-                        >
-                          Accept
-                        </button>
-                        <button
-                          onClick={async () => {
-                            try {
-                              await dismissChallenge(ch.id, ch.gameCode);
-                            } catch (err) {
-                              // eslint-disable-next-line no-alert
-                              alert(err?.message || 'Failed to dismiss challenge');
-                            }
-                          }}
-                          className="homeBtn homeBtnOutline"
-                          style={{
-                            padding: "6px 10px",
-                            fontSize: 11,
-                            borderRadius: 6,
-                          }}
-                        >
-                          Dismiss
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </>

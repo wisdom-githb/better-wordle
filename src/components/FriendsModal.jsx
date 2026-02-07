@@ -45,6 +45,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
   const [addFriendInput, setAddFriendInput] = React.useState("");
   const [isSendingFriendRequest, setIsSendingFriendRequest] = React.useState(false);
   const [giftLoadingFriendId, setGiftLoadingFriendId] = React.useState(null);
+  const [friendToRemove, setFriendToRemove] = React.useState(null);
 
   const getBaseFullUrl = () => {
     const baseUrl = import.meta.env.BASE_URL || "/";
@@ -327,7 +328,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                       Challenge
                     </button>
                     <button
-                      onClick={() => removeFriend(friend.id)}
+                      onClick={() => setFriendToRemove(friend)}
                       style={{
                         padding: "6px 10px",
                         borderRadius: "6px",
@@ -533,6 +534,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                       maxPlayers: clampedMaxPlayers,
                       isPublic: challengeIsPublic,
                       boards: challengeBoards,
+                      challengeOnly: true,
                     });
                     const code = result.code;
                     const ok = await sendChallenge(
@@ -577,6 +579,75 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                 Challenge
               </button>
             </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Confirm remove friend modal */}
+      <Modal
+        isOpen={!!friendToRemove}
+        onRequestClose={() => setFriendToRemove(null)}
+      >
+        <div style={{ padding: "24px" }}>
+          <h2
+            style={{
+              margin: 0,
+              marginBottom: "24px",
+              fontSize: 20,
+              fontWeight: "bold",
+              color: "#ffffff",
+            }}
+          >
+            Remove friend?
+          </h2>
+          <p
+            style={{
+              margin: 0,
+              marginBottom: "12px",
+              color: "#d7dadc",
+              fontSize: 14,
+            }}
+          >
+            Are you sure you want to remove {friendToRemove?.name} from your friends list? They will be removed from your list on both sides.
+          </p>
+          <div style={{ display: "flex", gap: "12px", marginTop: "12px" }}>
+            <button
+              onClick={() => setFriendToRemove(null)}
+              style={{
+                flex: 1,
+                padding: "12px",
+                borderRadius: 8,
+                border: "1px solid #3a3a3c",
+                background: "transparent",
+                color: "#ffffff",
+                fontSize: 14,
+                fontWeight: "bold",
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                if (friendToRemove) {
+                  removeFriend(friendToRemove.id);
+                  setFriendToRemove(null);
+                }
+              }}
+              style={{
+                flex: 1,
+                padding: "12px",
+                borderRadius: 8,
+                border: "none",
+                background: "#6aaa64",
+                color: "#ffffff",
+                fontSize: 14,
+                fontWeight: "bold",
+                cursor: "pointer",
+              }}
+            >
+              Remove
+            </button>
           </div>
         </div>
       </Modal>

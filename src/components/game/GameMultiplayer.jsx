@@ -462,13 +462,16 @@ export default function GameMultiplayer() {
   // associated with a room, attempt to leave that room so they are removed
   // from the waiting room / players list even when navigating away via
   // browser back or global navigation.
+  // Only run leaveGame for non-hosts: when the host unmounts (e.g. React Strict
+  // Mode remount after navigating from Friends modal challenge), we must not
+  // delete the room or the host would see "Host has left the room" on remount.
   useEffect(() => {
     return () => {
-      if (gameCode) {
+      if (gameCode && !isHost) {
         multiplayerGame.leaveGame(gameCode);
       }
     };
-  }, [gameCode, multiplayerGame.leaveGame]);
+  }, [gameCode, isHost, multiplayerGame.leaveGame]);
 
   const solutionsText = useMemo(
     () => boards.map((b) => b.solution).filter(Boolean).map((w) => w.toUpperCase()).join(" · "),

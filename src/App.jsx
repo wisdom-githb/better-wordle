@@ -16,6 +16,7 @@ const MultiplayerWordleLanding = lazy(() => import("./landing/MultiplayerWordleL
 const MultiBoardWordleLanding = lazy(() => import("./landing/MultiBoardWordleLanding.jsx"));
 const WordleSpeedrunLanding = lazy(() => import("./landing/WordleSpeedrunLanding.jsx"));
 const WordleMarathonLanding = lazy(() => import("./landing/WordleMarathonLanding.jsx"));
+const Notifications = lazy(() => import("./Notifications"));
 
 const MARATHON_LEVELS = [1, 2, 3, 4];
 
@@ -152,6 +153,7 @@ function App() {
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/faq" element={<Faq />} />
         <Route path="/how-to-play" element={<HowToPlay />} />
+        <Route path="/notifications" element={<Notifications />} />
         {/* SEO landing pages */}
         <Route path="/multiplayer-wordle" element={<MultiplayerWordleLanding />} />
         <Route path="/multi-board-wordle" element={<MultiBoardWordleLanding />} />

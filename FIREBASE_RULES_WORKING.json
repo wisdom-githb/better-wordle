@@ -31,6 +31,10 @@
             ".read": "auth.uid === $uid",
             ".write": "auth.uid === $uid || auth.uid === data.child('toUserId').val()"
           }
+        },
+        "notificationSeenAt": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth.uid === $uid"
         }
       }
     },

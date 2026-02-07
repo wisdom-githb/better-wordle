@@ -18,6 +18,7 @@ import { validateUsername } from '../lib/validation';
 import { logError, formatError } from '../lib/errorUtils';
 import { flushPendingLeaderboardOnLogin } from '../lib/pendingLeaderboard';
 import { syncLocalStreaksToRemoteOnLogin } from '../lib/singlePlayerStore';
+import { CHALLENGE_EXPIRY_MS } from './useNotificationSeen';
 
 // Helper: determine whether a user is allowed to use social features (friends,
 // challenges, multiplayer). Centralizing this makes it easy to adjust the
@@ -730,20 +731,24 @@ export function useAuth() {
         }
       }
 
-      // If this dismissal corresponds to a specific multiplayer game, try to mark that
-      // game as cancelled so the host waiting in the lobby sees a clear
-      // message that their challenge was declined.
+      // If this dismissal corresponds to a specific multiplayer game, mark it as
+      // cancelled only when the room was created for a single Friends-modal
+      // challenge (challengeOnly). Already-hosted rooms (invite from waiting room)
+      // must not close when one invited friend declines.
       if (effectiveGameCode) {
         try {
           const gameRef = ref(database, `multiplayer/${effectiveGameCode}`);
           const gameSnap = await get(gameRef);
           if (gameSnap.exists()) {
-            const cancelledByName =
-              auth.currentUser.displayName || auth.currentUser.email || 'Your friend';
-            await update(gameRef, {
-              status: 'cancelled',
-              cancelledByName,
-            });
+            const gameData = gameSnap.val();
+            if (gameData.challengeOnly === true) {
+              const cancelledByName =
+                auth.currentUser.displayName || auth.currentUser.email || 'Your friend';
+              await update(gameRef, {
+                status: 'cancelled',
+                cancelledByName,
+              });
+            }
           }
         } catch (innerErr) {
           console.error('Failed to mark multiplayer game as cancelled after dismissing challenge:', innerErr);
@@ -771,17 +776,22 @@ export function useAuth() {
       const sentRef = ref(database, `users/${currentUserId}/sentChallenges/${gameCode}`);
       const snapshot = await get(sentRef);
       let friendId = null;
+      let isExpired = false;
       if (snapshot.exists()) {
         const data = snapshot.val();
         friendId = data.toUserId || data.friendId || null;
+        const createdAt = data.createdAt || 0;
+        isExpired = createdAt + CHALLENGE_EXPIRY_MS < Date.now();
       }
 
       // Remove from the sender's sentChallenges list regardless of whether we
       // managed to read the payload, so that the UI no longer shows it.
       await remove(sentRef);
 
-      // Remove from the friend's incoming challenges list if we know who they are.
-      if (friendId) {
+      // Remove from the friend's incoming challenges list only when challenge is still active.
+      // When expired, the recipient may have already dismissed (node gone), which causes
+      // PERMISSION_DENIED on remove; skip to avoid console error.
+      if (friendId && !isExpired) {
         try {
           const incomingRef = ref(database, `users/${friendId}/challenges/${gameCode}`);
           await remove(incomingRef);
@@ -796,18 +806,22 @@ export function useAuth() {
         }
       }
 
-      // Best-effort: mark the backing multiplayer game as cancelled so any listeners
-      // (e.g. the guest if they somehow joined directly) see a cancelled state.
+      // Best-effort: mark the backing multiplayer game as cancelled only when the
+      // room was created for a single Friends-modal challenge (challengeOnly).
+      // Already-hosted rooms must not close when the host cancels one sent invite.
       try {
         const gameRef = ref(database, `multiplayer/${gameCode}`);
         const gameSnap = await get(gameRef);
         if (gameSnap.exists()) {
-          const cancelledByName =
-            auth.currentUser.displayName || auth.currentUser.email || 'You';
-          await update(gameRef, {
-            status: 'cancelled',
-            cancelledByName,
-          });
+          const gameData = gameSnap.val();
+          if (gameData.challengeOnly === true) {
+            const cancelledByName =
+              auth.currentUser.displayName || auth.currentUser.email || 'You';
+            await update(gameRef, {
+              status: 'cancelled',
+              cancelledByName,
+            });
+          }
         }
       } catch (innerErr) {
         console.error('Failed to mark multiplayer game as cancelled after host cancelled sent challenge:', innerErr);
