@@ -59,17 +59,20 @@ firebase functions:secrets:set STRIPE_GIFT_WEBHOOK_SECRET
 ```
 Paste the **gift webhook signing secret** from step 3 (starts with `whsec_`).
 
-### 4b. Set the price ID (string param)
+### 4b. Set the gift price IDs (string params)
 
-Create a file `functions/.env` (or `functions/.env.better-wrodle` for your project) with:
+Gifts are **one-time payments** (not recurring subscriptions) with selectable duration (1, 3, 6, or 12 months). Create a file `functions/.env` (or `functions/.env.<projectId>` for your project) with:
 
 ```
-STRIPE_PRICE_ID=price_1Stdu50s95qSLn7SYt1qcvNa
+STRIPE_GIFT_PRICE_ID_1M=price_...
+STRIPE_GIFT_PRICE_ID_3M=price_...
+STRIPE_GIFT_PRICE_ID_6M=price_...
+STRIPE_GIFT_PRICE_ID_12M=price_...
 ```
 
-Use the same price ID as `VITE_STRIPE_PRICE_ID` in your app. You can copy from `functions/.env.example` and replace the placeholder.
+These correspond to one-time Stripe prices for 1 month, 3 months, 6 months, and 1 year. Use the same values as `VITE_STRIPE_GIFT_PRICE_ID_1M` etc. in your app. Copy from `functions/.env.example` and replace the placeholders.
 
-On first deploy, if `STRIPE_PRICE_ID` is missing, the CLI may prompt you to enter it and then save it to `functions/.env.<projectId>`.
+**Note:** The 1-month price ID has changed from the previous single `STRIPE_PRICE_ID`. The old value is deprecated.
 
 ### 4c. Redeploy
 
@@ -88,14 +91,14 @@ No changes are required. Subscription documents are written by Cloud Functions (
 ## 6. What to test
 
 1. **Paid gift (non-admin)**  
-   - Sign in as a normal user, open Friends, click **Gift** for a friend.  
-   - You should be redirected to Stripe Checkout. Pay; after success you are redirected back.  
-   - The friend should get premium (custom claim + Firestore subscription doc).
+   - Sign in as a normal user, open Friends, select a gift duration (1/3/6/12 months), click **Gift** for a friend.  
+   - You should be redirected to Stripe Checkout for a one-time payment. Pay; after success you are redirected back.  
+   - The friend should get premium for the selected duration (custom claim + Firestore subscription doc with correct expiry).
 
 2. **Admin gift (no payment)**  
-   - Sign in as **abhijeetsridhar14@gmail.com**, open Friends, click **Gift** for a friend.  
+   - Sign in as **abhijeetsridhar14@gmail.com**, open Friends, select duration, click **Gift** for a friend.  
    - No Stripe redirect; you should see “Premium granted to &lt;name&gt;”.  
-   - The friend should get premium.
+   - The friend should get premium for the selected duration.
 
 3. **Recipient has no email**  
    - If the friend’s Firebase Auth user has no email, paid gift will fail with “Recipient has no email; cannot send gift checkout.” That is expected.
@@ -119,6 +122,6 @@ Stripe needs the **raw** request body to verify the signature. Firebase exposes 
 - [ ] Copy the webhook **Signing secret** (`whsec_...`)
 - [ ] `firebase functions:secrets:set STRIPE_SECRET_KEY` (paste Stripe secret when prompted)
 - [ ] `firebase functions:secrets:set STRIPE_GIFT_WEBHOOK_SECRET` (paste `whsec_...` when prompted)
-- [ ] Create `functions/.env` with `STRIPE_PRICE_ID=price_...` (or use `.env.<projectId>`)
+- [ ] Create `functions/.env` with `STRIPE_GIFT_PRICE_ID_1M`, `_3M`, `_6M`, `_12M` (or use `.env.<projectId>`)
 - [ ] `firebase deploy --only functions` again
 - [ ] Test paid gift (normal user) and admin gift (abhijeetsridhar14@gmail.com)

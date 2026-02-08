@@ -18,12 +18,15 @@ Gift subscription uses three **2nd gen** functions with Firebase params and Secr
    ```
    Paste your Stripe secret key and the gift webhook signing secret when prompted.
 
-2. **String param** `STRIPE_PRICE_ID`: set in `functions/.env` or `functions/.env.<projectId>`:
+2. **String params** for gift prices (one-time payments): set in `functions/.env` or `functions/.env.<projectId>`:
 
    ```
-   STRIPE_PRICE_ID=price_1Stdu50s95qSLn7SYt1qcvNa
+   STRIPE_GIFT_PRICE_ID_1M=price_...
+   STRIPE_GIFT_PRICE_ID_3M=price_...
+   STRIPE_GIFT_PRICE_ID_6M=price_...
+   STRIPE_GIFT_PRICE_ID_12M=price_...
    ```
-   Copy from `functions/.env.example` and replace the placeholder.
+   Copy from `functions/.env.example` and replace the placeholders.
 
 See **gift-subs.md** in the project root for full setup (webhook URL, Stripe Dashboard, deploy, testing).
 

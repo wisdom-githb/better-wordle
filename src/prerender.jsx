@@ -11,6 +11,9 @@ const PRERENDER_ROUTES = [
   "/leaderboard",
   "/faq",
   "/profile",
+  "/how-to-play",
+  "/notifications",
+  "/stats",
   // SEO landings
   "/multiplayer-wordle",
   "/multi-board-wordle",

@@ -14,7 +14,7 @@ const baseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
 // When 404.html redirects to index.html, it stores the original path in sessionStorage
 // We need to restore the URL before React Router initializes so it routes correctly
 if (typeof window !== 'undefined') {
-  const redirectPath = sessionStorage.getItem('_404_redirect');
+  const redirectPath = sessionStorage.getItem('_404_redirect')?.trim();
   if (redirectPath) {
     sessionStorage.removeItem('_404_redirect');
     // Update the URL to the original path before React Router initializes

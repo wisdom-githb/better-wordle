@@ -50,7 +50,7 @@ export async function saveArchiveSolution({ mode, speedrunEnabled, dateString, s
     });
   } catch (err) {
     // Check if it's a permission error
-    if (err?.code === 'PERMISSION_DENIED' || err?.message?.includes('Permission denied')) {
+    if (err?.code === 'permission-denied' || err?.message?.includes('Permission denied')) {
       logError(err, 'archiveService.saveArchiveSolution - Permission denied. User may not be authenticated.');
     } else {
       logError(err, 'archiveService.saveArchiveSolution');
@@ -79,7 +79,7 @@ export async function loadArchiveSolution({ mode, speedrunEnabled, dateString })
     return null;
   } catch (err) {
     // Check if it's a permission error
-    if (err?.code === 'PERMISSION_DENIED' || err?.message?.includes('Permission denied')) {
+    if (err?.code === 'permission-denied' || err?.message?.includes('Permission denied')) {
       logError(err, 'archiveService.loadArchiveSolution - Permission denied. User may not be authenticated.');
     } else {
       logError(err, 'archiveService.loadArchiveSolution');

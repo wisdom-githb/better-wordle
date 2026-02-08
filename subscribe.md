@@ -928,12 +928,22 @@ Based on your current setup, here's what you need to do:
 Add your Stripe Price ID (the one you created in Stripe Dashboard) to your `.env` file:
 
 ```env
-VITE_STRIPE_PUBLISHABLE_KEY=pk_live_51StZPS0s95qSLn7Skemv28130qZGlU90b1YpiBJMJLnjduR5Z4j6poOX39mahUN2vNaii42TP29mbYCt6LLQcTxR00dhS16E4L # Your Stripe publishable key
-VITE_STRIPE_PRICE_ID=price_1Stdu50s95qSLn7SYt1qcvNa
- # Your Stripe Price ID (starts with price_)
+VITE_STRIPE_PUBLISHABLE_KEY=pk_live_...  # Your Stripe publishable key
+
+# Regular subscription prices (recurring) - one per duration
+VITE_STRIPE_PRICE_ID_1M=price_...
+VITE_STRIPE_PRICE_ID_3M=price_...
+VITE_STRIPE_PRICE_ID_6M=price_...
+VITE_STRIPE_PRICE_ID_12M=price_...
+
+# Gift subscription prices (one-time payments) - one per duration
+VITE_STRIPE_GIFT_PRICE_ID_1M=price_...
+VITE_STRIPE_GIFT_PRICE_ID_3M=price_...
+VITE_STRIPE_GIFT_PRICE_ID_6M=price_...
+VITE_STRIPE_GIFT_PRICE_ID_12M=price_...
 ```
 
-**Important:** Replace `price_XXXXX` with the actual Price ID from your Stripe product.
+**Important:** Replace the placeholders with actual Price IDs from your Stripe products. Regular subscriptions use recurring prices; gifts use one-time payment prices.
 
 ### 2. About "Basic" Metadata
 

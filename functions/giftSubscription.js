@@ -3,7 +3,7 @@
  *
  * Uses Firebase params and Secret Manager (no deprecated functions.config()).
  *
- * - createGiftCheckoutSession: callable; creates Stripe Checkout for gifting subscription
+ * - createGiftCheckoutSession: callable; creates Stripe Checkout for one-time gift payment
  * - stripeGiftWebhook: HTTPS; Stripe webhook for checkout.session.completed
  * - adminGiftSubscription: callable; admin can grant premium without payment
  *
@@ -11,8 +11,7 @@
  *   1. Secrets (Stripe secret + gift webhook signing secret):
  *      firebase functions:secrets:set STRIPE_SECRET_KEY
  *      firebase functions:secrets:set STRIPE_GIFT_WEBHOOK_SECRET
- *   2. String param STRIPE_PRICE_ID: set in functions/.env or .env.<projectId>
- *      STRIPE_PRICE_ID=price_...
+ *   2. String params STRIPE_GIFT_PRICE_ID_1M, _3M, _6M, _12M: set in functions/.env
  *   See gift-subs.md for full steps.
  */
 
@@ -30,15 +29,28 @@ const firestore = admin.firestore();
 
 const ADMIN_EMAIL = 'abhijeetsridhar14@gmail.com';
 
-// Params: loaded from .env (e.g. functions/.env or .env.<projectId>) or prompted at deploy
-const stripePriceId = defineString('STRIPE_PRICE_ID', { description: 'Stripe premium price ID (e.g. price_...)' });
+const DURATION_VALUES = ['1m', '3m', '6m', '12m'];
+const DURATION_DAYS_MAP = { '1m': 30, '3m': 90, '6m': 180, '12m': 365 };
+
+// Params: gift price IDs for one-time payments
+const stripeGiftPriceId1m = defineString('STRIPE_GIFT_PRICE_ID_1M');
+const stripeGiftPriceId3m = defineString('STRIPE_GIFT_PRICE_ID_3M');
+const stripeGiftPriceId6m = defineString('STRIPE_GIFT_PRICE_ID_6M');
+const stripeGiftPriceId12m = defineString('STRIPE_GIFT_PRICE_ID_12M');
+
+const giftPriceIdMap = {
+  '1m': stripeGiftPriceId1m,
+  '3m': stripeGiftPriceId3m,
+  '6m': stripeGiftPriceId6m,
+  '12m': stripeGiftPriceId12m,
+};
 
 // Secrets: set via firebase functions:secrets:set STRIPE_SECRET_KEY etc.
 const stripeSecret = defineSecret('STRIPE_SECRET_KEY');
 const giftWebhookSecret = defineSecret('STRIPE_GIFT_WEBHOOK_SECRET');
 
 /**
- * Callable: createGiftCheckoutSession(recipientUid, baseUrl)
+ * Callable: createGiftCheckoutSession(recipientUid, baseUrl, duration?)
  */
 exports.createGiftCheckoutSession = onCall(
   { secrets: [stripeSecret] },
@@ -52,21 +64,26 @@ exports.createGiftCheckoutSession = onCall(
       throw new HttpsError('invalid-argument', 'recipientUid is required.');
     }
 
+    const duration = request.data?.duration || '1m';
+    if (!DURATION_VALUES.includes(duration)) {
+      throw new HttpsError('invalid-argument', 'duration must be one of: 1m, 3m, 6m, 12m');
+    }
+
     let secret;
     let priceId;
     try {
       secret = (stripeSecret.value() || '').trim();
-      priceId = (stripePriceId.value() || '').trim();
+      priceId = (giftPriceIdMap[duration].value() || '').trim();
     } catch (paramErr) {
       throw new HttpsError(
         'failed-precondition',
-        'Stripe is not configured. Set STRIPE_SECRET_KEY secret and STRIPE_PRICE_ID (e.g. in functions/.env).'
+        'Stripe is not configured. Set STRIPE_SECRET_KEY and STRIPE_GIFT_PRICE_ID_* (e.g. in functions/.env).'
       );
     }
     if (!secret || !priceId) {
       throw new HttpsError(
         'failed-precondition',
-        'Stripe is not configured. Set STRIPE_SECRET_KEY secret and STRIPE_PRICE_ID (e.g. in functions/.env).'
+        'Stripe is not configured. Set STRIPE_SECRET_KEY and STRIPE_GIFT_PRICE_ID_* (e.g. in functions/.env).'
       );
     }
 
@@ -96,13 +113,12 @@ exports.createGiftCheckoutSession = onCall(
       const stripe = new Stripe(secret, { apiVersion: '2023-10-16' });
 
       const session = await stripe.checkout.sessions.create({
-        mode: 'subscription',
+        mode: 'payment',
         customer_email: recipientEmail,
         line_items: [{ price: priceId, quantity: 1 }],
         success_url: successUrl,
         cancel_url: cancelUrl,
-        metadata: { recipient_uid: recipientUid },
-        subscription_data: { metadata: { recipient_uid: recipientUid } },
+        metadata: { recipient_uid: recipientUid, duration },
       });
 
       return { url: session.url };
@@ -165,29 +181,50 @@ exports.stripeGiftWebhook = onRequest(
       return;
     }
 
-    const subscriptionId = session.subscription;
-    if (!subscriptionId) {
-      console.error('No subscription ID in session');
-      res.status(200).send('OK');
-      return;
-    }
+    const now = Math.floor(Date.now() / 1000);
 
     try {
-      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-      const status = subscription.status;
-      const currentPeriodEnd = subscription.current_period_end;
-      const created = subscription.created;
+      if (session.mode === 'payment') {
+        // One-time gift payment: create subscription doc with duration-based expiry
+        const duration = session.metadata?.duration || '1m';
+        const durationDays = DURATION_DAYS_MAP[duration] ?? 30;
+        const currentPeriodEnd = now + durationDays * 24 * 60 * 60;
+        const docId = `gift_${session.payment_intent || session.id || Date.now()}`;
 
-      const subscriptionDoc = {
-        id: subscription.id,
-        status: status === 'active' || status === 'trialing' ? status : 'active',
-        current_period_end: currentPeriodEnd,
-        created,
-        updated_at: Math.floor(Date.now() / 1000),
-      };
+        const subscriptionDoc = {
+          id: docId,
+          status: 'active',
+          current_period_end: currentPeriodEnd,
+          created: now,
+          updated_at: now,
+        };
 
-      const ref = firestore.doc(`customers/${recipientUid}/subscriptions/${subscription.id}`);
-      await ref.set(subscriptionDoc);
+        const ref = firestore.doc(`customers/${recipientUid}/subscriptions/${docId}`);
+        await ref.set(subscriptionDoc);
+      } else {
+        // Legacy subscription mode (if any)
+        const subscriptionId = session.subscription;
+        if (!subscriptionId) {
+          res.status(200).send('OK');
+          return;
+        }
+
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const status = subscription.status;
+        const currentPeriodEnd = subscription.current_period_end;
+        const created = subscription.created;
+
+        const subscriptionDoc = {
+          id: subscription.id,
+          status: status === 'active' || status === 'trialing' ? status : 'active',
+          current_period_end: currentPeriodEnd,
+          created,
+          updated_at: now,
+        };
+
+        const ref = firestore.doc(`customers/${recipientUid}/subscriptions/${subscription.id}`);
+        await ref.set(subscriptionDoc);
+      }
 
       await auth.setCustomUserClaims(recipientUid, { stripeRole: 'premium' });
     } catch (err) {
@@ -201,7 +238,7 @@ exports.stripeGiftWebhook = onRequest(
 );
 
 /**
- * Callable: adminGiftSubscription(recipientUid)
+ * Callable: adminGiftSubscription(recipientUid, duration?)
  */
 exports.adminGiftSubscription = onCall(async (request) => {
   if (!request.auth) {
@@ -217,6 +254,15 @@ exports.adminGiftSubscription = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'recipientUid is required.');
   }
 
+  const duration = request.data?.duration || '1m';
+  if (!DURATION_VALUES.includes(duration)) {
+    throw new HttpsError('invalid-argument', 'duration must be one of: 1m, 3m, 6m, 12m');
+  }
+
+  const durationDays = DURATION_DAYS_MAP[duration] ?? 30;
+  const now = Math.floor(Date.now() / 1000);
+  const currentPeriodEnd = now + durationDays * 24 * 60 * 60;
+
   try {
     await auth.setCustomUserClaims(recipientUid, { stripeRole: 'premium' });
 
@@ -224,9 +270,9 @@ exports.adminGiftSubscription = onCall(async (request) => {
     await firestore.doc(`customers/${recipientUid}/subscriptions/${docId}`).set({
       id: docId,
       status: 'active',
-      current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
-      created: Math.floor(Date.now() / 1000),
-      updated_at: Math.floor(Date.now() / 1000),
+      current_period_end: currentPeriodEnd,
+      created: now,
+      updated_at: now,
     });
   } catch (err) {
     console.error('adminGiftSubscription error:', err);

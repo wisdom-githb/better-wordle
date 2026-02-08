@@ -12,6 +12,7 @@ import {
 } from "../config/firebase";
 import "./FriendsModal.css";
 import { MAX_BOARDS } from "../lib/gameConstants";
+import { DURATION_OPTIONS, DURATION_VALUES } from "../lib/subscriptionConstants";
 
 const ADMIN_EMAIL = "abhijeetsridhar14@gmail.com";
 
@@ -46,6 +47,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
   const [isSendingFriendRequest, setIsSendingFriendRequest] = React.useState(false);
   const [giftLoadingFriendId, setGiftLoadingFriendId] = React.useState(null);
   const [friendToRemove, setFriendToRemove] = React.useState(null);
+  const [selectedGiftDuration, setSelectedGiftDuration] = React.useState("1m");
 
   const getBaseFullUrl = () => {
     const baseUrl = import.meta.env.BASE_URL || "/";
@@ -61,11 +63,15 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
     try {
       if (isAdmin) {
         const adminGift = adminGiftSubscriptionCallable();
-        await adminGift({ recipientUid: friend.id });
+        await adminGift({ recipientUid: friend.id, duration: selectedGiftDuration });
         setTimedMessage(`Premium granted to ${friend.name}.`, 4000);
       } else {
         const createGift = createGiftCheckoutSessionCallable();
-        const result = await createGift({ recipientUid: friend.id, baseUrl: baseFullUrl });
+        const result = await createGift({
+          recipientUid: friend.id,
+          baseUrl: baseFullUrl,
+          duration: selectedGiftDuration,
+        });
         const url = result?.data?.url;
         if (url) {
           window.location.assign(url);
@@ -77,7 +83,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
       let msg = err?.message || (err?.code ? `Error: ${err.code}` : "Could not complete gift.");
       if (err?.code === "functions/internal" || err?.code === "internal") {
         msg =
-          "Gift checkout is unavailable. If you're setting this up, deploy the latest Cloud Functions and set STRIPE_PRICE_ID and STRIPE_SECRET_KEY (see gift-subs.md).";
+          "Gift checkout is unavailable. If you're setting this up, deploy the latest Cloud Functions and set STRIPE_GIFT_PRICE_ID_* and STRIPE_SECRET_KEY (see gift-subs.md).";
       }
       setTimedMessage(msg, 7000);
     } finally {
@@ -253,6 +259,43 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
             </div>
           </div>
         )}
+
+        {/* Gift duration selector */}
+        <div style={{ marginBottom: "20px", textAlign: "left" }}>
+          <label
+            style={{
+              display: "block",
+              marginBottom: "6px",
+              fontSize: "13px",
+              color: "#d7dadc",
+            }}
+          >
+            Gift premium duration
+          </label>
+          <select
+            value={selectedGiftDuration}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (DURATION_VALUES.includes(v)) setSelectedGiftDuration(v);
+            }}
+            style={{
+              padding: "8px 12px",
+              borderRadius: 6,
+              border: "1px solid #3a3a3c",
+              background: "#121213",
+              color: "#ffffff",
+              fontSize: 13,
+              cursor: "pointer",
+            }}
+          >
+            {DURATION_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label} - ${opt.pricePerMonth}/month
+                {opt.savings ? ` (save ${opt.savings})` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
 
         {/* Friends Section */}
         <div>

@@ -17,6 +17,8 @@ export default defineConfig({
         '/faq',
         '/profile',
         '/how-to-play',
+        '/notifications',
+        '/stats',
         // Long-tail SEO landing pages (match current features; multiplayer landing)
         '/multiplayer-wordle',
         '/multi-board-wordle',

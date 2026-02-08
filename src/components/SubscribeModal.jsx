@@ -3,11 +3,8 @@ import { useAuth } from '../hooks/useAuth';
 import { collection, addDoc, onSnapshot } from 'firebase/firestore';
 import { firestore } from '../config/firebase';
 import Modal from './Modal';
+import { DURATION_OPTIONS } from '../lib/subscriptionConstants';
 
-/**
- * Modal for subscription payment
- * This component handles the subscription flow and payment processing
- */
 /**
  * Modal for subscription payment using Firebase Extension for Stripe
  * Creates a checkout session in Firestore, which the extension processes
@@ -17,12 +14,18 @@ export default function SubscribeModal({ isOpen, onRequestClose, onSubscriptionC
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [selectedDuration, setSelectedDuration] = useState('1m');
   const unsubscribeRef = useRef(null);
   const timeoutRef = useRef(null);
 
-  // Get the Stripe Price ID from environment variable or use default
-  // Replace 'price_XXXXX' with your actual Stripe Price ID
-  const STRIPE_PRICE_ID = import.meta.env.VITE_STRIPE_PRICE_ID || 'price_XXXXX';
+  const priceIdMap = {
+    '1m': import.meta.env.VITE_STRIPE_PRICE_ID_1M,
+    '3m': import.meta.env.VITE_STRIPE_PRICE_ID_3M,
+    '6m': import.meta.env.VITE_STRIPE_PRICE_ID_6M,
+    '12m': import.meta.env.VITE_STRIPE_PRICE_ID_12M,
+  };
+  const selectedPriceId = priceIdMap[selectedDuration];
+  const selectedOption = DURATION_OPTIONS.find((o) => o.value === selectedDuration);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -44,8 +47,8 @@ export default function SubscribeModal({ isOpen, onRequestClose, onSubscriptionC
       return;
     }
 
-    if (STRIPE_PRICE_ID === 'price_XXXXX') {
-      setError('Stripe Price ID not configured. Please set VITE_STRIPE_PRICE_ID in your .env file.');
+    if (!selectedPriceId) {
+      setError('Stripe Price ID not configured. Please set VITE_STRIPE_PRICE_ID_1M in your .env file.');
       return;
     }
 
@@ -77,7 +80,7 @@ export default function SubscribeModal({ isOpen, onRequestClose, onSubscriptionC
       const docRef = await addDoc(
         collection(firestore, 'customers', user.uid, 'checkout_sessions'),
         {
-          price: STRIPE_PRICE_ID,
+          price: selectedPriceId,
           success_url: `${baseFullUrl}/?subscription=success`,
           cancel_url: `${baseFullUrl}/?subscription=cancelled`,
         }
@@ -200,8 +203,53 @@ export default function SubscribeModal({ isOpen, onRequestClose, onSubscriptionC
             lineHeight: 1.6,
           }}
         >
-          <div style={{ marginBottom: 16 }}>
-            Unlock premium features for just <strong style={{ color: '#6aaa64' }}>$2/month</strong>
+          <div style={{ marginBottom: 12 }}>
+            Unlock premium features. Choose your plan:
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              marginBottom: 16,
+            }}
+          >
+            {DURATION_OPTIONS.map((opt) => (
+              <label
+                key={opt.value}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '10px 14px',
+                  backgroundColor: selectedDuration === opt.value ? '#27272a' : '#1f1f21',
+                  borderRadius: 8,
+                  border: selectedDuration === opt.value ? '2px solid #6aaa64' : '1px solid #3a3a3c',
+                  cursor: 'pointer',
+                }}
+              >
+                <input
+                  type="radio"
+                  name="duration"
+                  value={opt.value}
+                  checked={selectedDuration === opt.value}
+                  onChange={() => setSelectedDuration(opt.value)}
+                  style={{ cursor: 'pointer' }}
+                />
+                <span style={{ flex: 1, color: '#ffffff', fontWeight: 500 }}>
+                  {opt.label}
+                </span>
+                <span style={{ color: '#6aaa64', fontWeight: 'bold' }}>
+                  ${opt.pricePerMonth}/month
+                  {opt.savings && (
+                    <span style={{ marginLeft: 6, fontSize: 12, color: '#818384' }}>
+                      (save {opt.savings})
+                    </span>
+                  )}
+                </span>
+              </label>
+            ))}
           </div>
 
           <div
@@ -233,7 +281,7 @@ export default function SubscribeModal({ isOpen, onRequestClose, onSubscriptionC
           </div>
 
           <div style={{ fontSize: 12, color: '#818384', fontStyle: 'italic' }}>
-            Subscription auto-renews monthly. Cancel anytime.
+            Subscription auto-renews based on plan. Cancel anytime.
           </div>
         </div>
 
@@ -297,7 +345,7 @@ export default function SubscribeModal({ isOpen, onRequestClose, onSubscriptionC
               ? 'Processing...'
               : loading
               ? 'Loading...'
-              : 'Subscribe for $2/month'}
+              : `Subscribe for $${selectedOption?.pricePerMonth ?? 2}/month`}
           </button>
         </div>
 
