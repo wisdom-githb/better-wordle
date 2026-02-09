@@ -1,14 +1,88 @@
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Modal from "./Modal";
-import UserCardWithBadges from "./UserCardWithBadges";
+import BadgeIcon from "./BadgeIcon";
 import { useAuth } from "../hooks/useAuth";
+import { useBadgesForUser } from "../hooks/useUserBadges";
 import { useNotificationSeen } from "../hooks/useNotificationSeen";
+import { getAllEarnedSorted } from "../lib/badges";
 import { CHALLENGE_EXPIRY_MS } from "../hooks/useNotificationSeen";
+import "./NotificationsModal.css";
 
-export default function NotificationsModal({ isOpen, onRequestClose, onViewAllNotifications }) {
+const buttonStyle = {
+  padding: "6px 10px",
+  borderRadius: 6,
+  border: "none",
+  background: "#6aaa64",
+  color: "#ffffff",
+  fontWeight: "bold",
+  fontSize: 11,
+  cursor: "pointer",
+};
+const buttonSecondaryStyle = {
+  ...buttonStyle,
+  border: "1px solid #3a3a3c",
+  background: "transparent",
+};
+
+/**
+ * Single notification card: badge left, text right, Dismiss + View badges buttons.
+ * Uses useBadgesForUser so must be a component (one per item).
+ */
+function NotificationReceivedCard({
+  fromUserId,
+  title,
+  subline,
+  isFriendRequest,
+  onDismiss,
+  onViewBadges,
+}) {
+  const { userBadges } = useBadgesForUser(fromUserId);
+  const firstBadge = getAllEarnedSorted(userBadges)[0] ?? null;
+  const cardClass = `notificationsModalCard${isFriendRequest ? " notificationsModalCard--friendRequest" : ""}`;
+  return (
+    <div className={cardClass} style={{ display: "flex", alignItems: "stretch", gap: 0 }}>
+      {firstBadge ? (
+        <BadgeIcon badge={firstBadge} profileCard />
+      ) : (
+        <span
+          style={{
+            width: 80,
+            minWidth: 80,
+            background: "rgba(0,0,0,0.2)",
+            borderRadius: "8px 0 0 8px",
+          }}
+          aria-hidden
+        />
+      )}
+      <div className="notificationsModalCardContent" style={{ flex: 1 }}>
+        <div className="notificationsModalCardTitle">{title}</div>
+        <div className="notificationsModalCardSub">{subline}</div>
+      </div>
+      <div className="notificationsModalCardActions" style={{ padding: "12px 14px" }}>
+        <button type="button" onClick={onDismiss} style={buttonSecondaryStyle}>
+          Dismiss
+        </button>
+        <button type="button" onClick={onViewBadges} style={buttonStyle}>
+          View badges
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function NotificationsModal({ isOpen, onRequestClose }) {
   const navigate = useNavigate();
-  const { user, isVerifiedUser, friendRequests, incomingChallenges, sentChallenges, acceptFriendRequest, declineFriendRequest, acceptChallenge, dismissChallenge, cancelSentChallenge } = useAuth();
+  const {
+    user,
+    isVerifiedUser,
+    friendRequests,
+    incomingChallenges,
+    sentChallenges,
+    declineFriendRequest,
+    dismissChallenge,
+    cancelSentChallenge,
+  } = useAuth();
   const { markNotificationsSeen } = useNotificationSeen(user);
 
   useEffect(() => {
@@ -22,15 +96,39 @@ export default function NotificationsModal({ isOpen, onRequestClose, onViewAllNo
     return createdAt + CHALLENGE_EXPIRY_MS < Date.now();
   };
 
-  const handleAcceptChallenge = async (ch) => {
+  const handleDismissFriendRequest = async (requestId) => {
     try {
-      const data = await acceptChallenge(ch.id);
-      onRequestClose?.();
-      const boards = data.boards || 1;
-      const speedrun = !!data.speedrun;
-      navigate(`/game?mode=multiplayer&code=${data.gameCode}&speedrun=${speedrun}&boards=${boards}`);
+      await declineFriendRequest(requestId);
     } catch (err) {
-      alert(err?.message || "Failed to accept challenge");
+      alert(err?.message || "Failed to dismiss");
+    }
+  };
+
+  const handleViewBadgesFriendRequest = async (requestId) => {
+    try {
+      await declineFriendRequest(requestId);
+      onRequestClose?.();
+      navigate("/profile", { state: { openYourBadges: true } });
+    } catch (err) {
+      alert(err?.message || "Failed to dismiss");
+    }
+  };
+
+  const handleDismissChallenge = async (ch) => {
+    try {
+      await dismissChallenge(ch.id, ch.gameCode);
+    } catch (err) {
+      alert(err?.message || "Failed to dismiss");
+    }
+  };
+
+  const handleViewBadgesChallenge = async (ch) => {
+    try {
+      await dismissChallenge(ch.id, ch.gameCode);
+      onRequestClose?.();
+      navigate("/profile", { state: { openYourBadges: true } });
+    } catch (err) {
+      alert(err?.message || "Failed to dismiss");
     }
   };
 
@@ -85,7 +183,7 @@ export default function NotificationsModal({ isOpen, onRequestClose, onViewAllNo
           </p>
         ) : (
           <>
-            {/* Friend requests */}
+            {/* Friend requests: badge left, text right, Dismiss + View badges */}
             {hasFriendRequests && (
               <div style={{ marginBottom: "24px" }}>
                 <h3 style={{ margin: "0 0 12px 0", fontSize: "16px", fontWeight: "bold", color: "#d7dadc", textAlign: "left" }}>
@@ -93,66 +191,21 @@ export default function NotificationsModal({ isOpen, onRequestClose, onViewAllNo
                 </h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #3a3a3c" }}>
                   {friendRequests.map((request) => (
-                    <div
+                    <NotificationReceivedCard
                       key={request.id}
-                      style={{
-                        padding: "12px 14px",
-                        background: "#2b2b2e",
-                        borderRadius: "8px",
-                        border: "1px solid #6aaa64",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: "10px",
-                      }}
-                    >
-                      <div style={{ textAlign: "left", flex: 1 }}>
-                        <span style={{ color: "#ffffff", fontWeight: "600" }}>{request.fromName}</span>
-                        <div style={{ color: "#818384", fontSize: "11px", marginTop: "2px" }}>
-                          wants to be friends
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", gap: "6px" }}>
-                        <button
-                          type="button"
-                          onClick={() => acceptFriendRequest(request.id, request.fromName)}
-                          style={{
-                            padding: "6px 10px",
-                            borderRadius: "6px",
-                            border: "none",
-                            background: "#6aaa64",
-                            color: "#ffffff",
-                            fontWeight: "bold",
-                            fontSize: "11px",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Accept
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => declineFriendRequest(request.id)}
-                          style={{
-                            padding: "6px 10px",
-                            borderRadius: "6px",
-                            border: "1px solid #3a3a3c",
-                            background: "transparent",
-                            color: "#ffffff",
-                            fontWeight: "bold",
-                            fontSize: "11px",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Dismiss
-                        </button>
-                      </div>
-                    </div>
+                      fromUserId={request.id}
+                      title={request.fromName || "Someone"}
+                      subline="wants to be friends"
+                      isFriendRequest
+                      onDismiss={() => handleDismissFriendRequest(request.id)}
+                      onViewBadges={() => handleViewBadgesFriendRequest(request.id)}
+                    />
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Challenges (invites) */}
+            {/* Incoming challenges: badge left, text right, Dismiss + View badges */}
             {hasChallenges && (
               <div style={{ marginBottom: "24px" }}>
                 <h3 style={{ margin: "0 0 4px 0", fontSize: "16px", fontWeight: "bold", color: "#d7dadc", textAlign: "left" }}>
@@ -164,117 +217,24 @@ export default function NotificationsModal({ isOpen, onRequestClose, onViewAllNo
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #3a3a3c" }}>
                   {incomingChallenges.map((ch) => {
                     const expired = isChallengeExpired(ch);
+                    const subline = `${ch.boards || 1} board${(ch.boards || 1) > 1 ? "s" : ""} · ${ch.speedrun ? "Speedrun" : "Standard"} · ${expired ? "Expired" : "Active"}`;
                     return (
-                      <div
+                      <NotificationReceivedCard
                         key={ch.id}
-                        style={{
-                          padding: "10px 12px",
-                          borderRadius: 8,
-                          border: "1px solid #3a3a3c",
-                          background: "#2b2b2e",
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          gap: "10px",
-                        }}
-                      >
-                        <div style={{ textAlign: "left", flex: 1 }}>
-                          <div style={{ marginBottom: 2 }}>
-                            <UserCardWithBadges
-                              userId={ch.fromUserId}
-                              username={ch.fromUserName || "Unknown"}
-                              size="sm"
-                            />
-                          </div>
-                          <div style={{ color: "#d7dadc", fontSize: 12 }}>
-                            {ch.boards || 1} board{(ch.boards || 1) > 1 ? "s" : ""} · {ch.speedrun ? "Speedrun" : "Standard"}
-                            <span
-                              style={{
-                                marginLeft: 8,
-                                fontSize: 11,
-                                color: expired ? "#818384" : "#6aaa64",
-                                fontWeight: "600",
-                              }}
-                            >
-                              {expired ? "Expired" : "Active"}
-                            </span>
-                          </div>
-                        </div>
-                        <div style={{ display: "flex", gap: "6px" }}>
-                          {!expired ? (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => handleAcceptChallenge(ch)}
-                                style={{
-                                  padding: "6px 10px",
-                                  borderRadius: 6,
-                                  border: "none",
-                                  background: "#6aaa64",
-                                  color: "#ffffff",
-                                  fontWeight: "bold",
-                                  fontSize: 11,
-                                  cursor: "pointer",
-                                }}
-                              >
-                                Accept
-                              </button>
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  try {
-                                    await dismissChallenge(ch.id, ch.gameCode);
-                                  } catch (err) {
-                                    alert(err?.message || "Failed to dismiss");
-                                  }
-                                }}
-                                style={{
-                                  padding: "6px 10px",
-                                  borderRadius: 6,
-                                  border: "1px solid #3a3a3c",
-                                  background: "transparent",
-                                  color: "#ffffff",
-                                  fontWeight: "bold",
-                                  fontSize: 11,
-                                  cursor: "pointer",
-                                }}
-                              >
-                                Dismiss
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                try {
-                                  await dismissChallenge(ch.id, ch.gameCode);
-                                } catch (err) {
-                                  alert(err?.message || "Failed to dismiss");
-                                }
-                              }}
-                              style={{
-                                padding: "6px 10px",
-                                borderRadius: 6,
-                                border: "1px solid #3a3a3c",
-                                background: "transparent",
-                                color: "#818384",
-                                fontWeight: "bold",
-                                fontSize: 11,
-                                cursor: "pointer",
-                              }}
-                            >
-                              Dismiss
-                            </button>
-                          )}
-                        </div>
-                      </div>
+                        fromUserId={ch.fromUserId ?? null}
+                        title={`Game invitation from ${ch.fromUserName || "Someone"}`}
+                        subline={subline}
+                        isFriendRequest={false}
+                        onDismiss={() => handleDismissChallenge(ch)}
+                        onViewBadges={() => handleViewBadgesChallenge(ch)}
+                      />
                     );
                   })}
                 </div>
               </div>
             )}
 
-            {/* Sent challenges (optional subsection with Cancel only) */}
+            {/* Sent challenges: keep current UI (Cancel/Dismiss only) */}
             {hasSentChallenges && (
               <div style={{ marginBottom: "24px" }}>
                 <h3 style={{ margin: "0 0 12px 0", fontSize: "16px", fontWeight: "bold", color: "#d7dadc", textAlign: "left" }}>
@@ -303,65 +263,33 @@ export default function NotificationsModal({ isOpen, onRequestClose, onViewAllNo
                           </div>
                           <div style={{ color: "#d7dadc", fontSize: 12 }}>
                             {ch.boards || 1} board{(ch.boards || 1) > 1 ? "s" : ""} · {ch.speedrun ? "Speedrun" : "Standard"}
-                            <span
-                              style={{
-                                marginLeft: 8,
-                                fontSize: 11,
-                                color: expired ? "#818384" : "#6aaa64",
-                                fontWeight: "600",
-                              }}
-                            >
+                            <span style={{ marginLeft: 8, fontSize: 11, color: expired ? "#818384" : "#6aaa64", fontWeight: "600" }}>
                               {expired ? "Expired" : "Active"}
                             </span>
                           </div>
                         </div>
-                        {expired ? (
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              try {
-                                await cancelSentChallenge(ch.gameCode || ch.id);
-                              } catch (err) {
-                                alert(err?.message || "Failed to dismiss");
-                              }
-                            }}
-                            style={{
-                              padding: "6px 10px",
-                              borderRadius: 6,
-                              border: "1px solid #3a3a3c",
-                              background: "transparent",
-                              color: "#818384",
-                              fontWeight: "bold",
-                              fontSize: 11,
-                              cursor: "pointer",
-                            }}
-                          >
-                            Dismiss
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              try {
-                                await cancelSentChallenge(ch.gameCode || ch.id);
-                              } catch (err) {
-                                alert(err?.message || "Failed to cancel");
-                              }
-                            }}
-                            style={{
-                              padding: "6px 10px",
-                              borderRadius: 6,
-                              border: "1px solid #3a3a3c",
-                              background: "transparent",
-                              color: "#ffffff",
-                              fontWeight: "bold",
-                              fontSize: 11,
-                              cursor: "pointer",
-                            }}
-                          >
-                            Cancel
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await cancelSentChallenge(ch.gameCode || ch.id);
+                            } catch (err) {
+                              alert(err?.message || "Failed to dismiss");
+                            }
+                          }}
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: 6,
+                            border: "1px solid #3a3a3c",
+                            background: "transparent",
+                            color: expired ? "#818384" : "#ffffff",
+                            fontWeight: "bold",
+                            fontSize: 11,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {expired ? "Dismiss" : "Cancel"}
+                        </button>
                       </div>
                     );
                   })}
@@ -372,27 +300,6 @@ export default function NotificationsModal({ isOpen, onRequestClose, onViewAllNo
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: 8 }}>
-          <button
-            type="button"
-            onClick={() => {
-              // Parent (SiteHeader) navigates then closes modal on next tick
-              onViewAllNotifications?.();
-            }}
-            style={{
-              padding: "10px 16px",
-              borderRadius: 8,
-              border: "1px solid #6aaa64",
-              background: "transparent",
-              color: "#6aaa64",
-              fontWeight: "bold",
-              fontSize: 13,
-              cursor: "pointer",
-              textAlign: "center",
-              boxSizing: "border-box",
-            }}
-          >
-            View all notifications
-          </button>
           <button
             type="button"
             onClick={onRequestClose}

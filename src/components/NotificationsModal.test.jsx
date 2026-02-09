@@ -8,7 +8,10 @@ vi.mock('../hooks/useNotificationSeen', () => ({
   useNotificationSeen: vi.fn(() => ({ markNotificationsSeen: vi.fn() })),
   CHALLENGE_EXPIRY_MS: 30 * 60 * 1000,
 }));
-vi.mock('./UserCardWithBadges', () => ({ default: ({ username }) => <span>{username}</span> }));
+vi.mock('../hooks/useUserBadges', () => ({
+  useBadgesForUser: () => ({ userBadges: {}, loading: false }),
+}));
+vi.mock('../lib/badges', () => ({ getAllEarnedSorted: () => [] }));
 vi.mock('./Modal', () => ({ default: ({ isOpen, children }) => (isOpen ? <div data-testid="modal">{children}</div> : null) }));
 
 const navigateMock = vi.fn();
@@ -39,10 +42,10 @@ beforeEach(() => {
 });
 
 describe('NotificationsModal', () => {
-  it('renders Notifications title and View all button', () => {
+  it('renders Notifications title and Close button', () => {
     render(<NotificationsModal isOpen onRequestClose={vi.fn()} />);
     expect(screen.getByRole('heading', { name: /notifications/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /view all notifications/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /close/i })).toBeInTheDocument();
   });
 
   it('calls markNotificationsSeen when opened and user is present', () => {
@@ -52,8 +55,7 @@ describe('NotificationsModal', () => {
     expect(markNotificationsSeen).toHaveBeenCalled();
   });
 
-  it('renders friend requests with Accept and Dismiss', () => {
-    const acceptFriendRequest = vi.fn();
+  it('renders friend requests with Dismiss and View badges', () => {
     const declineFriendRequest = vi.fn();
     useAuth.mockReturnValue({
       user: { uid: 'u1' },
@@ -61,7 +63,6 @@ describe('NotificationsModal', () => {
       friendRequests: [{ id: 'from1', fromName: 'Alice' }],
       incomingChallenges: [],
       sentChallenges: [],
-      acceptFriendRequest,
       declineFriendRequest,
       acceptChallenge: vi.fn(),
       dismissChallenge: vi.fn(),
@@ -70,13 +71,11 @@ describe('NotificationsModal', () => {
     render(<NotificationsModal isOpen onRequestClose={vi.fn()} />);
     expect(screen.getByText(/alice/i)).toBeInTheDocument();
     expect(screen.getByText(/wants to be friends/i)).toBeInTheDocument();
-    const acceptBtn = screen.getByRole('button', { name: /accept/i });
-    const dismissBtn = screen.getAllByRole('button', { name: /dismiss/i })[0];
-    expect(acceptBtn).toBeInTheDocument();
-    expect(dismissBtn).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /dismiss/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /view badges/i })).toBeInTheDocument();
   });
 
-  it('renders challenges with Active/Expired and Accept/Dismiss', () => {
+  it('renders challenges with Dismiss and View badges', () => {
     const now = Date.now();
     const recentChallenge = {
       id: 'ch1',
@@ -93,7 +92,6 @@ describe('NotificationsModal', () => {
       friendRequests: [],
       incomingChallenges: [recentChallenge],
       sentChallenges: [],
-      acceptFriendRequest: vi.fn(),
       declineFriendRequest: vi.fn(),
       acceptChallenge: vi.fn(),
       dismissChallenge: vi.fn(),
@@ -102,23 +100,28 @@ describe('NotificationsModal', () => {
     render(<NotificationsModal isOpen onRequestClose={vi.fn()} />);
     expect(screen.getByText(/bob/i)).toBeInTheDocument();
     expect(screen.getByText(/active/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /accept/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /view badges/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /dismiss/i }).length).toBeGreaterThan(0);
   });
 
-  it('View all notifications calls onViewAllNotifications (parent closes and navigates)', async () => {
-    const onViewAllNotifications = vi.fn(() => navigateMock('/notifications'));
+  it('View badges navigates to profile with state and closes modal', async () => {
     const onRequestClose = vi.fn();
     const user = userEvent.setup();
-    render(
-      <NotificationsModal
-        isOpen
-        onRequestClose={onRequestClose}
-        onViewAllNotifications={onViewAllNotifications}
-      />
-    );
-    await user.click(screen.getByRole('button', { name: /view all notifications/i }));
-    expect(onViewAllNotifications).toHaveBeenCalled();
-    expect(navigateMock).toHaveBeenCalledWith('/notifications');
+    useAuth.mockReturnValue({
+      user: { uid: 'u1' },
+      isVerifiedUser: true,
+      friendRequests: [{ id: 'from1', fromName: 'Alice' }],
+      incomingChallenges: [],
+      sentChallenges: [],
+      declineFriendRequest: vi.fn(),
+      acceptChallenge: vi.fn(),
+      dismissChallenge: vi.fn(),
+      cancelSentChallenge: vi.fn(),
+    });
+    render(<NotificationsModal isOpen onRequestClose={onRequestClose} />);
+    await user.click(screen.getByRole('button', { name: /view badges/i }));
+    expect(navigateMock).toHaveBeenCalledWith('/profile', { state: { openYourBadges: true } });
+    expect(onRequestClose).toHaveBeenCalled();
   });
 
   it('shows verify message when user is not verified', () => {

@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
+import React, { useState } from "react";
 import BadgeIcon from "./BadgeIcon";
+import Modal from "./Modal";
 import "./UserCard.css";
 
 /**
@@ -29,39 +29,10 @@ export default function UserCard({
   const displayName = username || "Player";
   const suffix = isYou ? " (You)" : "";
   const isMainClickable = !!(href || onClick);
-  const [popoverOpen, setPopoverOpen] = useState(false);
-  const iconRef = useRef(/** @type {HTMLButtonElement | null} */ (null));
-  const popoverRef = useRef(/** @type {HTMLDivElement | null} */ (null));
+  const [badgesModalOpen, setBadgesModalOpen] = useState(false);
 
   const latestEarned = earnedBadges.length > 0 ? earnedBadges[0] : null;
   const hasEarnedBadges = earnedBadges.length > 0;
-
-  useEffect(() => {
-    if (!popoverOpen) return;
-    const handleClick = (e) => {
-      const el = e.target;
-      if (
-        el instanceof Node &&
-        iconRef.current?.contains(el) === false &&
-        popoverRef.current?.contains(el) === false
-      ) {
-        setPopoverOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [popoverOpen]);
-
-  useEffect(() => {
-    if (!popoverOpen) return;
-    const close = () => setPopoverOpen(false);
-    window.addEventListener("scroll", close, true);
-    window.addEventListener("resize", close);
-    return () => {
-      window.removeEventListener("scroll", close, true);
-      window.removeEventListener("resize", close);
-    };
-  }, [popoverOpen]);
 
   const mainContent = (
     <>
@@ -88,6 +59,7 @@ export default function UserCard({
 
   const baseClass = `userCard userCard--${size} ${className}`.trim();
   const iconSize = size === "sm" ? "sm" : "md";
+  const badgesModalTitle = isYou ? "Your badges" : "Badges";
 
   return (
     <div className={baseClass} role="presentation">
@@ -107,47 +79,42 @@ export default function UserCard({
       {hasEarnedBadges && latestEarned && (
         <div className="userCard-earnedWrap">
           <button
-            ref={iconRef}
             type="button"
             className="userCard-earnedIcon"
             onClick={(e) => {
               e.stopPropagation();
-              setPopoverOpen((v) => !v);
+              setBadgesModalOpen(true);
             }}
             aria-label={`Badge: ${latestEarned.name}. Click to see all badges.`}
-            aria-expanded={popoverOpen}
+            aria-expanded={badgesModalOpen}
           >
-            <BadgeIcon size={iconSize} title={latestEarned.name} />
+            <BadgeIcon badge={latestEarned} size={iconSize} />
           </button>
-          {popoverOpen &&
-            (() => {
-              const rect = iconRef.current?.getBoundingClientRect();
-              if (!rect) return null;
-              const top = rect.bottom + 6;
-              const right = typeof window !== "undefined" ? window.innerWidth - rect.right : 0;
-              const anchorClass = `userCard-badgePopoverAnchor userCard-badgePopoverAnchor--${size}`;
-              const popover = (
-                <div
-                  ref={popoverRef}
-                  className={anchorClass}
-                  style={{ position: "fixed", top, right, left: "auto", bottom: "auto" }}
-                  role="dialog"
-                  aria-label={isYou ? "Your badges" : "Badges"}
-                >
-                  <div className="userCard-badgePopover">
-                    {earnedBadges.map((b) => (
-                      <div key={b.id} className="userCard-badgePopoverItem">
-                        <BadgeIcon size="sm" title={b.name} />
-                        <span className="userCard-badgePopoverName">{b.name}</span>
-                      </div>
-                    ))}
+          <Modal
+            isOpen={badgesModalOpen}
+            onRequestClose={() => setBadgesModalOpen(false)}
+            titleId="userCard-badges-modal-title"
+            panelClassName="userCard-badgesModalPanel"
+          >
+            <div className="userCard-badgesModalContent">
+              <h2 id="userCard-badges-modal-title" className="userCard-badgesModalTitle">
+                {badgesModalTitle}
+              </h2>
+              <div className="userCard-badgesModalList">
+                {earnedBadges.map((b) => (
+                  <div key={b.id} className="userCard-badgesModalItem">
+                    <BadgeIcon badge={b} profileCard />
+                    <div className="userCard-badgesModalItemText">
+                      <div className="userCard-badgesModalItemName">{b.name}</div>
+                      {b.description ? (
+                        <div className="userCard-badgesModalItemDesc">{b.description}</div>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-              );
-              return typeof document !== "undefined"
-                ? createPortal(popover, document.body)
-                : null;
-            })()}
+                ))}
+              </div>
+            </div>
+          </Modal>
         </div>
       )}
     </div>

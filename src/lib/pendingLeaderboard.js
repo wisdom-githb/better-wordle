@@ -48,8 +48,7 @@ export async function flushPendingLeaderboardOnLogin(authUser) {
         userName,
         item.mode,
         item.numBoards,
-        item.timeMs,
-        0
+        item.timeMs
       );
     } catch (err) {
       logError(err, "pendingLeaderboard.flush");

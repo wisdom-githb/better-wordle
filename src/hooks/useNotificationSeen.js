@@ -97,7 +97,7 @@ export function getUnseenNotificationCount(friendRequests, incomingChallenges, n
  * @param {Array<{ id: string; fromName?: string; timestamp?: number; sentAt?: string }>} friendRequests
  * @param {Array<{ id: string; createdAt?: number; fromUserName?: string }>} incomingChallenges
  * @param {number | null} notificationSeenAt
- * @returns {Array<{ id: string; type: 'friendRequest' | 'challenge'; label: string; time: number }>}
+ * @returns {Array<{ id: string; type: 'friendRequest' | 'challenge'; label: string; time: number; fromUserId: string }>}
  */
 export function getUnseenWithLabels(friendRequests, incomingChallenges, notificationSeenAt) {
   const seenAt = notificationSeenAt || 0;
@@ -110,6 +110,7 @@ export function getUnseenWithLabels(friendRequests, incomingChallenges, notifica
           type: 'friendRequest',
           label: `Friend request from ${r.fromName || 'Someone'}`,
           time: getFriendRequestTime(r),
+          fromUserId: r.id,
         }))
     : [];
 
@@ -121,6 +122,7 @@ export function getUnseenWithLabels(friendRequests, incomingChallenges, notifica
           type: 'challenge',
           label: `Game invitation from ${c.fromUserName || 'Someone'}`,
           time: c.createdAt || 0,
+          fromUserId: c.fromUserId,
         }))
     : [];
 

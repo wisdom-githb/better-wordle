@@ -3,28 +3,26 @@ import { ref, push, set, query, limitToLast, onValue } from 'firebase/database';
 import { database } from '../config/firebase';
 
 /**
- * Submit a speedrun score to the leaderboard
+ * Submit a speedrun time to the leaderboard (ranked by time only; faster is better).
  * @param {string} userId - User ID
  * @param {string} userName - User display name or email
  * @param {string} mode - 'daily' or 'marathon'
  * @param {number} numBoards - Number of boards
  * @param {number} timeMs - Time in milliseconds
- * @param {number} score - Calculated score
  */
-export async function submitSpeedrunScore(userId, userName, mode, numBoards, timeMs, score) {
+export async function submitSpeedrunScore(userId, userName, mode, numBoards, timeMs) {
   if (!userId) {
     throw new Error('User must be signed in to submit scores');
   }
 
   const leaderboardRef = ref(database, `leaderboard/${mode}`);
   const entryRef = push(leaderboardRef);
-  
+
   const entry = {
     userId,
     userName: userName || 'Anonymous',
     numBoards,
     timeMs,
-    score,
     timestamp: Date.now()
   };
 
@@ -68,11 +66,7 @@ export function useLeaderboard(mode, numBoards = null, limit = 100) {
       now.getUTCDate() + 1,
     );
     
-    // Query: order by score descending, then by timeMs ascending (for same score, faster is better)
-    // Firebase doesn't support multiple orderBy, so we'll fetch all and sort in JS
-    // Optimize: Use orderBy('score') with limitToLast for better performance
-    // Note: This requires a Firebase index on leaderboard/{mode}/score
-    // For now, we fetch limit * 2 to account for filtering, but ideally we'd use orderBy('score')
+    // Fetch entries; we sort in JS by timeMs (ascending = faster is better), then timestamp for ties.
     const leaderboardQuery = query(
       leaderboardRef,
       limitToLast(Math.min(limit * 3, 500)) // Cap at 500 to prevent excessive data transfer
@@ -99,10 +93,6 @@ export function useLeaderboard(mode, numBoards = null, limit = 100) {
             .map((entry) => {
               const normalised = { ...entry };
 
-              // Coerce score to a finite number, defaulting to 0 when missing.
-              const scoreNum = Number(normalised.score);
-              normalised.score = Number.isFinite(scoreNum) ? scoreNum : 0;
-
               // Coerce timeMs; entries with non-finite timeMs are dropped later.
               const timeNum = Number(normalised.timeMs);
               normalised.timeMs = Number.isFinite(timeNum) ? timeNum : NaN;
@@ -126,15 +116,12 @@ export function useLeaderboard(mode, numBoards = null, limit = 100) {
             entriesArray = entriesArray.filter(entry => entry.numBoards === numBoards);
           }
 
-          // Sort by score (descending), then by timeMs (ascending), then by timestamp (ascending for ties)
+          // Sort by timeMs (ascending = faster is better), then by timestamp for ties
           entriesArray.sort((a, b) => {
-            if (b.score !== a.score) {
-              return b.score - a.score; // Higher score is better
-            }
             if (a.timeMs !== b.timeMs) {
-              return a.timeMs - b.timeMs; // Faster time is better
+              return a.timeMs - b.timeMs;
             }
-            return a.timestamp - b.timestamp; // Earlier submission is better for ties
+            return a.timestamp - b.timestamp;
           });
 
           // Limit results

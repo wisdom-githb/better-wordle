@@ -12,7 +12,7 @@ import {
 } from "../config/firebase";
 import "./FriendsModal.css";
 import { MAX_BOARDS } from "../lib/gameConstants";
-import { DURATION_OPTIONS, DURATION_VALUES } from "../lib/subscriptionConstants";
+import { DURATION_OPTIONS } from "../lib/subscriptionConstants";
 
 const ADMIN_EMAIL = "abhijeetsridhar14@gmail.com";
 
@@ -45,9 +45,11 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
   const [isChallengeConfigOpen, setIsChallengeConfigOpen] = React.useState(false);
   const [addFriendInput, setAddFriendInput] = React.useState("");
   const [isSendingFriendRequest, setIsSendingFriendRequest] = React.useState(false);
-  const [giftLoadingFriendId, setGiftLoadingFriendId] = React.useState(null);
   const [friendToRemove, setFriendToRemove] = React.useState(null);
-  const [selectedGiftDuration, setSelectedGiftDuration] = React.useState("1m");
+  const [isRemovingFriend, setIsRemovingFriend] = React.useState(false);
+  const [giftModalRecipient, setGiftModalRecipient] = React.useState(null);
+  const [giftModalDuration, setGiftModalDuration] = React.useState("1m");
+  const [giftModalLoading, setGiftModalLoading] = React.useState(false);
 
   const getBaseFullUrl = () => {
     const baseUrl = import.meta.env.BASE_URL || "/";
@@ -55,22 +57,22 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
     return `${window.location.origin}${basePath}`;
   };
 
-  const handleGiftClick = async (friend) => {
-    if (!user?.uid || !friend?.id) return;
+  const handleGiftModalGiftToFriend = async () => {
+    if (!giftModalRecipient || !user?.uid) return;
     const isAdmin = user.email === ADMIN_EMAIL;
-    setGiftLoadingFriendId(friend.id);
-    const baseFullUrl = getBaseFullUrl();
+    setGiftModalLoading(true);
     try {
       if (isAdmin) {
         const adminGift = adminGiftSubscriptionCallable();
-        await adminGift({ recipientUid: friend.id, duration: selectedGiftDuration });
-        setTimedMessage(`Premium granted to ${friend.name}.`, 4000);
+        await adminGift({ recipientUid: giftModalRecipient.id, duration: giftModalDuration });
+        setTimedMessage(`Premium granted to ${giftModalRecipient.name}.`, 4000);
+        setGiftModalRecipient(null);
       } else {
         const createGift = createGiftCheckoutSessionCallable();
         const result = await createGift({
-          recipientUid: friend.id,
-          baseUrl: baseFullUrl,
-          duration: selectedGiftDuration,
+          recipientUid: giftModalRecipient.id,
+          baseUrl: getBaseFullUrl(),
+          duration: giftModalDuration,
         });
         const url = result?.data?.url;
         if (url) {
@@ -87,7 +89,23 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
       }
       setTimedMessage(msg, 7000);
     } finally {
-      setGiftLoadingFriendId(null);
+      setGiftModalLoading(false);
+    }
+  };
+
+  const handleGiftModalGrantMyself = async () => {
+    if (!user?.uid || user.email !== ADMIN_EMAIL) return;
+    setGiftModalLoading(true);
+    try {
+      const adminGift = adminGiftSubscriptionCallable();
+      await adminGift({ recipientUid: user.uid, duration: giftModalDuration });
+      setTimedMessage("Premium granted to you.", 4000);
+      setGiftModalRecipient(null);
+    } catch (err) {
+      const msg = err?.message || (err?.code ? `Error: ${err.code}` : "Could not grant premium.");
+      setTimedMessage(msg, 7000);
+    } finally {
+      setGiftModalLoading(false);
     }
   };
 
@@ -260,43 +278,6 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
           </div>
         )}
 
-        {/* Gift duration selector */}
-        <div style={{ marginBottom: "20px", textAlign: "left" }}>
-          <label
-            style={{
-              display: "block",
-              marginBottom: "6px",
-              fontSize: "13px",
-              color: "#d7dadc",
-            }}
-          >
-            Gift premium duration
-          </label>
-          <select
-            value={selectedGiftDuration}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (DURATION_VALUES.includes(v)) setSelectedGiftDuration(v);
-            }}
-            style={{
-              padding: "8px 12px",
-              borderRadius: 6,
-              border: "1px solid #3a3a3c",
-              background: "#121213",
-              color: "#ffffff",
-              fontSize: 13,
-              cursor: "pointer",
-            }}
-          >
-            {DURATION_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label} - ${opt.pricePerMonth}/month
-                {opt.savings ? ` (save ${opt.savings})` : ""}
-              </option>
-            ))}
-          </select>
-        </div>
-
         {/* Friends Section */}
         <div>
           <h3 style={{ margin: "0 0 12px 0", fontSize: "16px", fontWeight: "bold", color: "#d7dadc", textAlign: "left" }}>
@@ -334,8 +315,10 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                   />
                   <div style={{ display: "flex", gap: "6px" }}>
                     <button
-                      onClick={() => handleGiftClick(friend)}
-                      disabled={giftLoadingFriendId === friend.id}
+                      onClick={() => {
+                        setGiftModalRecipient(friend);
+                        setGiftModalDuration("1m");
+                      }}
                       style={{
                         padding: "6px 10px",
                         borderRadius: "6px",
@@ -344,11 +327,10 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                         color: "#6aaa64",
                         fontWeight: "bold",
                         fontSize: "11px",
-                        cursor: giftLoadingFriendId === friend.id ? "not-allowed" : "pointer",
-                        opacity: giftLoadingFriendId === friend.id ? 0.7 : 1,
+                        cursor: "pointer",
                       }}
                     >
-                      {giftLoadingFriendId === friend.id ? "..." : "Gift"}
+                      Gift
                     </button>
                     <button
                       onClick={() => {
@@ -410,6 +392,170 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
           Close
         </button>
       </div>
+
+      {/* Gift Premium modal – duration + recipient; admin can also grant self */}
+      <Modal
+        isOpen={!!giftModalRecipient}
+        onRequestClose={() => {
+          if (!giftModalLoading) setGiftModalRecipient(null);
+        }}
+      >
+        {giftModalRecipient && (
+          <div
+            style={{
+              backgroundColor: "#1a1a1b",
+              borderRadius: 16,
+              padding: 32,
+              maxWidth: 480,
+              width: "92vw",
+              textAlign: "center",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.8)",
+            }}
+          >
+            <h2
+              style={{
+                margin: 0,
+                marginBottom: 16,
+                fontSize: 24,
+                fontWeight: "bold",
+                color: "#ffffff",
+                letterSpacing: 1,
+              }}
+            >
+              Gift Premium to {giftModalRecipient.name}
+            </h2>
+
+            <div style={{ marginBottom: 20, fontSize: 16, color: "#d7dadc", lineHeight: 1.6 }}>
+              Choose duration:
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                marginBottom: 24,
+              }}
+            >
+              {DURATION_OPTIONS.map((opt) => (
+                <label
+                  key={opt.value}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "10px 14px",
+                    backgroundColor: giftModalDuration === opt.value ? "#27272a" : "#1f1f21",
+                    borderRadius: 8,
+                    border:
+                      giftModalDuration === opt.value ? "2px solid #6aaa64" : "1px solid #3a3a3c",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="gift-duration"
+                    value={opt.value}
+                    checked={giftModalDuration === opt.value}
+                    onChange={() => setGiftModalDuration(opt.value)}
+                    style={{ cursor: "pointer" }}
+                  />
+                  <span style={{ flex: 1, color: "#ffffff", fontWeight: 500 }}>{opt.label}</span>
+                  <span style={{ color: "#6aaa64", fontWeight: "bold" }}>
+                    ${opt.pricePerMonth}/month
+                    {opt.savings && (
+                      <span style={{ marginLeft: 6, fontSize: 12, color: "#818384" }}>
+                        (save {opt.savings})
+                      </span>
+                    )}
+                  </span>
+                </label>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {user?.email === ADMIN_EMAIL ? (
+                <>
+                  <button
+                    onClick={handleGiftModalGiftToFriend}
+                    disabled={giftModalLoading}
+                    style={{
+                      width: "100%",
+                      padding: "14px 0",
+                      borderRadius: 10,
+                      border: "none",
+                      background: giftModalLoading ? "#818384" : "#6aaa64",
+                      color: "#ffffff",
+                      fontSize: 14,
+                      fontWeight: "bold",
+                      cursor: giftModalLoading ? "not-allowed" : "pointer",
+                      letterSpacing: 1,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {giftModalLoading ? "..." : `Gift to ${giftModalRecipient.name}`}
+                  </button>
+                  <button
+                    onClick={handleGiftModalGrantMyself}
+                    disabled={giftModalLoading}
+                    style={{
+                      width: "100%",
+                      padding: "12px 0",
+                      borderRadius: 10,
+                      border: "1px solid #6aaa64",
+                      background: "transparent",
+                      color: "#6aaa64",
+                      fontSize: 14,
+                      fontWeight: "bold",
+                      cursor: giftModalLoading ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    Grant myself premium
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={handleGiftModalGiftToFriend}
+                  disabled={giftModalLoading}
+                  style={{
+                    width: "100%",
+                    padding: "14px 0",
+                    borderRadius: 10,
+                    border: "none",
+                    background: giftModalLoading ? "#818384" : "#6aaa64",
+                    color: "#ffffff",
+                    fontSize: 14,
+                    fontWeight: "bold",
+                    cursor: giftModalLoading ? "not-allowed" : "pointer",
+                    letterSpacing: 1,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {giftModalLoading ? "..." : "Continue to payment"}
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (!giftModalLoading) setGiftModalRecipient(null);
+                }}
+                disabled={giftModalLoading}
+                style={{
+                  width: "100%",
+                  padding: "12px 0",
+                  borderRadius: 10,
+                  border: "1px solid #3a3a3c",
+                  background: "transparent",
+                  color: "#ffffff",
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  cursor: giftModalLoading ? "not-allowed" : "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Multiplayer Challenge configuration modal (per-friend).
           NOTE: This will later be replaced to route through the shared
@@ -671,12 +817,19 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
               Cancel
             </button>
             <button
-              onClick={() => {
-                if (friendToRemove) {
-                  removeFriend(friendToRemove.id);
+              onClick={async () => {
+                if (!friendToRemove) return;
+                setIsRemovingFriend(true);
+                try {
+                  await removeFriend(friendToRemove.id);
                   setFriendToRemove(null);
+                } catch (err) {
+                  setTimedMessage(err?.message || "Failed to remove friend.", 5000);
+                } finally {
+                  setIsRemovingFriend(false);
                 }
               }}
+              disabled={isRemovingFriend}
               style={{
                 flex: 1,
                 padding: "12px",
@@ -686,10 +839,11 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                 color: "#ffffff",
                 fontSize: 14,
                 fontWeight: "bold",
-                cursor: "pointer",
+                cursor: isRemovingFriend ? "not-allowed" : "pointer",
+                opacity: isRemovingFriend ? 0.8 : 1,
               }}
             >
-              Remove
+              {isRemovingFriend ? "Removing..." : "Remove"}
             </button>
           </div>
         </div>

@@ -908,7 +908,7 @@ describe('GameSinglePlayer speedrun leaderboard submission', () => {
       });
 
       expect(submitSpeedrunScoreMock).toHaveBeenCalledTimes(1);
-      const [userId, userName, modeArg, numBoardsArg, timeMsArg, scoreArg] =
+      const [userId, userName, modeArg, numBoardsArg, timeMsArg] =
         submitSpeedrunScoreMock.mock.calls[0];
 
       expect(userId).toBe('uid-speedrun');
@@ -916,7 +916,6 @@ describe('GameSinglePlayer speedrun leaderboard submission', () => {
       expect(modeArg).toBe('daily');
       expect(numBoardsArg).toBe(1);
       expect(typeof timeMsArg).toBe('number');
-      expect(scoreArg).toBe(0);
     } finally {
       vi.useRealTimers();
     }

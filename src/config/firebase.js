@@ -79,6 +79,11 @@ export const functions = getFunctions(app);
 export const createGiftCheckoutSessionCallable = () => httpsCallable(functions, 'createGiftCheckoutSession');
 export const adminGiftSubscriptionCallable = () => httpsCallable(functions, 'adminGiftSubscription');
 
+// Callable helpers for subscription management (Manage premium)
+export const getSubscriptionDetailsCallable = () => httpsCallable(functions, 'getSubscriptionDetails');
+export const updateSubscriptionAutoRenewCallable = () => httpsCallable(functions, 'updateSubscriptionAutoRenew');
+export const cancelSubscriptionCallable = () => httpsCallable(functions, 'cancelSubscription');
+
 // Google Auth Provider
 export const googleProvider = new GoogleAuthProvider();
 

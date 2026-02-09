@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import { useUserBadges } from "../hooks/useUserBadges";
+import { useUserBadges, useBadgesForUser } from "../hooks/useUserBadges";
 import { useSubscription } from "../hooks/useSubscription";
 import { useDailyResetTimer } from "../hooks/useDailyResetTimer";
 import { useNotificationSeen, getUnseenNotificationCount, getUnseenWithLabels } from "../hooks/useNotificationSeen";
@@ -43,6 +43,15 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete, onHomeCli
   const [showSubscribeModal, setShowSubscribeModal] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [notificationToast, setNotificationToast] = useState(null);
+  const toastFromUid = notificationToast
+    ? (notificationToast.type === "friendRequest"
+        ? notificationToast.id
+        : (notificationToast.fromUserId || null))
+    : null;
+  const { userBadges: toastUserBadges } = useBadgesForUser(toastFromUid);
+  const toastPrimaryBadge = notificationToast && toastFromUid
+    ? (getAllEarnedSorted(toastUserBadges)[0] ?? null)
+    : null;
 
   // Effect 1: set baseline on "entry" (login or navigation) so we don't toast for pre-existing unseen notifications
   useEffect(() => {
@@ -121,10 +130,9 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete, onHomeCli
 
   const handleToastDismiss = useCallback(() => setNotificationToast(null), []);
   const handleToastClick = useCallback(() => {
-    navigate("/notifications");
-    setTimeout(() => setShowNotificationsModal(false), 0);
+    setShowNotificationsModal(true);
     setNotificationToast(null);
-  }, [navigate]);
+  }, []);
 
   return (
     <>
@@ -391,15 +399,12 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete, onHomeCli
       <NotificationsModal
         isOpen={showNotificationsModal}
         onRequestClose={() => setShowNotificationsModal(false)}
-        onViewAllNotifications={() => {
-          navigate("/notifications");
-          setTimeout(() => setShowNotificationsModal(false), 0);
-        }}
       />
 
       {notificationToast && (
         <NotificationToast
           message={notificationToast.label}
+          badge={toastPrimaryBadge}
           onClick={handleToastClick}
           onDismiss={handleToastDismiss}
         />

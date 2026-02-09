@@ -67,12 +67,12 @@ describe('useLeaderboard', () => {
     const now = Date.now();
 
     const raw = {
-      a: { userId: 'u1', userName: 'A', numBoards: 3, score: 100, timeMs: 9000, timestamp: now },
-      b: { userId: 'u2', userName: 'B', numBoards: 3, score: 200, timeMs: 12000, timestamp: now - 1000 },
-      c: { userId: 'u3', userName: 'C', numBoards: 3, score: 200, timeMs: 11000, timestamp: now + 1000 },
-      d: { userId: 'u4', userName: 'D', numBoards: 3, score: 200, timeMs: 11000, timestamp: now + 2000 },
-      e: { userId: 'u5', userName: 'E', numBoards: 2, score: 150, timeMs: 8000, timestamp: now - dayMs }, // previous day
-      f: { userId: 'u6', userName: 'F', numBoards: 3, score: 50, timeMs: 5000, timestamp: now + dayMs },  // next day
+      a: { userId: 'u1', userName: 'A', numBoards: 3, timeMs: 9000, timestamp: now },
+      b: { userId: 'u2', userName: 'B', numBoards: 3, timeMs: 12000, timestamp: now - 1000 },
+      c: { userId: 'u3', userName: 'C', numBoards: 3, timeMs: 11000, timestamp: now + 1000 },
+      d: { userId: 'u4', userName: 'D', numBoards: 3, timeMs: 11000, timestamp: now + 2000 },
+      e: { userId: 'u5', userName: 'E', numBoards: 2, timeMs: 8000, timestamp: now - dayMs }, // previous day
+      f: { userId: 'u6', userName: 'F', numBoards: 3, timeMs: 5000, timestamp: now + dayMs },  // next day
     };
 
     const { result, rerender } = renderHook(({ mode, boards }) => useLeaderboard(mode, boards, 10), {
@@ -82,12 +82,12 @@ describe('useLeaderboard', () => {
     // Simulate initial data load
     triggerSnapshot(raw);
 
-    // Current-day filter should remove e and f
+    // Current-day filter should remove e and f. Sort by timeMs ascending (faster first), then timestamp for ties.
     expect(result.current.entries.map((e) => e.userName)).toEqual([
-      'C', // score 200, time 11000, earlier timestamp
-      'D', // score 200, time 11000, later timestamp
-      'B', // score 200, time 12000
-      'A', // score 100
+      'A', // timeMs 9000
+      'C', // timeMs 11000, earlier timestamp
+      'D', // timeMs 11000, later timestamp
+      'B', // timeMs 12000
     ]);
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
@@ -100,7 +100,7 @@ describe('useLeaderboard', () => {
     const filtered = result.current.entries;
     expect(filtered.every((e) => e.numBoards === 3)).toBe(true);
     // Same ordering within that filter
-    expect(filtered.map((e) => e.userName)).toEqual(['C', 'D', 'B', 'A']);
+    expect(filtered.map((e) => e.userName)).toEqual(['A', 'C', 'D', 'B']);
   });
 
   it('sets error and stops loading when onValue error callback is invoked', () => {
@@ -113,14 +113,13 @@ describe('useLeaderboard', () => {
     expect(result.current.loading).toBe(false);
   });
 
-  it('drops entries with non-numeric timeMs and coerces score to 0 when missing', () => {
+  it('drops entries with non-numeric or missing timeMs', () => {
     const now = Date.now();
     const raw = {
       good: {
         userId: 'u1',
         userName: 'Good',
         numBoards: 3,
-        score: '250',
         timeMs: 5000,
         timestamp: now,
       },
@@ -128,7 +127,6 @@ describe('useLeaderboard', () => {
         userId: 'u2',
         userName: 'BadTime',
         numBoards: 3,
-        score: 999,
         timeMs: 'not-a-number',
         timestamp: now,
       },
@@ -136,15 +134,13 @@ describe('useLeaderboard', () => {
         userId: 'u3',
         userName: 'MissingTime',
         numBoards: 3,
-        score: 50,
         // no timeMs
         timestamp: now,
       },
-      badScore: {
+      valid: {
         userId: 'u4',
-        userName: 'NoScore',
+        userName: 'Valid',
         numBoards: 3,
-        score: 'not-a-number',
         timeMs: 8000,
         timestamp: now,
       },
@@ -154,21 +150,18 @@ describe('useLeaderboard', () => {
     triggerSnapshot(raw);
 
     // Entries with invalid or missing timeMs should be dropped.
-    expect(result.current.entries.map((e) => e.userName)).toEqual(['Good', 'NoScore']);
-
-    const noScoreEntry = result.current.entries.find((e) => e.userName === 'NoScore');
-    expect(noScoreEntry.score).toBe(0);
+    expect(result.current.entries.map((e) => e.userName)).toEqual(['Good', 'Valid']);
   });
 });
 
 describe('submitSpeedrunScore', () => {
   it('throws when userId is missing', async () => {
     await expect(
-      submitSpeedrunScore(null, 'Name', 'daily', 3, 1234, 200),
+      submitSpeedrunScore(null, 'Name', 'daily', 3, 1234),
     ).rejects.toThrow(/must be signed in/i);
 
     await expect(
-      submitSpeedrunScore('', 'Name', 'daily', 3, 1234, 200),
+      submitSpeedrunScore('', 'Name', 'daily', 3, 1234),
     ).rejects.toThrow(/must be signed in/i);
   });
 
@@ -181,7 +174,6 @@ describe('submitSpeedrunScore', () => {
       'daily',
       4,
       12_345,
-      999,
     );
 
     // Correct ref path
@@ -191,7 +183,7 @@ describe('submitSpeedrunScore', () => {
     const pushArgs = pushMock.mock.calls[0];
     expect(pushArgs[0]).toEqual({ db: {}, path: 'leaderboard/daily' });
 
-    // set called with entryRef and payload
+    // set called with entryRef and payload (no score field)
     expect(setMock).toHaveBeenCalledTimes(1);
     const [entryRefArg, entryArg] = setMock.mock.calls[0];
     expect(entryRefArg).toEqual({ key: 'new-key' });
@@ -200,9 +192,9 @@ describe('submitSpeedrunScore', () => {
       userName: 'Alice',
       numBoards: 4,
       timeMs: 12_345,
-      score: 999,
       timestamp: 1_700_000_123_000,
     });
+    expect(entryArg).not.toHaveProperty('score');
 
     expect(resultKey).toBe('new-key');
   });
@@ -210,13 +202,13 @@ describe('submitSpeedrunScore', () => {
   it('defaults userName to "Anonymous" when falsy', async () => {
     vi.setSystemTime(1_700_000_200_000);
 
-    await submitSpeedrunScore('uid456', '', 'marathon', 2, 5_000, 50);
+    await submitSpeedrunScore('uid456', '', 'marathon', 2, 5_000);
 
     const [, lastEntry] = setMock.mock.calls[setMock.mock.calls.length - 1];
     expect(lastEntry.userName).toBe('Anonymous');
     expect(lastEntry.userId).toBe('uid456');
     expect(lastEntry.numBoards).toBe(2);
     expect(lastEntry.timeMs).toBe(5_000);
-    expect(lastEntry.score).toBe(50);
+    expect(lastEntry).not.toHaveProperty('score');
   });
 });

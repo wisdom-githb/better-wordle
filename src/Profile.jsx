@@ -1,8 +1,9 @@
 import React, { useState, useEffect, Suspense, lazy } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "./hooks/useAuth";
 import { useUserBadges } from "./hooks/useUserBadges";
+import { useSubscription } from "./hooks/useSubscription";
 import SiteHeader from "./components/SiteHeader";
 import { loadStreak } from "./lib/persist";
 import { database } from "./config/firebase";
@@ -10,14 +11,21 @@ import { ref, get } from "firebase/database";
 import { syncLocalStreaksToRemoteOnLogin } from "./lib/singlePlayerStore";
 import { ALL_BADGES, getEarnedBadgeDefs } from "./lib/badges";
 import BadgeIcon from "./components/BadgeIcon";
+import {
+  getSubscriptionDetailsCallable,
+  updateSubscriptionAutoRenewCallable,
+  cancelSubscriptionCallable,
+} from "./config/firebase";
 
 const FeedbackModal = lazy(() => import("./components/FeedbackModal"));
+import Modal from "./components/Modal";
 import ArchiveModal from "./components/ArchiveModal";
 import CrossModeComparisonModal from "./components/CrossModeComparisonModal";
 import "./Profile.css";
 
 export default function Profile() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, loading, updateUsername, deleteAccount, isVerifiedUser, resendVerificationEmail, linkGoogleAccount, formatAuthErrorForDisplay } = useAuth();
   const [username, setUsername] = useState("");
   const [initialUsername, setInitialUsername] = useState("");
@@ -34,6 +42,14 @@ export default function Profile() {
   const [showCrossModeComparison, setShowCrossModeComparison] = useState(false);
   const { userBadges, loading: badgesLoading } = useUserBadges(user);
   const earnedBadges = getEarnedBadgeDefs(userBadges);
+  const { isSubscribed } = useSubscription(user);
+  const [premiumDetails, setPremiumDetails] = useState(null);
+  const [premiumDetailsLoading, setPremiumDetailsLoading] = useState(false);
+  const [premiumDetailsError, setPremiumDetailsError] = useState(null);
+  const [updatingAutoRenew, setUpdatingAutoRenew] = useState(false);
+  const [cancellingSubscription, setCancellingSubscription] = useState(false);
+  const [confirmAutoRenewModal, setConfirmAutoRenewModal] = useState(null);
+  const [confirmCancelSubscriptionModal, setConfirmCancelSubscriptionModal] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -46,6 +62,16 @@ export default function Profile() {
       setInitialUsername(name);
     }
   }, [user, loading, navigate]);
+
+  useEffect(() => {
+    if (!location.state?.openYourBadges) return;
+    const el = document.getElementById("profile-your-badges");
+    if (el && el instanceof HTMLDetailsElement) {
+      el.setAttribute("open", "");
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state?.openYourBadges, location.pathname, navigate]);
 
   useEffect(() => {
     let isMounted = true;
@@ -190,6 +216,57 @@ export default function Profile() {
     }
   };
 
+  const loadPremiumDetails = async () => {
+    if (!user?.uid || premiumDetails !== null || premiumDetailsLoading) return;
+    setPremiumDetailsLoading(true);
+    setPremiumDetailsError(null);
+    try {
+      const getDetails = getSubscriptionDetailsCallable();
+      const result = await getDetails({ uid: user.uid });
+      setPremiumDetails(result?.data ?? null);
+    } catch (err) {
+      setPremiumDetailsError(err?.message || "Failed to load subscription details.");
+    } finally {
+      setPremiumDetailsLoading(false);
+    }
+  };
+
+  const handleToggleAutoRenew = async (newCancelAtPeriodEnd) => {
+    if (!user?.uid || premiumDetails?.type !== "stripe") return;
+    setUpdatingAutoRenew(true);
+    setPremiumDetailsError(null);
+    try {
+      const update = updateSubscriptionAutoRenewCallable();
+      await update({ uid: user.uid, cancelAtPeriodEnd: newCancelAtPeriodEnd });
+      setPremiumDetails((prev) =>
+        prev && prev.type === "stripe" ? { ...prev, cancelAtPeriodEnd: newCancelAtPeriodEnd } : prev
+      );
+      setMessage(newCancelAtPeriodEnd ? "Auto-renew turned off." : "Auto-renew turned on.");
+    } catch (err) {
+      setPremiumDetailsError(err?.message || "Failed to update auto-renew.");
+    } finally {
+      setUpdatingAutoRenew(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    if (!user?.uid || premiumDetails?.type !== "stripe") return;
+    setCancellingSubscription(true);
+    setPremiumDetailsError(null);
+    try {
+      const cancel = cancelSubscriptionCallable();
+      await cancel({ uid: user.uid });
+      setPremiumDetails((prev) =>
+        prev && prev.type === "stripe" ? { ...prev, cancelAtPeriodEnd: true } : prev
+      );
+      setMessage("Subscription will not renew. You keep access until the end of the period.");
+    } catch (err) {
+      setPremiumDetailsError(err?.message || "Failed to cancel subscription.");
+    } finally {
+      setCancellingSubscription(false);
+    }
+  };
+
   return (
     <>
       <Helmet>
@@ -270,7 +347,7 @@ export default function Profile() {
 
                 {!badgesLoading && (
                   <div className="profileSection profileSectionSpacing">
-                    <details className="profileDetails">
+                    <details id="profile-your-badges" className="profileDetails">
                       <summary className="profileDetailsSummary">Your badges</summary>
                       <div className="profileBadgesList">
                         {earnedBadges.length === 0 ? (
@@ -278,11 +355,11 @@ export default function Profile() {
                         ) : (
                           earnedBadges.map((b) => (
                             <div key={b.id} className="profileBadgeCard profileBadgeCardEarned">
-                              <div className="profileBadgeCardHeader">
-                                <BadgeIcon size="md" title={b.name} />
+                              <BadgeIcon badge={b} profileCard />
+                              <div className="profileBadgeCardContent">
                                 <div className="profileBadgeName">{b.name}</div>
+                                <div className="profileBadgeDesc">{b.description}</div>
                               </div>
-                              <div className="profileBadgeDesc">{b.description}</div>
                             </div>
                           ))
                         )}
@@ -298,14 +375,14 @@ export default function Profile() {
                               key={b.id}
                               className={`profileBadgeCard ${earned ? 'profileBadgeCardEarned' : 'profileBadgeCardLocked'}`}
                             >
-                              <div className="profileBadgeCardHeader">
-                                <BadgeIcon size="md" title={b.name} />
+                              <BadgeIcon badge={b} profileCard />
+                              <div className="profileBadgeCardContent">
                                 <div className="profileBadgeName">
                                   {b.name}
                                   {earned && <span className="profileBadgeEarnedLabel"> · Earned</span>}
                                 </div>
+                                <div className="profileBadgeDesc">{b.description}</div>
                               </div>
-                              <div className="profileBadgeDesc">{b.description}</div>
                             </div>
                           );
                         })}
@@ -525,6 +602,122 @@ export default function Profile() {
                   </div>
                 )}
 
+                {isSubscribed && (
+                  <div className="profileSection profileSectionSpacing">
+                    <details
+                      className="profileDetails"
+                      onToggle={(e) => {
+                        if (e.target.open) loadPremiumDetails();
+                      }}
+                    >
+                      <summary className="profileDetailsSummary">Manage premium</summary>
+                      <div className="profileBadgesList" style={{ paddingTop: 12 }}>
+                        {premiumDetailsLoading && (
+                          <p className="profileBadgesEmpty">Loading subscription details...</p>
+                        )}
+                        {premiumDetailsError && (
+                          <div style={{ color: "#f87171", fontSize: 14, marginBottom: 12 }}>
+                            {premiumDetailsError}
+                          </div>
+                        )}
+                        {!premiumDetailsLoading && premiumDetails?.type === "stripe" && (
+                          <>
+                            <div className="profileField" style={{ marginBottom: 12 }}>
+                              <label style={{ color: "#9ca3af", fontSize: 12 }}>Plan</label>
+                              <div className="profileValue" style={{ marginTop: 4 }}>
+                                {premiumDetails.intervalLabel || "Recurring"}
+                              </div>
+                            </div>
+                            <div className="profileField" style={{ marginBottom: 12 }}>
+                              <label style={{ color: "#9ca3af", fontSize: 12 }}>
+                                Days remaining until renewal
+                              </label>
+                              <div className="profileValue" style={{ marginTop: 4 }}>
+                                {premiumDetails.daysRemaining ?? 0} days
+                              </div>
+                            </div>
+                            <div className="profileField" style={{ marginBottom: 12 }}>
+                              <label style={{ color: "#9ca3af", fontSize: 12 }}>Auto-renew</label>
+                              <div className="profileValue profileInlineField" style={{ marginTop: 4 }}>
+                                <span style={{ marginRight: 12 }}>
+                                  {premiumDetails.cancelAtPeriodEnd ? "Off" : "On"}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setConfirmAutoRenewModal({
+                                      newCancelAtPeriodEnd: !premiumDetails.cancelAtPeriodEnd,
+                                    })
+                                  }
+                                  disabled={updatingAutoRenew}
+                                  className="homeBtn homeBtnOutline profileInlineButton"
+                                  style={{
+                                    padding: "6px 12px",
+                                    fontSize: 13,
+                                    cursor: updatingAutoRenew ? "not-allowed" : "pointer",
+                                    opacity: updatingAutoRenew ? 0.8 : 1,
+                                  }}
+                                >
+                                  {updatingAutoRenew
+                                    ? "..."
+                                    : premiumDetails.cancelAtPeriodEnd
+                                      ? "Turn on auto-renew"
+                                      : "Turn off auto-renew"}
+                                </button>
+                              </div>
+                            </div>
+                            {!premiumDetails.cancelAtPeriodEnd && (
+                              <div className="profileField" style={{ marginBottom: 12 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmCancelSubscriptionModal(true)}
+                                  disabled={cancellingSubscription}
+                                  className="homeBtn homeBtnOutline"
+                                  style={{
+                                    padding: "10px 16px",
+                                    fontSize: 14,
+                                    color: "#f87171",
+                                    borderColor: "#f87171",
+                                    cursor: cancellingSubscription ? "not-allowed" : "pointer",
+                                    opacity: cancellingSubscription ? 0.8 : 1,
+                                  }}
+                                >
+                                  {cancellingSubscription ? "..." : "Cancel subscription"}
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        )}
+                        {!premiumDetailsLoading && premiumDetails?.type === "gift" && (
+                          <>
+                            {premiumDetails.currentPeriodEnd && (
+                              <div className="profileField" style={{ marginBottom: 12 }}>
+                                <label style={{ color: "#9ca3af", fontSize: 12 }}>
+                                  Premium until
+                                </label>
+                                <div className="profileValue" style={{ marginTop: 4 }}>
+                                  {new Date(premiumDetails.currentPeriodEnd * 1000).toLocaleDateString()}
+                                </div>
+                              </div>
+                            )}
+                            <div className="profileField" style={{ marginBottom: 12 }}>
+                              <label style={{ color: "#9ca3af", fontSize: 12 }}>
+                                Days remaining
+                              </label>
+                              <div className="profileValue" style={{ marginTop: 4 }}>
+                                {premiumDetails.daysRemaining ?? 0} days
+                              </div>
+                            </div>
+                            <div style={{ fontSize: 13, color: "#9ca3af" }}>
+                              This is a gift subscription; it will not renew.
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </details>
+                  </div>
+                )}
+
                 <div className="profileSection profileSectionSpacing">
                   <h2>Account Security</h2>
 
@@ -613,6 +806,144 @@ export default function Profile() {
           isOpen={showCrossModeComparison}
           onRequestClose={() => setShowCrossModeComparison(false)}
         />
+
+        {/* Confirm auto-renew change modal */}
+        <Modal
+          isOpen={confirmAutoRenewModal !== null}
+          onRequestClose={() => setConfirmAutoRenewModal(null)}
+        >
+          <div style={{ padding: "24px" }}>
+            <h2
+              style={{
+                margin: 0,
+                marginBottom: "24px",
+                fontSize: 20,
+                fontWeight: "bold",
+                color: "#ffffff",
+              }}
+            >
+              {confirmAutoRenewModal?.newCancelAtPeriodEnd ? "Turn off auto-renew?" : "Turn on auto-renew?"}
+            </h2>
+            <p
+              style={{
+                margin: 0,
+                marginBottom: "12px",
+                color: "#d7dadc",
+                fontSize: 14,
+              }}
+            >
+              {confirmAutoRenewModal?.newCancelAtPeriodEnd
+                ? "You will keep access until the end of the current period."
+                : "Your subscription will renew at the end of the current period."}
+            </p>
+            <div style={{ display: "flex", gap: "12px", marginTop: "12px" }}>
+              <button
+                onClick={() => setConfirmAutoRenewModal(null)}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: 8,
+                  border: "1px solid #3a3a3c",
+                  background: "transparent",
+                  color: "#ffffff",
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (confirmAutoRenewModal === null) return;
+                  const newCancelAtPeriodEnd = confirmAutoRenewModal.newCancelAtPeriodEnd;
+                  setConfirmAutoRenewModal(null);
+                  await handleToggleAutoRenew(newCancelAtPeriodEnd);
+                }}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "#6aaa64",
+                  color: "#ffffff",
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Confirm cancel subscription modal */}
+        <Modal
+          isOpen={confirmCancelSubscriptionModal}
+          onRequestClose={() => setConfirmCancelSubscriptionModal(false)}
+        >
+          <div style={{ padding: "24px" }}>
+            <h2
+              style={{
+                margin: 0,
+                marginBottom: "24px",
+                fontSize: 20,
+                fontWeight: "bold",
+                color: "#ffffff",
+              }}
+            >
+              Cancel subscription?
+            </h2>
+            <p
+              style={{
+                margin: 0,
+                marginBottom: "12px",
+                color: "#d7dadc",
+                fontSize: 14,
+              }}
+            >
+              You will keep premium until the end of the current period.
+            </p>
+            <div style={{ display: "flex", gap: "12px", marginTop: "12px" }}>
+              <button
+                onClick={() => setConfirmCancelSubscriptionModal(false)}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: 8,
+                  border: "1px solid #3a3a3c",
+                  background: "transparent",
+                  color: "#ffffff",
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setConfirmCancelSubscriptionModal(false);
+                  await handleCancelSubscription();
+                }}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "#6aaa64",
+                  color: "#ffffff",
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </Modal>
       </div>
     </div>
     </>

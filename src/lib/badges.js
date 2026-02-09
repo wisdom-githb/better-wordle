@@ -26,6 +26,11 @@ export const ALL_BADGES = [
     name: 'Premium Member',
     description: 'Unlocked by subscribing to Better Wordle Premium. Access to themed wordles, custom colors, and more!',
   },
+  {
+    id: 'party_starter',
+    name: 'Party starter',
+    description: 'Earn this badge by creating a multiplayer room for the first time.',
+  },
 ];
 
 /**

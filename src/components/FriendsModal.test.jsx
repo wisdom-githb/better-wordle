@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: vi.fn(),
@@ -95,7 +95,7 @@ describe('FriendsModal', () => {
   });
 
   it('renders friends list with Challenge and Remove actions', async () => {
-    const removeFriend = vi.fn();
+    const removeFriend = vi.fn().mockResolvedValue(undefined);
 
     useAuth.mockReturnValue({
       isVerifiedUser: true,
@@ -126,10 +126,13 @@ describe('FriendsModal', () => {
     fireEvent.click(screen.getByRole('button', { name: /^remove$/i }));
     expect(screen.getByText(/remove friend\?/i)).toBeInTheDocument();
 
-    // Confirm removal in the confirm modal (last modal-root is the confirm modal)
+    // Confirm removal in the confirm modal (wrap in act so async handler state updates are flushed)
     const modalRoots = await findAllByTestId('modal-root');
     const confirmModal = modalRoots[modalRoots.length - 1];
-    fireEvent.click(within(confirmModal).getByRole('button', { name: /^remove$/i }));
+    await act(async () => {
+      fireEvent.click(within(confirmModal).getByRole('button', { name: /^remove$/i }));
+      await Promise.resolve();
+    });
     expect(removeFriend).toHaveBeenCalledWith('f1');
   });
 

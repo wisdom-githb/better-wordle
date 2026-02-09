@@ -281,3 +281,183 @@ exports.adminGiftSubscription = onCall(async (request) => {
 
   return { success: true };
 });
+
+/**
+ * Helper: get active subscription for uid from Firestore.
+ * Returns { stripeSubId: string | null, giftDoc: object | null }. Prefers Stripe sub if present.
+ */
+async function getActiveSubscriptionForUid(uid) {
+  const snap = await firestore
+    .collection('customers')
+    .doc(uid)
+    .collection('subscriptions')
+    .where('status', 'in', ['active', 'trialing'])
+    .get();
+
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    const id = (data.id || doc.id || '').toString();
+    if (id.startsWith('sub_')) {
+      return { stripeSubId: id, giftDoc: null };
+    }
+  }
+  const first = snap.docs[0];
+  if (first) {
+    return { stripeSubId: null, giftDoc: first.data() };
+  }
+  return { stripeSubId: null, giftDoc: null };
+}
+
+function parsePeriodEnd(value) {
+  if (value == null) return null;
+  if (typeof value === 'number') return value > 10000000000 ? value : value;
+  if (typeof value === 'object' && typeof value.toMillis === 'function') {
+    return Math.floor(value.toMillis() / 1000);
+  }
+  return null;
+}
+
+/**
+ * Callable: getSubscriptionDetails(uid)
+ * Returns subscription details for the current user. Caller must be uid.
+ */
+exports.getSubscriptionDetails = onCall(
+  { secrets: [stripeSecret], cors: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'You must be signed in.');
+    }
+
+    const uid = request.data?.uid;
+    if (!uid || typeof uid !== 'string') {
+      throw new HttpsError('invalid-argument', 'uid is required.');
+    }
+    if (request.auth.uid !== uid) {
+      throw new HttpsError('permission-denied', 'You can only view your own subscription.');
+    }
+
+    const { stripeSubId, giftDoc } = await getActiveSubscriptionForUid(uid);
+    const now = Math.floor(Date.now() / 1000);
+
+    if (stripeSubId) {
+      let secret;
+      try {
+        secret = (stripeSecret.value() || '').trim();
+      } catch (e) {
+        throw new HttpsError('failed-precondition', 'Stripe is not configured.');
+      }
+      if (!secret) {
+        throw new HttpsError('failed-precondition', 'Stripe is not configured.');
+      }
+      const stripe = new Stripe(secret, { apiVersion: '2023-10-16' });
+      const subscription = await stripe.subscriptions.retrieve(stripeSubId);
+      const currentPeriodEnd = subscription.current_period_end;
+      const daysRemaining = Math.max(0, Math.ceil((currentPeriodEnd - now) / 86400));
+      const interval = subscription.items?.data?.[0]?.price?.recurring?.interval;
+      const intervalCount = subscription.items?.data?.[0]?.price?.recurring?.interval_count ?? 1;
+      let intervalLabel = '1 month';
+      if (interval === 'year') intervalLabel = intervalCount === 1 ? '1 year' : `${intervalCount} years`;
+      else if (interval === 'month') intervalLabel = intervalCount === 1 ? '1 month' : `${intervalCount} months`;
+
+      return {
+        type: 'stripe',
+        currentPeriodEnd,
+        cancelAtPeriodEnd: !!subscription.cancel_at_period_end,
+        interval,
+        intervalCount,
+        intervalLabel,
+        daysRemaining,
+      };
+    }
+
+    if (giftDoc) {
+      const currentPeriodEnd = parsePeriodEnd(giftDoc.current_period_end);
+      const daysRemaining = currentPeriodEnd
+        ? Math.max(0, Math.ceil((currentPeriodEnd - now) / 86400))
+        : 0;
+      return {
+        type: 'gift',
+        currentPeriodEnd: currentPeriodEnd || null,
+        daysRemaining,
+      };
+    }
+
+    return { type: null, daysRemaining: 0 };
+  }
+);
+
+/**
+ * Callable: updateSubscriptionAutoRenew(uid, cancelAtPeriodEnd)
+ * Sets cancel_at_period_end on the user's Stripe subscription. Caller must be uid.
+ */
+exports.updateSubscriptionAutoRenew = onCall(
+  { secrets: [stripeSecret], cors: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'You must be signed in.');
+    }
+
+    const uid = request.data?.uid;
+    if (!uid || typeof uid !== 'string') {
+      throw new HttpsError('invalid-argument', 'uid is required.');
+    }
+    if (request.auth.uid !== uid) {
+      throw new HttpsError('permission-denied', 'You can only update your own subscription.');
+    }
+
+    const cancelAtPeriodEnd = request.data?.cancelAtPeriodEnd === true;
+
+    const { stripeSubId } = await getActiveSubscriptionForUid(uid);
+    if (!stripeSubId) {
+      throw new HttpsError('failed-precondition', 'No Stripe subscription found to update.');
+    }
+
+    let secret;
+    try {
+      secret = (stripeSecret.value() || '').trim();
+    } catch (e) {
+      throw new HttpsError('failed-precondition', 'Stripe is not configured.');
+    }
+    const stripe = new Stripe(secret, { apiVersion: '2023-10-16' });
+    await stripe.subscriptions.update(stripeSubId, { cancel_at_period_end: cancelAtPeriodEnd });
+
+    return { success: true };
+  }
+);
+
+/**
+ * Callable: cancelSubscription(uid)
+ * Sets cancel_at_period_end = true on the user's Stripe subscription. Caller must be uid.
+ */
+exports.cancelSubscription = onCall(
+  { secrets: [stripeSecret], cors: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'You must be signed in.');
+    }
+
+    const uid = request.data?.uid;
+    if (!uid || typeof uid !== 'string') {
+      throw new HttpsError('invalid-argument', 'uid is required.');
+    }
+    if (request.auth.uid !== uid) {
+      throw new HttpsError('permission-denied', 'You can only cancel your own subscription.');
+    }
+
+    const { stripeSubId } = await getActiveSubscriptionForUid(uid);
+    if (!stripeSubId) {
+      throw new HttpsError('failed-precondition', 'No Stripe subscription found to cancel.');
+    }
+
+    let secret;
+    try {
+      secret = (stripeSecret.value() || '').trim();
+    } catch (e) {
+      throw new HttpsError('failed-precondition', 'Stripe is not configured.');
+    }
+    const stripe = new Stripe(secret, { apiVersion: '2023-10-16' });
+    await stripe.subscriptions.update(stripeSubId, { cancel_at_period_end: true });
+
+    return { success: true };
+  }
+);

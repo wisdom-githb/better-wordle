@@ -776,8 +776,7 @@ export default function GameSinglePlayer({
           userName,
           mode,
           submitNumBoards,
-          finalTimeMs,
-          0
+          finalTimeMs
         ).catch((err) => {
           logError(err, 'GameSinglePlayer.submitSpeedrunScore');
         });

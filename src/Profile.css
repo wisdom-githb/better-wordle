@@ -269,10 +269,14 @@
 }
 
 .profileBadgeCard {
-  padding: 10px 12px;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  padding: 0;
   border-radius: 8px;
   border: 1px solid #3a3a3c;
   background: #1a1a1b;
+  overflow: hidden;
 }
 
 .profileBadgeCardEarned {
@@ -284,16 +288,14 @@
   opacity: 0.75;
 }
 
-.profileBadgeCardHeader {
+.profileBadgeCardContent {
+  flex: 1;
+  padding: 12px 14px;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.profileBadgeCardHeader .badgeIcon {
-  color: #c9b458;
-  flex-shrink: 0;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
+  min-width: 0;
 }
 
 .profileBadgeName {

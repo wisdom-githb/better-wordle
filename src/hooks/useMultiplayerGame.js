@@ -6,6 +6,7 @@ import { MULTIPLAYER_WAITING_TIMEOUT_MS, getSolutionArray } from '../lib/multipl
 import { clampBoards, clampPlayers, validateGameCode } from '../lib/validation';
 import { MAX_BOARDS, ABSOLUTE_MAX_PLAYERS, DEFAULT_MAX_PLAYERS, SPEEDRUN_COUNTDOWN_MS } from '../lib/gameConstants';
 import { logError } from '../lib/errorUtils';
+import { grantBadge } from '../lib/badgeService';
 
 const GAME_NOT_FOUND_HINT =
   'Ensure VITE_FIREBASE_DATABASE_URL in .env matches your Firebase Console Realtime Database URL.';
@@ -260,6 +261,9 @@ const createGame = useCallback(async (options = {}) => {
 
     try {
       await set(ref(database, gamePath), gameData);
+      grantBadge({ database, uid: user.uid, badgeId: 'party_starter' }).catch((err) =>
+        logError(err, 'useMultiplayerGame.grantBadge')
+      );
       return { code, gameData };
     } catch (err) {
       setError(err.message);

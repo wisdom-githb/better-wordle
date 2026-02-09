@@ -741,7 +741,10 @@ export function useAuth() {
           const gameSnap = await get(gameRef);
           if (gameSnap.exists()) {
             const gameData = gameSnap.val();
-            if (gameData.challengeOnly === true) {
+            const playerCount = Object.keys(gameData.players || {}).length;
+            // Only cancel the room when it's challenge-only and at most one player (host only).
+            // When playerCount > 1, the host can keep inviting others; only challenge list cleanup runs.
+            if (gameData.challengeOnly === true && playerCount <= 1) {
               const cancelledByName =
                 auth.currentUser.displayName || auth.currentUser.email || 'Your friend';
               await update(gameRef, {

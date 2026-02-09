@@ -113,7 +113,7 @@ export default function Leaderboard() {
                       size="sm"
                     />
                   </div>
-                  <div className="leaderboardBoards">{entry.numBoards}</div>
+                  <div className="leaderboardBoards">{entry.numBoards ?? "—"}</div>
                   <div className="leaderboardTime">{formatElapsed(entry.timeMs)}</div>
                 </div>
               );

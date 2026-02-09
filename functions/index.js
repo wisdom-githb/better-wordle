@@ -9,6 +9,9 @@ const {
   createGiftCheckoutSession,
   adminGiftSubscription,
   stripeGiftWebhook,
+  getSubscriptionDetails,
+  updateSubscriptionAutoRenew,
+  cancelSubscription,
 } = require('./giftSubscription');
 
 module.exports = {
@@ -17,4 +20,7 @@ module.exports = {
   createGiftCheckoutSession,
   adminGiftSubscription,
   stripeGiftWebhook,
+  getSubscriptionDetails,
+  updateSubscriptionAutoRenew,
+  cancelSubscription,
 };
