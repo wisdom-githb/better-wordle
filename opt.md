@@ -26,8 +26,8 @@ Codebase review findings. See also `optimization.md` and `BUG_REPORT.md` for pri
 
 - **File:** `src/components/game/GameSinglePlayer.jsx`
 - **Location:** Line 688, `goNextStage`
-- **Issue:** `window.location.href = \`/game?mode=marathon&speedrun=${speedrunEnabled}\`` uses an absolute path from origin. The app is served under a base path (e.g. `/better-wordle/` per `vite.config.js` and `main.jsx`). This navigation goes to `origin/game?...` instead of `origin/better-wordle/game?...`.
-- **Impact:** When deployed (e.g. GitHub Pages at `/better-wordle/`), "Next Stage" can 404 or load the wrong route.
+- **Issue:** `window.location.href = \`/game?mode=marathon&speedrun=${speedrunEnabled}\`` uses an absolute path from origin. The app is served under a base path (e.g. `/wuzzle-games/` per `vite.config.js` and `main.jsx`). This navigation goes to `origin/game?...` instead of `origin/wuzzle-games/game?...`.
+- **Impact:** When deployed (e.g. GitHub Pages at `/wuzzle-games/`), "Next Stage" can 404 or load the wrong route.
 - **Fix:** Use the app base URL when building the href, e.g.:
   ```js
   const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '') || '';
@@ -39,7 +39,7 @@ Codebase review findings. See also `optimization.md` and `BUG_REPORT.md` for pri
 
 - **File:** `src/components/ErrorBoundary.jsx`
 - **Location:** Line 72
-- **Issue:** `window.location.href = '/'` navigates to origin root. With a base path like `/better-wordle/`, users should go to `/better-wordle/` (or `/better-wordle`), not `/`.
+- **Issue:** `window.location.href = '/'` navigates to origin root. With a base path like `/wuzzle-games/`, users should go to `/wuzzle-games/` (or `/wuzzle-games`), not `/`.
 - **Impact:** Same as above when deployed with a base path.
 - **Fix:** Use base-aware URL, e.g.:
   ```js

@@ -1,6 +1,6 @@
-# Better Wordle Testing Plan
+# Wuzzle Games Testing Plan
 
-This document exhaustively lists Better Wordle features and behaviours to be tested.
+This document exhaustively lists Wuzzle Games features and behaviours to be tested.
 
 - **Unit tests (UT)** cover pure logic (no network or browser APIs) and may run with no external services.
 - **End-to-end tests (E2E)** and **system tests** must exercise **real behaviour with a configured Firebase + EmailJS test environment** and real browsers (no mocking of auth, database, or email).
@@ -527,9 +527,9 @@ To run the above tests **without mocks**, the following test data and configurat
 ### 9.2 Test User Accounts
 Provide or prepare the following accounts for automated tests:
 
-1. **Google test account A** (e.g., `betterwordle.test.a@gmail.com`)
+1. **Google test account A** (e.g., `wuzzlegames.test.a@gmail.com`)
    - Used for: Google sign-in, linking to existing email/password account, 1v1 host.
-2. **Google test account B** (e.g., `betterwordle.test.b@gmail.com`)
+2. **Google test account B** (e.g., `wuzzlegames.test.b@gmail.com`)
    - Used for: Google sign-in as opponent, friend and challenge flows, 1v1 guest.
 3. **Email/password test account – existing verified** (e.g., `bw.email.verified+1@example.com`)
    - Steps: sign up once, verify via email.

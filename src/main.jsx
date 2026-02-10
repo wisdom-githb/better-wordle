@@ -5,9 +5,9 @@ import { HelmetProvider } from 'react-helmet-async'
 import App from './App.jsx'
 import './index.css'
 
-// Get base URL from environment or use /better-wordle/ for GitHub Pages
+// Get base URL from environment or use /wuzzle-games/ for GitHub Pages
 // React Router basename should not have trailing slash
-const rawBaseUrl = import.meta.env.BASE_URL || '/better-wordle/';
+const rawBaseUrl = import.meta.env.BASE_URL || '/wuzzle-games/';
 const baseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
 
 // Handle 404 redirects from GitHub Pages
@@ -25,7 +25,7 @@ if (typeof window !== 'undefined') {
   }
   
   // Normalize URL to handle both with/without trailing slash for root path
-  // Vite dev server expects /better-wordle/ but React Router might create /better-wordle
+  // Vite dev server expects /wuzzle-games/ but React Router might create /wuzzle-games
   const currentPath = window.location.pathname;
   const isRootPath = currentPath === baseUrl || currentPath === baseUrl + '/';
   if (isRootPath) {

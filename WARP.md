@@ -4,7 +4,7 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ## Project overview
 
-This is a Vite + React 18 single-page app that implements an enhanced multi-board Wordle clone ("Better Wordle") with:
+This is a Vite + React 18 single-page app that implements an enhanced multi-board Wordle clone ("Wuzzle Games") with:
 - Daily mode with configurable number of simultaneous boards
 - Marathon mode with staged difficulty and optional speedrun timing
 - 1v1 head-to-head mode powered by Firebase Realtime Database
@@ -39,7 +39,7 @@ All commands are run from the repository root.
 
 ### GitHub Pages / routing
 
-- `vite.config.js` sets `base: '/better-wordle/'` so the app serves under `/better-wordle/` on GitHub Pages.
+- `vite.config.js` sets `base: '/wuzzle-games/'` so the app serves under `/wuzzle-games/` on GitHub Pages.
 - `src/main.jsx` derives `baseUrl` from `import.meta.env.BASE_URL`, normalizes trailing slashes, and configures `BrowserRouter basename={baseUrl}`.
 - There is custom logic in `src/main.jsx` to handle GitHub Pages 404 redirects via `sessionStorage._404_redirect` and to normalize the root URL; be careful when modifying routing or base paths.
 

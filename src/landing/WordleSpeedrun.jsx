@@ -4,12 +4,12 @@ import SeoLanding from "../SeoLanding";
 export default function WordleSpeedrunLanding() {
   return (
     <SeoLanding
-      path="/wordle-speedrun/"
-      title="Wordle Speedrun – Beat Your Time | Better Wordle"
-      description="Play Wordle Speedrun on Better Wordle. Race the clock in daily and marathon speedrun modes, including multi-board speedruns — free in your browser."
+      path="/wuzzle-speedrun/"
+      title="Wordle Speedrun – Beat Your Time | Wuzzle Games"
+      description="Play Wordle Speedrun on Wuzzle Games. Race the clock in daily and marathon speedrun modes, including multi-board speedruns — free in your browser."
       h1="Wordle Speedrun – Beat Your Best Time"
       intro={
-        "Wordle Speedrun takes the same guessing rules and adds one ingredient: time pressure. Better Wordle includes speedrun variants for daily and marathon play, plus speedrun-friendly multiplayer matches. If you like optimizing, racing your own PB, or settling ties with a stopwatch, speedrun mode is where Wordle stops being chill and starts being a sport."
+        "Wordle Speedrun takes the same guessing rules and adds one ingredient: time pressure. Wuzzle Games includes speedrun variants for daily and marathon play, plus speedrun-friendly multiplayer matches. If you like optimizing, racing your own PB, or settling ties with a stopwatch, speedrun mode is where Wordle stops being chill and starts being a sport."
       }
       primaryCta={{ label: "Start Speedrun", to: "/game/daily/1/speedrun" }}
       howToSteps={[

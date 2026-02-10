@@ -68,7 +68,7 @@ export default function SubscribeModal({ isOpen, onRequestClose, onSubscriptionC
 
     try {
       // Get base URL for GitHub Pages compatibility
-      // BASE_URL includes the base path (e.g., '/better-wordle/')
+      // BASE_URL includes the base path (e.g., '/wuzzle-games/')
       const baseUrl = import.meta.env.BASE_URL || '/';
       // Remove trailing slash for consistency
       const basePath = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
@@ -273,7 +273,7 @@ export default function SubscribeModal({ isOpen, onRequestClose, onSubscriptionC
                 lineHeight: 1.8,
               }}
             >
-              <li>Themed Wordle games</li>
+              <li>Themed Wuzzle games</li>
               <li>Custom color themes</li>
               <li>Premium Member badge</li>
               <li>And more coming soon!</li>

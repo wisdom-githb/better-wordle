@@ -129,7 +129,7 @@ export default function MultiplayerGameView({
                 lineHeight: 1.6,
               }}
             >
-              A Better Wordle account is required to host or join multiplayer rooms.
+              A Wuzzle Games account is required to host or join multiplayer rooms.
             </p>
             <div
               style={{

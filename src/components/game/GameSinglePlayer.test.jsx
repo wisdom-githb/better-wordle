@@ -98,7 +98,7 @@ vi.mock('../../lib/gameUtils', async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
-    generateShareText: vi.fn(() => 'Play Better Wordle!'),
+    generateShareText: vi.fn(() => 'Play Wuzzle Games!'),
   };
 });
 

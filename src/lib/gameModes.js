@@ -31,8 +31,8 @@ export const GAME_MODES = {
       persistence: true, // Local and remote persistence
     },
     seo: {
-      title: 'Daily Multi-Board Wordle-Style Game – Better Wordle',
-      description: 'Play Better Wordle daily multi-board Wordle-style puzzles with standard and speedrun options, tracking your guesses and scores across boards.',
+      title: 'Daily Multi-Board Wordle-Style Game – Wuzzle Games',
+      description: 'Play Wuzzle Games daily multi-board Wordle-style puzzles with standard and speedrun options, tracking your guesses and scores across boards.',
     },
   },
   marathon: {
@@ -59,8 +59,8 @@ export const GAME_MODES = {
       stages: true, // Multi-stage progression
     },
     seo: {
-      title: 'Marathon & Speedrun – Multi-Board Game | Better Wordle',
-      description: 'Play Better Wordle marathon and speedrun modes with multi-board Wordle-style puzzles, cumulative times and increasing difficulty across stages.',
+      title: 'Marathon & Speedrun – Multi-Board Game | Wuzzle Games',
+      description: 'Play Wuzzle Games marathon and speedrun modes with multi-board Wordle-style puzzles, cumulative times and increasing difficulty across stages.',
     },
   },
   multiplayer: {
@@ -89,8 +89,8 @@ export const GAME_MODES = {
       rematch: true, // Rematch functionality
     },
     seo: {
-      title: 'Multiplayer Wordle-Style Battles – Game | Better Wordle',
-      description: 'Play Better Wordle Multiplayer Mode: host or join multiplayer rooms, challenge friends with custom board counts and speedrun mode, and see who solves multi-board puzzles faster.',
+      title: 'Multiplayer Wordle-Style Battles – Game | Wuzzle Games',
+      description: 'Play Wuzzle Games Multiplayer Mode: host or join multiplayer rooms, challenge friends with custom board counts and speedrun mode, and see who solves multi-board puzzles faster.',
     },
   },
 };
@@ -216,8 +216,8 @@ export function registerGameMode(modeConfig) {
     isMultiplayer: false,
     features: {},
     seo: {
-      title: `${modeConfig.name} – Better Wordle`,
-      description: `Play Better Wordle ${modeConfig.name.toLowerCase()} mode.`,
+      title: `${modeConfig.name} – Wuzzle Games`,
+      description: `Play Wuzzle Games ${modeConfig.name.toLowerCase()} mode.`,
     },
   };
   

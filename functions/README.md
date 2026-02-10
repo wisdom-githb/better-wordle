@@ -1,4 +1,4 @@
-# Better Wordle Cloud Functions
+# Wuzzle Games Cloud Functions
 
 ## Gift subscription (2nd gen, params + Secret Manager)
 

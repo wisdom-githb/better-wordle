@@ -25,7 +25,7 @@ const BACKFILL_WINDOW_MS = 3000;
  * Global site header used across all pages.
  *
  * Layout:
- * Line 1 - BETTER WORDLE centered, hamburger icon on the right.
+ * Line 1 - WUZZLE GAMES centered, hamburger icon on the right.
  * Line 2 - "Reset in" text on the left, Sign in/Sign out and Leaderboard buttons on the right.
  * Line 3 (when signed in) - UserCard only; click navigates to profile.
  */
@@ -196,11 +196,11 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete, onHomeCli
               fontSize: 18,
             }}
           >
-            BETTER WORDLE
+            WUZZLE GAMES
           </div>
 
           <div className="flexRow justifyEnd" style={{ alignItems: "center", gap: 8, minWidth: 32 }}>
-            {user && isVerifiedUser && (
+            {user && (
               <button
                 type="button"
                 onClick={() => {

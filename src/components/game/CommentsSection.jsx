@@ -29,7 +29,7 @@ export default function CommentsSection({ threadId }) {
     const digits = Math.floor(Math.random() * 1000)
       .toString()
       .padStart(3, "0");
-    return `Better-wordle-player-${digits}`;
+    return `Wuzzle-games-player-${digits}`;
   }, []);
 
   // Stable client id used for reactions when the user is not signed in,

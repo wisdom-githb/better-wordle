@@ -10,10 +10,10 @@ export default function Faq() {
   return (
     <div className="faqRoot">
       <Helmet>
-        <title>FAQ – Better Wordle Alternative & Multiplayer Wordle-Style Game</title>
+        <title>FAQ – Wuzzle Games Alternative & Multiplayer Wordle-Style Game</title>
         <meta
           name="description"
-          content="Learn what Better Wordle is, how multi-board daily puzzles, marathon and speedrun modes, and Multiplayer Mode battles with friends work."
+          content="Learn what Wuzzle Games is, how multi-board daily puzzles, marathon and speedrun modes, and Multiplayer Mode battles with friends work."
         />
       </Helmet>
 
@@ -22,9 +22,9 @@ export default function Faq() {
 
         <main className="faqMain">
           <header className="faqHeader">
-            <h1 className="faqTitle">Better Wordle FAQ</h1>
+            <h1 className="faqTitle">Wuzzle Games FAQ</h1>
             <p className="faqIntro">
-              Better Wordle is a browser-based Wordle alternative with advanced
+              Wuzzle Games is a browser-based Wordle alternative with advanced
               modes like multi-board daily puzzles, marathon and speedrun
               challenges, and real-time Multiplayer Mode battles with friends.
               This page answers common questions about how it works.
@@ -33,10 +33,10 @@ export default function Faq() {
 
           <section className="faqSection" aria-labelledby="faq-what-is">
             <h2 id="faq-what-is" className="faqSectionTitle">
-              What is Better Wordle?
+              What is Wuzzle Games?
             </h2>
             <p className="faqParagraph">
-              Better Wordle is an advanced Wordle-style puzzle game that you play
+              Wuzzle Games is an advanced Wordle-style puzzle game that you play
               in your browser. It keeps the familiar letter-colour feedback you
               know from classic Wordle, but adds multi-board puzzles, marathon
               progressions, speedrun timers, a global leaderboard and
@@ -49,7 +49,7 @@ export default function Faq() {
               How does multi-board play work?
             </h2>
             <p className="faqParagraph">
-              In Better Wordle you can choose how many boards to play at once,
+              In Wuzzle Games you can choose how many boards to play at once,
               from a single word up to 32 simultaneous Wordle-style boards.
               Every guess is applied to all active boards, and each board shows
               its own colour feedback. This turns Wordle into a denser strategic
@@ -94,18 +94,18 @@ export default function Faq() {
             </p>
             <p className="faqParagraph">
               To start Multiplayer Mode, open the home page and use the Multiplayer
-              section. Once everyone is ready, Better Wordle tracks your guesses and
+              section. Once everyone is ready, Wuzzle Games tracks your guesses and
               times so you can see who solved the boards faster.
             </p>
           </section>
 
           <section className="faqSection" aria-labelledby="faq-different">
             <h2 id="faq-different" className="faqSectionTitle">
-              How is Better Wordle different from the original Wordle?
+              How is Wuzzle Games different from the original Wordle?
             </h2>
             <p className="faqParagraph">
               Classic Wordle gives you one word per day with a fixed number of
-              guesses. Better Wordle is designed as a Wordle alternative for
+              guesses. Wuzzle Games is designed as a Wordle alternative for
               players who want more challenge and variety: multi-board games,
               marathon progressions, speedrun timers, a competitive leaderboard
               and Multiplayer Mode friend battles.
@@ -119,11 +119,11 @@ export default function Faq() {
 
           <section className="faqSection" aria-labelledby="faq-leaderboard">
             <h2 id="faq-leaderboard" className="faqSectionTitle">
-              How does the Better Wordle leaderboard work?
+              How does the Wuzzle Games leaderboard work?
             </h2>
             <p className="faqParagraph">
               When you sign in and play speedrun modes, your best times and
-              scores can be submitted to the global Better Wordle leaderboard.
+              scores can be submitted to the global Wuzzle Games leaderboard.
               You can filter by daily or marathon and see how your multi-board
               runs compare to other players.
             </p>

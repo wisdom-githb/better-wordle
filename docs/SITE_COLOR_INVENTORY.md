@@ -1,4 +1,4 @@
-# Site Color Inventory – Better Wordle
+# Site Color Inventory – Wuzzle Games
 
 A complete inventory of every color used across the site (from CSS files and inline styles in JSX), grouped by color value, with the item/element that uses it. Each hex has a visual swatch next to it.
 

@@ -153,10 +153,10 @@ function App() {
         <Route path="/faq" element={<Faq />} />
         <Route path="/how-to-play" element={<HowToPlay />} />
         {/* SEO landing pages */}
-        <Route path="/multiplayer-wordle" element={<MultiplayerWordleLanding />} />
-        <Route path="/multi-board-wordle" element={<MultiBoardWordleLanding />} />
-        <Route path="/wordle-speedrun" element={<WordleSpeedrunLanding />} />
-        <Route path="/wordle-marathon" element={<WordleMarathonLanding />} />
+        <Route path="/multiplayer-wuzzle" element={<MultiplayerWordleLanding />} />
+        <Route path="/multi-board-wuzzle" element={<MultiBoardWordleLanding />} />
+        <Route path="/wuzzle-speedrun" element={<WordleSpeedrunLanding />} />
+        <Route path="/wuzzle-marathon" element={<WordleMarathonLanding />} />
         {/* Catch-all - redirect to home */}
         <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

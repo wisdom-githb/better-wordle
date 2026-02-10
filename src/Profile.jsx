@@ -26,7 +26,7 @@ import "./Profile.css";
 export default function Profile() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, loading, updateUsername, deleteAccount, isVerifiedUser, resendVerificationEmail, linkGoogleAccount, formatAuthErrorForDisplay } = useAuth();
+  const { user, loading, updateUsername, deleteAccount, isVerifiedUser, resendVerificationEmail, linkGoogleAccount, linkGoogleJustCompleted, clearLinkGoogleJustCompleted, formatAuthErrorForDisplay } = useAuth();
   const [username, setUsername] = useState("");
   const [initialUsername, setInitialUsername] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -34,6 +34,8 @@ export default function Profile() {
   const [message, setMessage] = useState("");
   const [linkingGoogle, setLinkingGoogle] = useState(false);
   const [sendingVerification, setSendingVerification] = useState(false);
+  const [verificationCooldownUntil, setVerificationCooldownUntil] = useState(0);
+  const [cooldownSecondsLeft, setCooldownSecondsLeft] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
   const [streaks, setStreaks] = useState(null);
   const [streakLoadError, setStreakLoadError] = useState(null);
@@ -72,6 +74,24 @@ export default function Profile() {
     }
     navigate(location.pathname, { replace: true, state: {} });
   }, [location.state?.openYourBadges, location.pathname, navigate]);
+
+  useEffect(() => {
+    if (linkGoogleJustCompleted) {
+      setMessage('Google account linked successfully!');
+      clearLinkGoogleJustCompleted();
+    }
+  }, [linkGoogleJustCompleted, clearLinkGoogleJustCompleted]);
+
+  useEffect(() => {
+    if (verificationCooldownUntil <= 0) return;
+    const tick = () => {
+      const left = Math.ceil((verificationCooldownUntil - Date.now()) / 1000);
+      setCooldownSecondsLeft(Math.max(0, left));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [verificationCooldownUntil]);
 
   useEffect(() => {
     let isMounted = true;
@@ -166,11 +186,14 @@ export default function Profile() {
 
   const handleResendVerification = async () => {
     if (!user || isVerifiedUser) return;
+    const now = Date.now();
+    if (now < verificationCooldownUntil) return;
     setSendingVerification(true);
     setMessage("");
     try {
       await resendVerificationEmail();
       setMessage('Verification email sent. Please check your inbox (and spam folder).');
+      setVerificationCooldownUntil(now + 30000); // 30 second cooldown
     } catch (err) {
       setMessage(`Error: ${formatAuthErrorForDisplay(err)}`);
     } finally {
@@ -183,16 +206,15 @@ export default function Profile() {
     setLinkingGoogle(true);
     setMessage("");
     try {
-      await linkGoogleAccount();
-      setMessage('Google account linked successfully!');
+      await linkGoogleAccount(location.pathname || '/profile');
+      // Page redirects to Google; we never reach here on success.
     } catch (err) {
+      setLinkingGoogle(false);
       if (err.code === 'auth/credential-already-in-use' || err.code === 'auth/provider-already-linked') {
         setMessage('Google account is already linked.');
       } else {
         setMessage(`Error: ${formatAuthErrorForDisplay(err)}`);
       }
-    } finally {
-      setLinkingGoogle(false);
     }
   };
 
@@ -270,10 +292,10 @@ export default function Profile() {
   return (
     <>
       <Helmet>
-        <title>Profile & Friends – Better Wordle</title>
+        <title>Profile & Friends – Wuzzle Games</title>
         <meta
           name="description"
-          content="Manage your Better Wordle profile, username, account security and linked Google account so your Wordle-style progress and Multiplayer Mode games stay in sync."
+          content="Manage your Wuzzle Games profile, username, account security and linked Google account so your Wordle-style progress and Multiplayer Mode games stay in sync."
         />
       </Helmet>
       <div className="profileRoot">
@@ -728,11 +750,11 @@ export default function Profile() {
                         <span>Your email is not verified.</span>
                         <button
                           onClick={handleResendVerification}
-                          disabled={sendingVerification}
+                          disabled={sendingVerification || cooldownSecondsLeft > 0}
                           className="homeBtn homeBtnGreen profileInlineButton"
-                          style={{ opacity: sendingVerification ? 0.8 : 1, cursor: sendingVerification ? 'not-allowed' : 'pointer' }}
+                          style={{ opacity: sendingVerification || cooldownSecondsLeft > 0 ? 0.8 : 1, cursor: sendingVerification || cooldownSecondsLeft > 0 ? 'not-allowed' : 'pointer' }}
                         >
-                          {sendingVerification ? 'Sending...' : 'Resend link'}
+                          {sendingVerification ? 'Sending...' : cooldownSecondsLeft > 0 ? `Wait ${cooldownSecondsLeft}s` : 'Resend link'}
                         </button>
                       </div>
                     </div>
@@ -768,7 +790,7 @@ export default function Profile() {
                     <div className="profileField">
                       <label>Delete account</label>
                       <div className="profileValue profileDangerText">
-                        This will permanently delete your Better Wordle account and associated friends/challenge data from Better Wordle. You'll need to create a new account to sign in again.
+                        This will permanently delete your Wuzzle Games account and associated friends/challenge data from Wuzzle Games. You'll need to create a new account to sign in again.
                       </div>
                     <button
                       onClick={handleDeleteAccount}

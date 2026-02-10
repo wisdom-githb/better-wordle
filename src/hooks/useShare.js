@@ -21,7 +21,7 @@ function buildMultiplayerShareText(code) {
     roomUrl = `/game?mode=multiplayer&code=${code}`;
   }
 
-  return `Join my Better Wordle multiplayer game\nLink: ${roomUrl}\nRoom code: ${code}`;
+  return `Join my Wuzzle Games multiplayer game\nLink: ${roomUrl}\nRoom code: ${code}`;
 }
 
 /**
@@ -36,7 +36,7 @@ export function useShare(shareText, setTimedMessage) {
       if (isMobile && navigator.share) {
         try {
           await navigator.share({
-            title: "Better Wordle",
+            title: "Wuzzle Games",
             text: shareText,
           });
           return; // Successfully shared
@@ -101,7 +101,7 @@ export function useShare(shareText, setTimedMessage) {
         if (isMobile && navigator.share) {
           try {
             await navigator.share({
-              title: "Join my Better Wordle game!",
+              title: "Join my Wuzzle Games game!",
               text,
             });
             return;

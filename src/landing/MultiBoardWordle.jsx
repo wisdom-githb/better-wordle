@@ -4,12 +4,12 @@ import SeoLanding from "../SeoLanding";
 export default function MultiBoardWordleLanding() {
   return (
     <SeoLanding
-      path="/multi-board-wordle/"
-      title="Multi‑Board Wordle – Solve 2–32 Boards | Better Wordle"
-      description="Play Multi‑Board Wordle on Better Wordle. Choose 2–32 boards for daily puzzles, marathon stages, or competitive multiplayer — free in your browser."
+      path="/multi-board-wuzzle/"
+      title="Multi‑Board Wordle – Solve 2–32 Boards | Wuzzle Games"
+      description="Play Multi‑Board Wordle on Wuzzle Games. Choose 2–32 boards for daily puzzles, marathon stages, or competitive multiplayer — free in your browser."
       h1="Multi‑Board Wordle – Solve More Than One Puzzle"
       intro={
-        "Multi‑Board Wordle is Wordle turned into a strategy game. Instead of solving one puzzle at a time, Better Wordle lets you play multiple boards in parallel — from a modest 2-board challenge to the full ‘how is this even legal’ 32-board mode. It’s harder, but it’s also more satisfying: each guess can teach you something on multiple boards at once."
+        "Multi‑Board Wordle is Wordle turned into a strategy game. Instead of solving one puzzle at a time, Wuzzle Games lets you play multiple boards in parallel — from a modest 2-board challenge to the full ‘how is this even legal’ 32-board mode. It’s harder, but it’s also more satisfying: each guess can teach you something on multiple boards at once."
       }
       primaryCta={{ label: "Play Multi‑Board", to: "/game/daily/4" }}
       howToSteps={[

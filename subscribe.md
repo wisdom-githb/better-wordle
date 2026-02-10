@@ -1,6 +1,6 @@
 # Subscription Implementation Guide
 
-This document outlines the steps needed to complete the subscription implementation for Better Wordle.
+This document outlines the steps needed to complete the subscription implementation for Wuzzle Games.
 
 ## Overview
 
@@ -40,7 +40,7 @@ The subscription system has been architected with the following components:
 3. **Create a Product and Price in Stripe:**
    - Go to **Products** in Stripe Dashboard
    - Click **+ Add product**
-   - Name: "Better Wordle Premium"
+   - Name: "Wuzzle Games Premium"
    - Description: "Monthly subscription for premium features"
    - Pricing: **Recurring**, **Monthly**, **$2.00 USD**
    - Save the **Price ID** (starts with `price_`) - you'll need this later

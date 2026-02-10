@@ -72,7 +72,7 @@ describe('useShare', () => {
 
     const origin = window.location.origin;
     const expectedUrl = `${origin}/game?mode=multiplayer&code=123456`;
-    const expectedText = `Join my Better Wordle multiplayer game\nLink: ${expectedUrl}\nRoom code: 123456`;
+    const expectedText = `Join my Wuzzle Games multiplayer game\nLink: ${expectedUrl}\nRoom code: 123456`;
 
     expect(mocks.clipboardWriteTextMock).toHaveBeenCalledWith(expectedText);
     expect(setTimedMessage).toHaveBeenCalledWith('Code copied to clipboard!', 2000);
@@ -90,11 +90,11 @@ describe('useShare', () => {
 
     const origin = window.location.origin;
     const expectedUrl = `${origin}/game?mode=multiplayer&code=123456`;
-    const expectedText = `Join my Better Wordle multiplayer game\nLink: ${expectedUrl}\nRoom code: 123456`;
+    const expectedText = `Join my Wuzzle Games multiplayer game\nLink: ${expectedUrl}\nRoom code: 123456`;
 
     expect(mocks.shareMock).toHaveBeenCalledTimes(1);
     expect(mocks.shareMock.mock.calls[0][0]).toMatchObject({
-      title: 'Join my Better Wordle game!',
+      title: 'Join my Wuzzle Games game!',
       text: expectedText,
     });
     expect(mocks.clipboardWriteTextMock).not.toHaveBeenCalled();

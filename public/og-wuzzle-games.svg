@@ -28,11 +28,11 @@
 
   <!-- Brand text -->
   <text x="150" y="250" fill="#e5e7eb" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Inter', sans-serif" font-size="32" letter-spacing="4">
-    A BETTER WAY TO PLAY
+    WORDLE-STYLE PUZZLE GAMES
   </text>
 
   <text x="150" y="330" fill="#f9fafb" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Inter', sans-serif" font-size="76" font-weight="700" letter-spacing="6">
-    BETTER WORDLE
+    WUZZLE GAMES
   </text>
 
   <text x="150" y="390" fill="#9ca3af" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Inter', sans-serif" font-size="26">

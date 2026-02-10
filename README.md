@@ -1,8 +1,8 @@
-# better-wordle
-// test
-Better Wordle is an advanced Wordle-style browser game with multi-board puzzles, marathon, speedrun, and multiplayer modes.
+# wuzzle-games
 
-**Live site:** https://wisdom-githb.github.io/better-wordle/
+Wuzzle Games is an advanced Wordle-style browser game with multi-board puzzles, marathon, speedrun, and multiplayer modes.
+
+**Live site:** https://wisdom-githb.github.io/wuzzle-games/
 
 ## Setup
 
@@ -41,10 +41,10 @@ npm run deploy
 This will:
 - Build your React app
 - Deploy it to the `gh-pages` branch
-- Make it available at: `https://[your-username].github.io/better-wordle/`
+- Make it available at: `https://[your-username].github.io/wuzzle-games/`
 
 ### Note:
-The base path is configured as `/better-wordle/` in `vite.config.js`. If your repository name is different, update the `base` property in `vite.config.js` accordingly.
+The base path is configured as `/wuzzle-games/` in `vite.config.js`. If your repository name is different, update the `base` property in `vite.config.js` accordingly.
 
 ## Firebase Authentication Setup
 
@@ -208,7 +208,7 @@ The feedback button on the homepage allows users to send anonymous feedback via 
    - Go to "Email Templates" in the EmailJS dashboard
    - Click "Create New Template"
    - Set the template name (e.g., "feedback_template")
-   - Set the Subject to: `feedback for better-wordle`
+   - Set the Subject to: `feedback for wuzzle-games`
    - Set the To Email to: `abhijeetsridhar14@gmail.com`
    - In the Content/Message field, use: `{{message}}`
    - Save the template and note your Template ID

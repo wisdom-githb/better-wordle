@@ -43,7 +43,7 @@ describe('FeedbackModal', () => {
     // Title is uniquely identified by heading role
     expect(screen.getByRole('heading', { name: 'Send Feedback' })).toBeInTheDocument();
     expect(
-      screen.getByText('Your feedback helps us improve Better Wordle. All feedback is anonymous.'),
+      screen.getByText('Your feedback helps us improve Wuzzle Games. All feedback is anonymous.'),
     ).toBeInTheDocument();
 
     const textarea = screen.getByPlaceholderText(

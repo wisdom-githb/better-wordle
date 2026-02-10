@@ -48,7 +48,8 @@ vi.mock('firebase/auth', () => {
     Object.assign(user, updates);
   });
   const sendEmailVerification = vi.fn();
-  const linkWithPopup = vi.fn();
+  const linkWithRedirect = vi.fn();
+  const getRedirectResult = vi.fn(() => Promise.resolve(null));
   const fetchSignInMethodsForEmail = vi.fn();
 
   // Must be constructible because src/config/firebase.js uses `new GoogleAuthProvider()`
@@ -66,7 +67,8 @@ vi.mock('firebase/auth', () => {
     onAuthStateChanged,
     updateProfile,
     sendEmailVerification,
-    linkWithPopup,
+    linkWithRedirect,
+    getRedirectResult,
     fetchSignInMethodsForEmail,
   };
 });
@@ -210,6 +212,14 @@ vi.mock('firebase/database', () => {
   };
 });
 
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: vi.fn(() => vi.fn()),
+  };
+});
+
 // Now import the hook under test (after mocks)
 import { useAuth } from './useAuth';
 import * as firebaseAuth from 'firebase/auth';
@@ -232,6 +242,7 @@ beforeEach(() => {
     firebaseDb.__resetDb();
   }
 
+  sessionStorage.removeItem('linkGoogleReturnTo');
   vi.clearAllMocks();
 });
 
@@ -568,8 +579,8 @@ describe('useAuth - profile helpers', () => {
     expect(result.current.error).toBeNull();
   });
 
-  it('linkGoogleAccount updates user on success', async () => {
-    const { getAuth, linkWithPopup } = firebaseAuth;
+  it('linkGoogleAccount sets sessionStorage and calls linkWithRedirect', async () => {
+    const { getAuth, linkWithRedirect } = firebaseAuth;
     const auth = getAuth();
     auth.currentUser = {
       uid: 'u7',
@@ -578,9 +589,7 @@ describe('useAuth - profile helpers', () => {
       providerData: [],
     };
 
-    linkWithPopup.mockImplementationOnce(async () => {
-      auth.currentUser.providerData = [{ providerId: 'google.com' }];
-    });
+    linkWithRedirect.mockResolvedValueOnce(undefined);
 
     const { result } = renderHook(() => useAuth());
     const listener = getAuthListener();
@@ -589,17 +598,16 @@ describe('useAuth - profile helpers', () => {
     });
 
     await act(async () => {
-      await result.current.linkGoogleAccount();
+      await result.current.linkGoogleAccount('/profile');
     });
 
-    expect(linkWithPopup).toHaveBeenCalledTimes(1);
-    expect(linkWithPopup).toHaveBeenCalledWith(auth.currentUser, expect.anything());
-    expect(result.current.user).toBe(auth.currentUser);
-    expect(result.current.error).toBeNull();
+    expect(sessionStorage.getItem('linkGoogleReturnTo')).toBe('/profile');
+    expect(linkWithRedirect).toHaveBeenCalledTimes(1);
+    expect(linkWithRedirect).toHaveBeenCalledWith(auth.currentUser, expect.anything());
   });
 
-  it('linkGoogleAccount surfaces friendly error when already linked', async () => {
-    const { getAuth, linkWithPopup } = firebaseAuth;
+  it('linkGoogleAccount propagates error when linkWithRedirect rejects', async () => {
+    const { getAuth, linkWithRedirect } = firebaseAuth;
     const auth = getAuth();
     auth.currentUser = {
       uid: 'u8',
@@ -611,7 +619,7 @@ describe('useAuth - profile helpers', () => {
     const err = new Error('Already linked');
     // @ts-expect-error - augment error
     err.code = 'auth/provider-already-linked';
-    linkWithPopup.mockRejectedValueOnce(err);
+    linkWithRedirect.mockRejectedValueOnce(err);
 
     const { result } = renderHook(() => useAuth());
     const listener = getAuthListener();
@@ -629,7 +637,6 @@ describe('useAuth - profile helpers', () => {
     });
 
     expect(caught).toBe(err);
-    expect(result.current.error).toBe('Google account is already linked.');
   });
 });
 

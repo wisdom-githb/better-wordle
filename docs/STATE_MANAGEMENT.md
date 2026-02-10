@@ -1,10 +1,10 @@
 # State Management Patterns
 
-This document describes the state management patterns used in Better Wordle.
+This document describes the state management patterns used in Wuzzle Games.
 
 ## Overview
 
-Better Wordle uses a hybrid state management approach:
+Wuzzle Games uses a hybrid state management approach:
 - **Local UI State**: `useState` for component-specific UI state
 - **Game State**: Mix of `useState` and `useRef` for game logic
 - **Server State**: Firebase Realtime Database listeners

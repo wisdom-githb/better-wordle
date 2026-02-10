@@ -51,23 +51,23 @@ export function generateShareText(
 ) {
   // Guard against empty boards
   if (!boards || boards.length === 0) {
-    return "Play Better Wordle!";
+    return "Play Wuzzle Games!";
   }
 
   const lines = [];
   const isMarathon = mode === "marathon";
   const isDaily = mode === "daily";
 
-  // Heading matches "Better Wordle - <Mode> <Variant>" from ShareText.md
-  let heading = "Better Wordle";
+  // Heading matches "Wuzzle Games - <Mode> <Variant>" from ShareText.md
+  let heading = "Wuzzle Games";
   if (isDaily && speedrunEnabled) {
-    heading = "Better Wordle - Daily Speedrun";
+    heading = "Wuzzle Games - Daily Speedrun";
   } else if (isDaily) {
-    heading = "Better Wordle - Daily Standard";
+    heading = "Wuzzle Games - Daily Standard";
   } else if (isMarathon && speedrunEnabled) {
-    heading = "Better Wordle - Marathon Speedrun";
+    heading = "Wuzzle Games - Marathon Speedrun";
   } else if (isMarathon) {
-    heading = "Better Wordle - Marathon Standard";
+    heading = "Wuzzle Games - Marathon Standard";
   }
 
   lines.push(heading);
@@ -125,8 +125,8 @@ export function generateShareText(
     }
 
     lines.push("");
-    lines.push("Play Better Wordle!");
-    lines.push("https://wisdom-githb.github.io/better-wordle/");
+    lines.push("Play Wuzzle Games!");
+    lines.push("https://wisdom-githb.github.io/wuzzle-games/");
 
     return lines.join("\n");
   }
@@ -189,8 +189,8 @@ export function generateShareText(
   }
 
   lines.push("");
-  lines.push("Play Better Wordle!");
-  lines.push("https://wisdom-githb.github.io/better-wordle/");
+  lines.push("Play Wuzzle Games!");
+  lines.push("https://wisdom-githb.github.io/wuzzle-games/");
 
   return lines.join("\n");
 }

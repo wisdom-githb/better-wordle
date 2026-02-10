@@ -36,7 +36,7 @@ describe('generateShareText', () => {
     );
 
     const expected = [
-      'Better Wordle - Daily Standard',
+      'Wuzzle Games - Daily Standard',
       '',
       '🟨⬛⬛⬛🟩',
       '🟩🟩🟩🟩🟩',
@@ -44,8 +44,8 @@ describe('generateShareText', () => {
       'Guesses: 2/6',
       'Solved!',
       '',
-      'Play Better Wordle!',
-      'https://wisdom-githb.github.io/better-wordle/',
+      'Play Wuzzle Games!',
+      'https://wisdom-githb.github.io/wuzzle-games/',
     ].join('\n');
 
     expect(text).toBe(expected);
@@ -81,7 +81,7 @@ describe('generateShareText', () => {
     );
 
     const expected = [
-      'Better Wordle - Daily Standard',
+      'Wuzzle Games - Daily Standard',
       '',
       '🟨⬛⬛⬛🟩',
       '🟨🟨⬛⬛⬛',
@@ -93,8 +93,8 @@ describe('generateShareText', () => {
       'Guesses: 6/6',
       'Not solved!',
       '',
-      'Play Better Wordle!',
-      'https://wisdom-githb.github.io/better-wordle/',
+      'Play Wuzzle Games!',
+      'https://wisdom-githb.github.io/wuzzle-games/',
     ].join('\n');
 
     expect(text).toBe(expected);
@@ -131,7 +131,7 @@ describe('generateShareText', () => {
     );
 
     const expected = [
-      'Better Wordle - Daily Standard',
+      'Wuzzle Games - Daily Standard',
       '',
       '⬛🟨⬛⬛⬛',
       '🟨⬛⬛⬛🟨',
@@ -144,8 +144,8 @@ describe('generateShareText', () => {
       'Guesses: 7/6',
       'Solved!',
       '',
-      'Play Better Wordle!',
-      'https://wisdom-githb.github.io/better-wordle/',
+      'Play Wuzzle Games!',
+      'https://wisdom-githb.github.io/wuzzle-games/',
     ].join('\n');
 
     expect(text).toBe(expected);
@@ -169,14 +169,14 @@ describe('generateShareText', () => {
     );
 
     const expected = [
-      'Better Wordle - Daily Standard',
+      'Wuzzle Games - Daily Standard',
       '',
       'Boards: 2',
       'Guesses used: 4/7',
       'Solved: 2/2',
       '',
-      'Play Better Wordle!',
-      'https://wisdom-githb.github.io/better-wordle/',
+      'Play Wuzzle Games!',
+      'https://wisdom-githb.github.io/wuzzle-games/',
     ].join('\n');
 
     expect(text).toBe(expected);
@@ -200,14 +200,14 @@ describe('generateShareText', () => {
     );
 
     const expected = [
-      'Better Wordle - Daily Standard',
+      'Wuzzle Games - Daily Standard',
       '',
       'Boards: 2',
       'Guesses used: 7/7',
       'Solved: 0/2',
       '',
-      'Play Better Wordle!',
-      'https://wisdom-githb.github.io/better-wordle/',
+      'Play Wuzzle Games!',
+      'https://wisdom-githb.github.io/wuzzle-games/',
     ].join('\n');
 
     expect(text).toBe(expected);
@@ -237,14 +237,14 @@ describe('generateShareText', () => {
     );
 
     const expected = [
-      'Better Wordle - Daily Standard',
+      'Wuzzle Games - Daily Standard',
       '',
       'Boards: 5',
       'Guesses used: 11/10',
       'Solved: 5/5',
       '',
-      'Play Better Wordle!',
-      'https://wisdom-githb.github.io/better-wordle/',
+      'Play Wuzzle Games!',
+      'https://wisdom-githb.github.io/wuzzle-games/',
     ].join('\n');
 
     expect(text).toBe(expected);
@@ -279,7 +279,7 @@ describe('generateShareText', () => {
     );
 
     const expected = [
-      'Better Wordle - Daily Speedrun',
+      'Wuzzle Games - Daily Speedrun',
       '',
       '⬛⬛⬛⬛⬛',
       '⬛⬛⬛⬛🟨',
@@ -290,8 +290,8 @@ describe('generateShareText', () => {
       'Time: 00:15.8',
       'Guesses: 5',
       '',
-      'Play Better Wordle!',
-      'https://wisdom-githb.github.io/better-wordle/',
+      'Play Wuzzle Games!',
+      'https://wisdom-githb.github.io/wuzzle-games/',
     ].join('\n');
 
     expect(text).toBe(expected);
@@ -315,14 +315,14 @@ describe('generateShareText', () => {
     );
 
     const expected = [
-      'Better Wordle - Daily Speedrun',
+      'Wuzzle Games - Daily Speedrun',
       '',
       'Boards: 2',
       'Time: 00:14.3',
       'Guesses used: 6',
       '',
-      'Play Better Wordle!',
-      'https://wisdom-githb.github.io/better-wordle/',
+      'Play Wuzzle Games!',
+      'https://wisdom-githb.github.io/wuzzle-games/',
     ].join('\n');
 
     expect(text).toBe(expected);
@@ -354,7 +354,7 @@ describe('generateShareText', () => {
     );
 
     const expected = [
-      'Better Wordle - Marathon Standard',
+      'Wuzzle Games - Marathon Standard',
       '',
       'Stage 1 (1 board):',
       'Guesses used: 2/6',
@@ -367,8 +367,8 @@ describe('generateShareText', () => {
       '',
       'Total guesses used: 16/30',
       '',
-      'Play Better Wordle!',
-      'https://wisdom-githb.github.io/better-wordle/',
+      'Play Wuzzle Games!',
+      'https://wisdom-githb.github.io/wuzzle-games/',
     ].join('\n');
 
     expect(text).toBe(expected);
@@ -400,7 +400,7 @@ describe('generateShareText', () => {
     );
 
     const expected = [
-      'Better Wordle - Marathon Standard',
+      'Wuzzle Games - Marathon Standard',
       '',
       'Stage 1 (1 board):',
       'Guesses used: 2/6',
@@ -413,8 +413,8 @@ describe('generateShareText', () => {
       '',
       'Total guesses used: 9/13',
       '',
-      'Play Better Wordle!',
-      'https://wisdom-githb.github.io/better-wordle/',
+      'Play Wuzzle Games!',
+      'https://wisdom-githb.github.io/wuzzle-games/',
     ].join('\n');
 
     expect(text).toBe(expected);
@@ -446,7 +446,7 @@ describe('generateShareText', () => {
     );
 
     const expected = [
-      'Better Wordle - Marathon Standard',
+      'Wuzzle Games - Marathon Standard',
       '',
       'Stage 1 (1 board):',
       'Guesses used: 2/6',
@@ -459,8 +459,8 @@ describe('generateShareText', () => {
       '',
       'Total guesses used: 23/30',
       '',
-      'Play Better Wordle!',
-      'https://wisdom-githb.github.io/better-wordle/',
+      'Play Wuzzle Games!',
+      'https://wisdom-githb.github.io/wuzzle-games/',
     ].join('\n');
 
     expect(text).toBe(expected);
@@ -499,7 +499,7 @@ describe('generateShareText', () => {
     );
 
     const expected = [
-      'Better Wordle - Marathon Speedrun',
+      'Wuzzle Games - Marathon Speedrun',
       '',
       'Stage 1 (1 board):',
       'Time: 00:07.5',
@@ -512,8 +512,8 @@ describe('generateShareText', () => {
       '',
       'Total time: 00:51.9',
       '',
-      'Play Better Wordle!',
-      'https://wisdom-githb.github.io/better-wordle/',
+      'Play Wuzzle Games!',
+      'https://wisdom-githb.github.io/wuzzle-games/',
     ].join('\n');
 
     expect(text).toBe(expected);
@@ -533,6 +533,6 @@ describe('generateShareText', () => {
       false,
       0,
     );
-    expect(text).toBe('Play Better Wordle!');
+    expect(text).toBe('Play Wuzzle Games!');
   });
 });

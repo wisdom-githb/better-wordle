@@ -4,12 +4,12 @@ import SeoLanding from "../SeoLanding";
 export default function WordleMarathonLanding() {
   return (
     <SeoLanding
-      path="/wordle-marathon/"
-      title="Wordle Marathon – Unlimited Stages | Better Wordle"
-      description="Play Wordle Marathon on Better Wordle. Progress through staged multi-board puzzles, optionally in speedrun style — free in your browser."
+      path="/wuzzle-marathon/"
+      title="Wordle Marathon – Unlimited Stages | Wuzzle Games"
+      description="Play Wordle Marathon on Wuzzle Games. Progress through staged multi-board puzzles, optionally in speedrun style — free in your browser."
       h1="Wordle Marathon – Keep Solving, Keep Leveling"
       intro={
-        "Daily Wordle is a single puzzle. Marathon Wordle is a whole session. Better Wordle’s marathon mode is built for players who want more than one round: you progress through stages, board counts can increase, and you can track your run like a mini campaign. It’s the ‘one more game’ loop — but with five-letter words."
+        "Daily Wordle is a single puzzle. Marathon Wordle is a whole session. Wuzzle Games' marathon mode is built for players who want more than one round: you progress through stages, board counts can increase, and you can track your run like a mini campaign. It’s the ‘one more game’ loop — but with five-letter words."
       }
       primaryCta={{ label: "Start Marathon", to: "/game/marathon" }}
       howToSteps={[

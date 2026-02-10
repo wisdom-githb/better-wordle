@@ -6,7 +6,7 @@ import "./SeoLanding.css";
 // Hard-code the canonical origin for deterministic prerender output.
 // (Using window.location breaks during SSR/prerender.)
 const SITE_ORIGIN = "https://wisdom-githb.github.io";
-const SITE_BASE = "/better-wordle";
+const SITE_BASE = "/wuzzle-games";
 
 function absUrl(pathname) {
   const clean = pathname.startsWith("/") ? pathname : `/${pathname}`;
@@ -66,7 +66,7 @@ export default function SeoLanding({
         <meta property="og:url" content={canonicalUrl} />
         <meta
           property="og:image"
-          content={`${SITE_ORIGIN}${SITE_BASE}/og-better-wordle.png`}
+          content={`${SITE_ORIGIN}${SITE_BASE}/og-wuzzle-games.png`}
         />
 
         {/* Twitter */}
@@ -75,7 +75,7 @@ export default function SeoLanding({
         <meta name="twitter:description" content={description} />
         <meta
           name="twitter:image"
-          content={`${SITE_ORIGIN}${SITE_BASE}/og-better-wordle.png`}
+          content={`${SITE_ORIGIN}${SITE_BASE}/og-wuzzle-games.png`}
         />
 
         {/* WebSite schema (helps Google understand brand/site) */}
@@ -83,7 +83,7 @@ export default function SeoLanding({
           {JSON.stringify({
             "@context": "https://schema.org",
             "@type": "WebSite",
-            name: "Better Wordle",
+            name: "Wuzzle Games",
             url: `${SITE_ORIGIN}${SITE_BASE}/`,
           })}
         </script>
@@ -128,7 +128,7 @@ export default function SeoLanding({
 
         {features?.length ? (
           <section className="seoSection">
-            <h2>What makes Better Wordle different</h2>
+            <h2>What makes Wuzzle Games different</h2>
             <ul>
               {features.map((f) => (
                 <li key={f}>{f}</li>

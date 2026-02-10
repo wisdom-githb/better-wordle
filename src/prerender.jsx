@@ -14,10 +14,10 @@ const PRERENDER_ROUTES = [
   "/how-to-play",
   "/stats",
   // SEO landings
-  "/multiplayer-wordle",
-  "/multi-board-wordle",
-  "/wordle-speedrun",
-  "/wordle-marathon",
+  "/multiplayer-wuzzle",
+  "/multi-board-wuzzle",
+  "/wuzzle-speedrun",
+  "/wuzzle-marathon",
 ];
 
 function toHeadElements(helmet) {
@@ -43,7 +43,7 @@ export async function prerender(data) {
 
   const html = renderToString(
     <HelmetProvider context={helmetContext}>
-      <StaticRouter location={url} basename="/better-wordle">
+      <StaticRouter location={url} basename="/wuzzle-games">
         <App />
       </StaticRouter>
     </HelmetProvider>
@@ -58,7 +58,7 @@ export async function prerender(data) {
       lang: "en",
       title:
         helmet?.title?.toString?.().replace(/<\/?title>/g, "") ||
-        "Better Wordle",
+        "Wuzzle Games",
       elements: toHeadElements(helmet),
     },
   };

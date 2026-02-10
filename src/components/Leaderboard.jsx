@@ -28,10 +28,10 @@ export default function Leaderboard() {
   return (
     <>
       <Helmet>
-        <title>Multiplayer & Speedrun Leaderboard – Better Wordle</title>
+        <title>Multiplayer & Speedrun Leaderboard – Wuzzle Games</title>
         <meta
           name="description"
-          content="View the Better Wordle speedrun and Multiplayer Mode leaderboard, compare your multi-board and marathon times, and see how you rank against other players."
+          content="View the Wuzzle Games speedrun and Multiplayer Mode leaderboard, compare your multi-board and marathon times, and see how you rank against other players."
         />
       </Helmet>
       <div className="leaderboardRoot">

@@ -158,10 +158,10 @@ export default function Home({
   return (
     <>
       <Helmet>
-        <title>Better Wordle</title>
+        <title>Wuzzle Games</title>
         <meta
           name="description"
-          content="Better Wordle is a Wordle alternative with multi-board daily puzzles, marathon and speedrun modes, and Multiplayer Mode battles with friends."
+          content="Wuzzle Games is a Wordle alternative with multi-board daily puzzles, marathon and speedrun modes, and Multiplayer Mode battles with friends."
         />
       </Helmet>
       <div className="homeRoot">
@@ -215,7 +215,7 @@ export default function Home({
               }}
 >
               Please open that email and click the link to verify your account.
-              Once verified, you&apos;ll be able to play Multiplayer Mode and use friends.
+              Once verified, you&apos;ll be able to play Multiplayer Mode and add friends.
               Check your Spam or Junk folder for the verification link.
             </p>
             <div className="flexRow justifyEnd">
@@ -365,13 +365,13 @@ export default function Home({
           <section className="homeIntro">
             <details className="homeIntroDetails">
               <summary className="homeIntroSummary">
-                Click here to know more about Better Wordle.
+                Click here to know more about Wuzzle Games.
               </summary>
               <h1 className="homeTitle">
-                Better Wordle – Advanced Multi-Board &amp; Multiplayer Wordle-Style Game
+                Wuzzle Games – Advanced Multi-Board &amp; Multiplayer Wordle-Style Game
               </h1>
               <p className="homeIntroParagraph">
-                Better Wordle is a free, browser-based Wordle-style puzzle game that you
+                Wuzzle Games is a free, browser-based Wordle-style puzzle game that you
                 can play on any device. No downloads or sign-in required to get started –
                 just open the site and start solving.
               </p>
@@ -379,22 +379,22 @@ export default function Home({
                 Play up to 32 boards at once with daily multi-board puzzles, push
                 yourself with marathon stages and speedrun timers, and challenge
                 friends in real-time Multiplayer Mode battles. Your best speedrun
-                times can appear on the global Better Wordle leaderboard.
+                times can appear on the global Wuzzle Games leaderboard.
               </p>
               <p className="homeIntroParagraph">
-                New to Better Wordle? Read the{" "}
+                New to Wuzzle Games? Read the{" "}
                 <Link to="/faq" className="homeLink">
-                  Better Wordle FAQ
+                  Wuzzle Games FAQ
                 </Link>{" "}
                 or jump straight to the{" "}
                 <Link to="/leaderboard" className="homeLink">
-                  global Better Wordle leaderboard
+                  global Wuzzle Games leaderboard
                 </Link>{" "}
                 to see top players.
-                You can also explore specific modes: <Link to="/multiplayer-wordle" className="homeLink">multiplayer battles</Link>,{" "}
-                <Link to="/multi-board-wordle" className="homeLink">multi-board Wordle</Link>,{" "}
-                <Link to="/wordle-speedrun" className="homeLink">Wordle speedrun</Link>, and{" "}
-                <Link to="/wordle-marathon" className="homeLink">Wordle marathon</Link>.
+                You can also explore specific modes: <Link to="/multiplayer-wuzzle" className="homeLink">multiplayer battles</Link>,{" "}
+                <Link to="/multi-board-wuzzle" className="homeLink">multi-board Wordle</Link>,{" "}
+                <Link to="/wuzzle-speedrun" className="homeLink">Wordle speedrun</Link>, and{" "}
+                <Link to="/wuzzle-marathon" className="homeLink">Wordle marathon</Link>.
               </p>
             </details>
           </section>

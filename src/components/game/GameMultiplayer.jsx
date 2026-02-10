@@ -498,9 +498,9 @@ export default function GameMultiplayer() {
 
   const shareText = useMemo(() => {
     if (!boards || boards.length === 0) {
-      return "Play Better Wordle!";
+      return "Play Wuzzle Games!";
     }
-    return "Play Better Wordle Multiplayer Mode!";
+    return "Play Wuzzle Games Multiplayer Mode!";
   }, [boards]);
 
   const { handleShare, handleShareCode } = useShare(shareText, setTimedMessage);
@@ -531,9 +531,9 @@ export default function GameMultiplayer() {
     [gameCode, multiplayerGame, setTimedMessage]
   );
 
-  const pageTitle = "Multiplayer Wordle-Style Battles – Game | Better Wordle";
+  const pageTitle = "Multiplayer Wordle-Style Battles – Game | Wuzzle Games";
   const pageDescription =
-    "Play Better Wordle Multiplayer Mode, challenge friends with custom board counts and speedrun mode, and see who solves multi-board puzzles faster.";
+    "Play Wuzzle Games Multiplayer Mode, challenge friends with custom board counts and speedrun mode, and see who solves multi-board puzzles faster.";
 
   return (
     <>

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Better Wordle</title>
+    <title>Wuzzle Games</title>
     <style>
       * {
         font-family: "Inter", system-ui, sans-serif;
@@ -36,7 +36,7 @@
       // GitHub Pages 404.html handler for client-side routing
       // This preserves the URL path when redirecting to index.html
       (function() {
-        const basePath = '/better-wordle';
+        const basePath = '/wuzzle-games';
         const path = window.location.pathname;
         const search = window.location.search;
         const hash = window.location.hash;
@@ -55,7 +55,7 @@
           return;
         }
         
-        // Extract the path after the base path (e.g., '/game' from '/better-wordle/game')
+        // Extract the path after the base path (e.g., '/game' from '/wuzzle-games/game')
         let pathAfterBase = path;
         if (path.startsWith(basePath)) {
           pathAfterBase = path.substring(basePath.length);

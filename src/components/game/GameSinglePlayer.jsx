@@ -1014,7 +1014,7 @@ export default function GameSinglePlayer({
 
   const shareText = useMemo(() => {
     if (!boards || boards.length === 0) {
-      return "Play Better Wordle!";
+      return "Play Wuzzle Games!";
     }
 
     const isMarathon = mode === "marathon";
@@ -1080,21 +1080,21 @@ export default function GameSinglePlayer({
   };
 
   const pageTitle = archiveDate
-    ? `Archive ${formatArchiveDate(archiveDate)} – ${getModeLabel()} | Better Wordle`
+    ? `Archive ${formatArchiveDate(archiveDate)} – ${getModeLabel()} | Wuzzle Games`
     : mode === "marathon"
-      ? "Marathon & Speedrun – Multi‑Board Game | Better Wordle"
+      ? "Marathon & Speedrun – Multi‑Board Game | Wuzzle Games"
       : mode === "daily"
-      ? "Daily Multi‑Board Wordle-Style Game – Better Wordle"
-      : "Game – Better Wordle";
+      ? "Daily Multi‑Board Wordle-Style Game – Wuzzle Games"
+      : "Game – Wuzzle Games";
 
   const pageDescription =
     archiveDate
-      ? `Play the Better Wordle ${getModeLabel()} puzzle from ${formatArchiveDate(archiveDate)}.`
+      ? `Play the Wuzzle Games ${getModeLabel()} puzzle from ${formatArchiveDate(archiveDate)}.`
       : mode === "marathon"
-      ? "Play Better Wordle marathon and speedrun modes with multi-board Wordle-style puzzles, cumulative times and increasing difficulty across stages."
+      ? "Play Wuzzle Games marathon and speedrun modes with multi-board Wordle-style puzzles, cumulative times and increasing difficulty across stages."
       : mode === "daily"
-      ? "Play Better Wordle daily multi-board Wordle-style puzzles with standard and speedrun options, tracking your guesses and scores across boards."
-      : "Play Better Wordle game modes including daily, marathon, speedrun and multi-board Wordle-style puzzles.";
+      ? "Play Wuzzle Games daily multi-board Wordle-style puzzles with standard and speedrun options, tracking your guesses and scores across boards."
+      : "Play Wuzzle Games game modes including daily, marathon, speedrun and multi-board Wordle-style puzzles.";
 
   // Show comments only once the stage is definitively completed for the day
   // (after the end-of-game popup has been shown at least once), so that
@@ -1130,7 +1130,7 @@ export default function GameSinglePlayer({
           <meta name="description" content={pageDescription} />
         </Helmet>
         <div className="loadingContainer">
-          Loading Wordle dictionaries...
+          Loading Wuzzle dictionaries...
         </div>
       </>
     );

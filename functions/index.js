@@ -1,5 +1,5 @@
 /**
- * Firebase Cloud Functions for Better Wordle
+ * Firebase Cloud Functions for Wuzzle Games
  *
  * This file exports all deployed Cloud Functions.
  */

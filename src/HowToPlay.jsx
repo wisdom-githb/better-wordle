@@ -183,10 +183,10 @@ export default function HowToPlay() {
   return (
     <div className="howToPlayRoot">
       <Helmet>
-        <title>How to Play – Better Wordle Guide & Tutorial</title>
+        <title>How to Play – Wuzzle Games Guide & Tutorial</title>
         <meta
           name="description"
-          content="Learn how to play Better Wordle with examples of single board, multi-board, keyboard colors, and marathon mode progression."
+          content="Learn how to play Wuzzle Games with examples of single board, multi-board, keyboard colors, and marathon mode progression."
         />
       </Helmet>
 
@@ -195,9 +195,9 @@ export default function HowToPlay() {
 
         <main className="howToPlayMain">
           <header className="howToPlayHeader">
-            <h1 className="howToPlayTitle">How to Play Better Wordle</h1>
+            <h1 className="howToPlayTitle">How to Play Wuzzle Games</h1>
             <p className="howToPlayIntro">
-              Better Wordle is a Wordle-style puzzle game where you guess five-letter words.
+              Wuzzle Games is a Wordle-style puzzle game where you guess five-letter words.
               Each letter in your guess gets color-coded feedback to help you solve the puzzle.
             </p>
           </header>

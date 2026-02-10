@@ -215,7 +215,7 @@ describe('SiteHeader', () => {
     expect(notificationsButton).toBeInTheDocument();
   });
 
-  it('hides notification icon when user is not verified', () => {
+  it('shows notification icon when user is signed in but not verified', () => {
     useAuth.mockReturnValue({
       user: { displayName: 'Alice', email: 'alice@example.com' },
       signOut: vi.fn(),
@@ -227,7 +227,7 @@ describe('SiteHeader', () => {
 
     render(<SiteHeader onOpenFeedback={vi.fn()} onSignUpComplete={vi.fn()} />);
 
-    expect(screen.queryByRole('button', { name: /notifications/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /notifications/i })).toBeInTheDocument();
   });
 
   it('opens NotificationsModal when notification icon is clicked', async () => {

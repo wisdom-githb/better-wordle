@@ -117,7 +117,7 @@ export default function AdvancedStats() {
     );
   }
 
-  const pageTitle = `${getModeDisplayName()} Statistics | Better Wordle`;
+  const pageTitle = `${getModeDisplayName()} Statistics | Wuzzle Games`;
 
   function StatCard({ title, value, subtitle = null, locked = false, onClick = null }) {
     return (
@@ -138,7 +138,7 @@ export default function AdvancedStats() {
     <>
       <Helmet>
         <title>{pageTitle}</title>
-        <meta name="description" content={`Your ${getModeDisplayName()} statistics and performance on Better Wordle.`} />
+        <meta name="description" content={`Your ${getModeDisplayName()} statistics and performance on Wuzzle Games.`} />
       </Helmet>
       <div className="stats-page">
         <SiteHeader />

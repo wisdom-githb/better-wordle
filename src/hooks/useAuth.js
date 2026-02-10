@@ -7,11 +7,13 @@ import {
   onAuthStateChanged,
   updateProfile,
   sendEmailVerification,
-  linkWithPopup,
+  linkWithRedirect,
+  getRedirectResult,
   fetchSignInMethodsForEmail,
   sendPasswordResetEmail,
   deleteUser,
 } from 'firebase/auth';
+import { useNavigate } from 'react-router-dom';
 import { auth, googleProvider, database } from '../config/firebase';
 import { ref, get, set, remove, onValue, update, runTransaction } from 'firebase/database';
 import { validateUsername } from '../lib/validation';
@@ -47,7 +49,10 @@ function formatAuthError(err) {
   return err.message || 'Something went wrong with authentication. Please try again.';
 }
 
+const LINK_GOOGLE_RETURN_KEY = 'linkGoogleReturnTo';
+
 export function useAuth() {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -56,6 +61,30 @@ export function useAuth() {
   const [incomingChallenges, setIncomingChallenges] = useState([]);
   // Outgoing multiplayer challenges created by the current user ("Sent" tab in UI).
   const [sentChallenges, setSentChallenges] = useState([]);
+  const [linkGoogleJustCompleted, setLinkGoogleJustCompleted] = useState(false);
+
+  // Handle redirect result from linkWithRedirect (Connect Google flow).
+  // Must run on mount to detect when user returns from Google sign-in.
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result) {
+          setUser(auth.currentUser);
+          setLinkGoogleJustCompleted(true);
+          const returnTo = sessionStorage.getItem(LINK_GOOGLE_RETURN_KEY) || '/profile';
+          sessionStorage.removeItem(LINK_GOOGLE_RETURN_KEY);
+          navigate(returnTo);
+        }
+      })
+      .catch((err) => {
+        if (err.code === 'auth/credential-already-in-use' || err.code === 'auth/provider-already-linked') {
+          setError('Google account is already linked.');
+        } else {
+          setError(formatAuthError(err));
+        }
+        sessionStorage.removeItem(LINK_GOOGLE_RETURN_KEY);
+      });
+  }, [navigate]);
 
   useEffect(() => {
     let isMounted = true;
@@ -98,7 +127,7 @@ export function useAuth() {
           const randomDigits = Math.floor(Math.random() * 1000)
             .toString()
             .padStart(3, '0');
-          const generatedUsername = `better-wordle-player-${randomDigits}`;
+          const generatedUsername = `wuzzle-games-player-${randomDigits}`;
 
           updateProfile(authUser, { displayName: generatedUsername })
             .then(() => {
@@ -914,22 +943,16 @@ export function useAuth() {
     }
   }, []);
 
-  const linkGoogleAccount = useCallback(async () => {
-    try {
-      setError(null);
-      if (!auth.currentUser) throw new Error('No user signed in');
-      await linkWithPopup(auth.currentUser, googleProvider);
-      setUser(auth.currentUser);
-      return true;
-    } catch (err) {
-      // If account already linked, surface a friendly message but still throw for callers to handle
-      if (err.code === 'auth/credential-already-in-use' || err.code === 'auth/provider-already-linked') {
-        setError('Google account is already linked.');
-      } else {
-        setError(formatAuthError(err));
-      }
-      throw err;
-    }
+  const linkGoogleAccount = useCallback(async (returnTo = '/profile') => {
+    setError(null);
+    if (!auth.currentUser) throw new Error('No user signed in');
+    sessionStorage.setItem(LINK_GOOGLE_RETURN_KEY, returnTo);
+    await linkWithRedirect(auth.currentUser, googleProvider);
+    // Page redirects; we never reach here.
+  }, []);
+
+  const clearLinkGoogleJustCompleted = useCallback(() => {
+    setLinkGoogleJustCompleted(false);
   }, []);
 
   return {
@@ -959,6 +982,8 @@ export function useAuth() {
     cancelSentChallenge,
     resendVerificationEmail,
     linkGoogleAccount,
+    linkGoogleJustCompleted,
+    clearLinkGoogleJustCompleted,
     // Expose a small helper so views like Profile can format auth errors
     // consistently without having to read the raw error state.
     formatAuthErrorForDisplay: formatAuthError,

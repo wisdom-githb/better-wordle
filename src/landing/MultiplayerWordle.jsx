@@ -4,12 +4,12 @@ import SeoLanding from "../SeoLanding";
 export default function MultiplayerWordleLanding() {
   return (
     <SeoLanding
-      path="/multiplayer-wordle/"
-      title="Multiplayer Wordle – Play With Friends | Better Wordle"
-      description="Play Multiplayer Wordle on Better Wordle: host or join rooms, race on multi-board puzzles, and climb the global leaderboard — free in your browser."
+      path="/multiplayer-wuzzle/"
+      title="Multiplayer Wordle – Play With Friends | Wuzzle Games"
+      description="Play Multiplayer Wordle on Wuzzle Games: host or join rooms, race on multi-board puzzles, and climb the global leaderboard — free in your browser."
       h1="Multiplayer Wordle – Play With Friends"
       intro={
-        "Multiplayer Wordle is the fastest way to turn a daily word puzzle into a friendly competition. Better Wordle lets you host or join a room, pick how many boards you want, and race to solve Wordle-style puzzles faster than your friends. No app install, no paywall, and no waiting for ‘tomorrow’ — just share a code and play."
+        "Multiplayer Wordle is the fastest way to turn a daily word puzzle into a friendly competition. Wuzzle Games lets you host or join a room, pick how many boards you want, and race to solve Wordle-style puzzles faster than your friends. No app install, no paywall, and no waiting for ‘tomorrow’ — just share a code and play."
       }
       primaryCta={{ label: "Start Multiplayer", to: "/game?mode=multiplayer" }}
       howToSteps={[
@@ -34,7 +34,7 @@ export default function MultiplayerWordleLanding() {
       ]}
       faqs={[
         {
-          q: "Is Better Wordle Multiplayer free?",
+          q: "Is Wuzzle Games Multiplayer free?",
           a: "Yes. Multiplayer mode is free to play in your browser. Some features (like friends and challenges) may require signing in so the app can associate games with your account.",
         },
         {

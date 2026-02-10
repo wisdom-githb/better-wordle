@@ -1,4 +1,4 @@
-# Better Wordle Bug Fixes - Completed
+# Wuzzle Games Bug Fixes - Completed
 
 ## Summary
 All 4 critical bugs have been fixed or verified as already implemented.

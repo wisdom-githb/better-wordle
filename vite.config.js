@@ -20,14 +20,14 @@ export default defineConfig({
         '/notifications',
         '/stats',
         // Long-tail SEO landing pages (match current features; multiplayer landing)
-        '/multiplayer-wordle',
-        '/multi-board-wordle',
-        '/wordle-speedrun',
-        '/wordle-marathon'
+        '/multiplayer-wuzzle',
+        '/multi-board-wuzzle',
+        '/wuzzle-speedrun',
+        '/wuzzle-marathon'
       ],
     }),
   ],
-  base: '/better-wordle/',
+  base: '/wuzzle-games/',
   build: {
     emptyOutDir: true,
     outDir: 'dist',

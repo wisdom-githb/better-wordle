@@ -98,7 +98,7 @@ function FeedbackModal({ isOpen, onRequestClose }) {
             lineHeight: 1.5,
           }}
         >
-          Your feedback helps us improve Better Wordle. All feedback is anonymous.
+          Your feedback helps us improve Wuzzle Games. All feedback is anonymous.
         </p>
 
         <form onSubmit={handleSubmit}>

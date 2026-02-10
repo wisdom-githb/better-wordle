@@ -1,4 +1,4 @@
-# Better Wordle - Codebase Optimization & Improvement Plan
+# Wuzzle Games - Codebase Optimization & Improvement Plan
 
 This document identifies bugs, architectural improvements, scalability concerns, and optimization opportunities to make the app more maintainable, scalable, and easier to extend with new game modes.
 

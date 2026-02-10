@@ -9,7 +9,7 @@ export default function MultiplayerWordleLanding() {
     mainEntity: [
       {
         "@type": "Question",
-        name: "How do multiplayer rooms work in Better Wordle?",
+        name: "How do multiplayer rooms work in Wuzzle Games?",
         acceptedAnswer: {
           "@type": "Answer",
           text:
@@ -31,7 +31,7 @@ export default function MultiplayerWordleLanding() {
         acceptedAnswer: {
           "@type": "Answer",
           text:
-            "No. Better Wordle runs in your browser on desktop and mobile.",
+            "No. Wuzzle Games runs in your browser on desktop and mobile.",
         },
       },
       {
@@ -49,14 +49,14 @@ export default function MultiplayerWordleLanding() {
   return (
     <>
       <Helmet>
-        <title>Multiplayer Wordle | Better Wordle</title>
+        <title>Multiplayer Wordle | Wuzzle Games</title>
         <meta
           name="description"
-          content="Play multiplayer Wordle-style battles in Better Wordle. Host or join a room, share a code with friends, and race through multi-board puzzles."
+          content="Play multiplayer Wordle-style battles in Wuzzle Games. Host or join a room, share a code with friends, and race through multi-board puzzles."
         />
         <link
           rel="canonical"
-          href="https://wisdom-githb.github.io/better-wordle/multiplayer-wordle/"
+          href="https://wisdom-githb.github.io/wuzzle-games/multiplayer-wuzzle/"
         />
         <script type="application/ld+json">
           {JSON.stringify(faqJsonLd)}
@@ -65,14 +65,14 @@ export default function MultiplayerWordleLanding() {
 
       <SeoLandingLayout
         title="Multiplayer Wordle"
-        subtitle="Better Wordle lets you host a room, share a code, and play the same puzzle with friends—whether it’s a full group or a head-to-head match."
+        subtitle="Wuzzle Games lets you host a room, share a code, and play the same puzzle with friends—whether it’s a full group or a head-to-head match."
         primaryCta={{
           label: "Open Multiplayer Mode",
           to: "/game?mode=multiplayer",
         }}
       >
         <p>
-          Searching for a <strong>multiplayer Wordle</strong> that actually works in a browser? Better Wordle’s Multiplayer Mode is built for quick “join by code” games and friendly trash talk. It also works for a head-to-head match—just host a room and invite one person.
+          Searching for a <strong>multiplayer Wordle</strong> that actually works in a browser? Wuzzle Games' Multiplayer Mode is built for quick “join by code” games and friendly trash talk. It also works for a head-to-head match—just host a room and invite one person.
         </p>
 
         <h2>How to play</h2>

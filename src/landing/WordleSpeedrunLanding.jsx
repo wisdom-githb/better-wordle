@@ -19,7 +19,7 @@ export default function WordleSpeedrunLanding() {
       },
       {
         "@type": "Question",
-        name: "Does Better Wordle support speedrun with multiple boards?",
+        name: "Does Wuzzle Games support speedrun with multiple boards?",
         acceptedAnswer: {
           "@type": "Answer",
           text:
@@ -32,7 +32,7 @@ export default function WordleSpeedrunLanding() {
         acceptedAnswer: {
           "@type": "Answer",
           text:
-            "Yes. Better Wordle includes a marathon speedrun option that tracks time across stages.",
+            "Yes. Wuzzle Games includes a marathon speedrun option that tracks time across stages.",
         },
       },
     ],
@@ -41,14 +41,14 @@ export default function WordleSpeedrunLanding() {
   return (
     <>
       <Helmet>
-        <title>Wordle Speedrun | Better Wordle</title>
+        <title>Wordle Speedrun | Wuzzle Games</title>
         <meta
           name="description"
-          content="Play Wordle speedrun mode in Better Wordle. Race the clock on daily and marathon puzzles—including multi-board speedruns—free in your browser."
+          content="Play Wordle speedrun mode in Wuzzle Games. Race the clock on daily and marathon puzzles—including multi-board speedruns—free in your browser."
         />
         <link
           rel="canonical"
-          href="https://wisdom-githb.github.io/better-wordle/wordle-speedrun/"
+          href="https://wisdom-githb.github.io/wuzzle-games/wuzzle-speedrun/"
         />
         <script type="application/ld+json">{JSON.stringify(faqJsonLd)}</script>
       </Helmet>
@@ -62,7 +62,7 @@ export default function WordleSpeedrunLanding() {
         }}
       >
         <p>
-          A <strong>Wordle speedrun</strong> is simple: solve faster, make fewer mistakes, repeat. Better Wordle adds a speedrun option so you can track time and treat Wordle as a training loop instead of a once-a-day snack. If you like improving measurable skills (and you do, because you’re reading this), speedrun mode is the most satisfying way to play.
+          A <strong>Wordle speedrun</strong> is simple: solve faster, make fewer mistakes, repeat. Wuzzle Games adds a speedrun option so you can track time and treat Wordle as a training loop instead of a once-a-day snack. If you like improving measurable skills (and you do, because you’re reading this), speedrun mode is the most satisfying way to play.
         </p>
 
         <h2>What speedrun mode changes</h2>

@@ -29,8 +29,8 @@ export function useGameMode() {
 
   const seo = useMemo(() => {
     return modeConfig?.seo || {
-      title: 'Game – Better Wordle',
-      description: 'Play Better Wordle game modes including daily, marathon, speedrun and multi-board Wordle-style puzzles.',
+      title: 'Game – Wuzzle Games',
+      description: 'Play Wuzzle Games game modes including daily, marathon, speedrun and multi-board Wordle-style puzzles.',
     };
   }, [modeConfig]);
 

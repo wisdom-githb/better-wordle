@@ -7,7 +7,7 @@ export default function GameHeader({
   speedrunEnabled,
   archiveDate = null,
 }) {
-  let title = "BETTER WORDLE";
+  let title = "WUZZLE GAMES";
 
   if (archiveDate) {
     const formattedDate = formatArchiveDate(archiveDate);

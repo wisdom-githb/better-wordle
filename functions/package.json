@@ -1,6 +1,6 @@
 {
-  "name": "better-wordle-functions",
-  "description": "Cloud Functions for Better Wordle (cleanup, gift subscription)",
+  "name": "wuzzle-games-functions",
+  "description": "Cloud Functions for Wuzzle Games (cleanup, gift subscription)",
   "private": true,
   "main": "index.js",
   "engines": {

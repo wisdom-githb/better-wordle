@@ -41,14 +41,14 @@ export default function WordleMarathonLanding() {
   return (
     <>
       <Helmet>
-        <title>Wordle Marathon | Better Wordle</title>
+        <title>Wordle Marathon | Wuzzle Games</title>
         <meta
           name="description"
-          content="Play Wordle marathon mode in Better Wordle. Go beyond one daily puzzle with multi-stage, multi-board runs—plus optional speedrun timing."
+          content="Play Wordle marathon mode in Wuzzle Games. Go beyond one daily puzzle with multi-stage, multi-board runs—plus optional speedrun timing."
         />
         <link
           rel="canonical"
-          href="https://wisdom-githb.github.io/better-wordle/wordle-marathon/"
+          href="https://wisdom-githb.github.io/wuzzle-games/wuzzle-marathon/"
         />
         <script type="application/ld+json">{JSON.stringify(faqJsonLd)}</script>
       </Helmet>
@@ -59,7 +59,7 @@ export default function WordleMarathonLanding() {
         primaryCta={{ label: "Start Marathon", to: "/game/marathon" }}
       >
         <p>
-          A <strong>Wordle marathon</strong> is the antidote to “one puzzle per day.” Better Wordle’s marathon mode is designed for longer sessions: you play through stages, build momentum, and earn that satisfying feeling of solving under pressure without needing a new browser tab every five minutes.
+          A <strong>Wordle marathon</strong> is the antidote to “one puzzle per day.” Wuzzle Games' marathon mode is designed for longer sessions: you play through stages, build momentum, and earn that satisfying feeling of solving under pressure without needing a new browser tab every five minutes.
         </p>
 
         <h2>What you’ll do in marathon mode</h2>

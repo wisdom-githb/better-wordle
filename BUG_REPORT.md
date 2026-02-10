@@ -1,7 +1,7 @@
-# Better Wordle Bug Report
+# Wuzzle Games Bug Report
 
 ## Summary
-This document outlines critical bugs found in the Better Wordle codebase, their root causes, and fixes applied.
+This document outlines critical bugs found in the Wuzzle Games codebase, their root causes, and fixes applied.
 
 ---
 

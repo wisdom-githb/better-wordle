@@ -18,7 +18,7 @@ export default function MultiBoardWordleLanding() {
       },
       {
         "@type": "Question",
-        name: "How many boards can I play in Better Wordle?",
+        name: "How many boards can I play in Wuzzle Games?",
         acceptedAnswer: {
           "@type": "Answer",
           text:
@@ -31,7 +31,7 @@ export default function MultiBoardWordleLanding() {
         acceptedAnswer: {
           "@type": "Answer",
           text:
-            "Yes. Better Wordle supports daily multi-board puzzles so you can play the daily challenge with more than one board.",
+            "Yes. Wuzzle Games supports daily multi-board puzzles so you can play the daily challenge with more than one board.",
         },
       },
     ],
@@ -40,14 +40,14 @@ export default function MultiBoardWordleLanding() {
   return (
     <>
       <Helmet>
-        <title>Multi-Board Wordle | Better Wordle</title>
+        <title>Multi-Board Wordle | Wuzzle Games</title>
         <meta
           name="description"
-          content="Play multi-board Wordle-style puzzles in Better Wordle. Solve multiple boards at once with shared guesses—daily puzzles, marathon, and speedrun options."
+          content="Play multi-board Wordle-style puzzles in Wuzzle Games. Solve multiple boards at once with shared guesses—daily puzzles, marathon, and speedrun options."
         />
         <link
           rel="canonical"
-          href="https://wisdom-githb.github.io/better-wordle/multi-board-wordle/"
+          href="https://wisdom-githb.github.io/wuzzle-games/multi-board-wuzzle/"
         />
         <script type="application/ld+json">{JSON.stringify(faqJsonLd)}</script>
       </Helmet>
@@ -79,7 +79,7 @@ export default function MultiBoardWordleLanding() {
 
         <h2>Where to start</h2>
         <p>
-          Start with 2 boards if you’re new, then move to 4 when you can reliably manage the mental stack. Better Wordle supports multi-board play in daily puzzles and other modes, so you can ramp difficulty without waiting for “hard mode” handcuffs.
+          Start with 2 boards if you’re new, then move to 4 when you can reliably manage the mental stack. Wuzzle Games supports multi-board play in daily puzzles and other modes, so you can ramp difficulty without waiting for “hard mode” handcuffs.
         </p>
 
         <h2>Quick tips</h2>

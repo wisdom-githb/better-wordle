@@ -1,5 +1,5 @@
 /**
- * Badge definitions and helpers for the Better Wordle badge system.
+ * Badge definitions and helpers for the Wuzzle Games badge system.
  * Badges are stored per-user under users/{uid}/badges in Firebase.
  * Value can be `true` or `{ earnedAt: number }` for "latest" ordering.
  */
@@ -13,18 +13,18 @@
 export const ALL_BADGES = [
   {
     id: 'registered',
-    name: 'Better Wordle Member',
-    description: 'Earned by creating an account and joining the community. Welcome to Better Wordle!',
+    name: 'Wuzzle Games Member',
+    description: 'Earned by creating an account and joining the community. Welcome to Wuzzle Games!',
   },
   {
     id: 'daily_player',
     name: 'Daily Player',
-    description: 'Earned by completing at least one game of Daily Better Wordle.',
+    description: 'Earned by completing at least one game of Daily Wuzzle Games.',
   },
   {
     id: 'premium_member',
     name: 'Premium Member',
-    description: 'Unlocked by subscribing to Better Wordle Premium. Access to themed wordles, custom colors, and more!',
+    description: 'Unlocked by subscribing to Wuzzle Games Premium. Access to themed wordles, custom colors, and more!',
   },
   {
     id: 'party_starter',

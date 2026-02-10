@@ -109,7 +109,7 @@ describe('MultiplayerGameView unauthenticated multiplayer gating', () => {
     // Heading and message
     expect(screen.getByText('Sign in to play Multiplayer Mode')).toBeInTheDocument();
     expect(
-      screen.getByText('A Better Wordle account is required to host or join multiplayer rooms.'),
+      screen.getByText('A Wuzzle Games account is required to host or join multiplayer rooms.'),
     ).toBeInTheDocument();
 
     // Buttons
