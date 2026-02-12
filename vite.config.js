@@ -27,7 +27,7 @@ export default defineConfig({
       ],
     }),
   ],
-  base: '/wuzzle-games/',
+  base: '/better-wordle/',
   build: {
     emptyOutDir: true,
     outDir: 'dist',
