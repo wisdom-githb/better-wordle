@@ -291,8 +291,8 @@ export function isMobileDevice() {
 
 // Background color for tile colors
 export function bgForColor(color) {
-  if (color === "green") return "#6aaa64";
-  if (color === "yellow") return "#c9b458";
-  if (color === "grey") return "#3a3a3c";
-  return "#121213";
+  if (color === "green") return "#50a339";
+  if (color === "yellow") return "#B1A04C";
+  if (color === "grey") return "#3A3A3C";
+  return "#212121";
 }

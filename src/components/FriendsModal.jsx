@@ -176,8 +176,8 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                 flex: 1,
                 padding: "8px 10px",
                 borderRadius: 6,
-                border: "1px solid #3a3a3c",
-                background: "#121213",
+                border: "1px solid #3A3A3C",
+                background: "#212121",
                 color: "#ffffff",
                 fontSize: 13,
               }}
@@ -189,7 +189,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                 padding: "8px 12px",
                 borderRadius: 6,
                 border: "none",
-                background: "#6aaa64",
+                background: "#e56b6f",
                 color: "#ffffff",
                 fontWeight: "bold",
                 fontSize: 12,
@@ -214,7 +214,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                 flexDirection: "column",
                 gap: "10px",
                 marginBottom: "16px",
-                borderBottom: "1px solid #3a3a3c",
+                borderBottom: "1px solid #3A3A3C",
                 paddingBottom: "16px"
               }}
             >
@@ -223,9 +223,9 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                   key={request.id}
                   style={{
                     padding: "12px 14px",
-                    background: "#2b2b2e",
+                    background: "#372F41",
                     borderRadius: "8px",
-                    border: "1px solid #6aaa64",
+                    border: "1px solid #50a339",
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
@@ -247,7 +247,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                         padding: "6px 10px",
                         borderRadius: "6px",
                         border: "none",
-                        background: "#6aaa64",
+                        background: "#e56b6f",
                         color: "#ffffff",
                         fontWeight: "bold",
                         fontSize: "11px",
@@ -261,8 +261,8 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                       style={{
                         padding: "6px 10px",
                         borderRadius: "6px",
-                        border: "1px solid #3a3a3c",
-                        background: "transparent",
+                        border: "1px solid #3A3A3C",
+                        background: "#355070",
                         color: "#ffffff",
                         fontWeight: "bold",
                         fontSize: "11px",
@@ -299,9 +299,9 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                   key={friend.id}
                   style={{
                     padding: "14px 16px",
-                    background: "#2b2b2e",
+                    background: "#372F41",
                     borderRadius: "8px",
-                    border: "1px solid #3a3a3c",
+                    border: "1px solid #3A3A3C",
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
@@ -322,9 +322,9 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                       style={{
                         padding: "6px 10px",
                         borderRadius: "6px",
-                        border: "1px solid #6aaa64",
+                        border: "1px solid #50a339",
                         background: "transparent",
-                        color: "#6aaa64",
+                        color: "#50a339",
                         fontWeight: "bold",
                         fontSize: "11px",
                         cursor: "pointer",
@@ -343,7 +343,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                         padding: "6px 10px",
                         borderRadius: "6px",
                         border: "none",
-                        background: "#6aaa64",
+                        background: "#e56b6f",
                         color: "#ffffff",
                         fontWeight: "bold",
                         fontSize: "11px",
@@ -357,8 +357,8 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                       style={{
                         padding: "6px 10px",
                         borderRadius: "6px",
-                        border: "1px solid #3a3a3c",
-                        background: "transparent",
+                        border: "1px solid #3A3A3C",
+                        background: "#355070",
                         color: "#ffffff",
                         fontWeight: "bold",
                         fontSize: "11px",
@@ -403,7 +403,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
         {giftModalRecipient && (
           <div
             style={{
-              backgroundColor: "#1a1a1b",
+            backgroundColor: "#372F41",
               borderRadius: 16,
               padding: 32,
               maxWidth: 480,
@@ -444,10 +444,10 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                     alignItems: "center",
                     gap: 12,
                     padding: "10px 14px",
-                    backgroundColor: giftModalDuration === opt.value ? "#27272a" : "#1f1f21",
+                    backgroundColor: giftModalDuration === opt.value ? "#6d597a" : "#372F41",
                     borderRadius: 8,
                     border:
-                      giftModalDuration === opt.value ? "2px solid #6aaa64" : "1px solid #3a3a3c",
+                      giftModalDuration === opt.value ? "2px solid #50a339" : "1px solid #3A3A3C",
                     cursor: "pointer",
                   }}
                 >
@@ -460,7 +460,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                     style={{ cursor: "pointer" }}
                   />
                   <span style={{ flex: 1, color: "#ffffff", fontWeight: 500 }}>{opt.label}</span>
-                  <span style={{ color: "#6aaa64", fontWeight: "bold" }}>
+                  <span style={{ color: "#50a339", fontWeight: "bold" }}>
                     ${opt.pricePerMonth}/month
                     {opt.savings && (
                       <span style={{ marginLeft: 6, fontSize: 12, color: "#818384" }}>
@@ -483,7 +483,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                       padding: "14px 0",
                       borderRadius: 10,
                       border: "none",
-                      background: giftModalLoading ? "#818384" : "#6aaa64",
+                      background: giftModalLoading ? "#818384" : "#e56b6f",
                       color: "#ffffff",
                       fontSize: 14,
                       fontWeight: "bold",
@@ -501,9 +501,9 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                       width: "100%",
                       padding: "12px 0",
                       borderRadius: 10,
-                      border: "1px solid #6aaa64",
+                      border: "1px solid #50a339",
                       background: "transparent",
-                      color: "#6aaa64",
+                      color: "#50a339",
                       fontSize: 14,
                       fontWeight: "bold",
                       cursor: giftModalLoading ? "not-allowed" : "pointer",
@@ -521,7 +521,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                     padding: "14px 0",
                     borderRadius: 10,
                     border: "none",
-                    background: giftModalLoading ? "#818384" : "#6aaa64",
+                    background: giftModalLoading ? "#818384" : "#e56b6f",
                     color: "#ffffff",
                     fontSize: 14,
                     fontWeight: "bold",
@@ -542,7 +542,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                   width: "100%",
                   padding: "12px 0",
                   borderRadius: 10,
-                  border: "1px solid #3a3a3c",
+                  border: "1px solid #3A3A3C",
                   background: "transparent",
                   color: "#ffffff",
                   fontSize: 14,
@@ -596,8 +596,8 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                   width: "100%",
                   padding: "10px",
                   borderRadius: 6,
-                  border: "1px solid #3a3a3c",
-                  background: "#1a1a1b",
+                  border: "1px solid #3A3A3C",
+                  background: "#372F41",
                   color: "#ffffff",
                   fontSize: 14,
                   cursor: "pointer",
@@ -646,8 +646,8 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                   width: "100%",
                   padding: "10px",
                   borderRadius: 6,
-                  border: "1px solid #3a3a3c",
-                  background: "#1a1a1b",
+                  border: "1px solid #3A3A3C",
+                  background: "#372F41",
                   color: "#ffffff",
                   fontSize: 14,
                   cursor: "pointer",
@@ -703,8 +703,8 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                   flex: 1,
                   padding: "12px",
                   borderRadius: 8,
-                  border: "1px solid #3a3a3c",
-                  background: "transparent",
+                  border: "1px solid #3A3A3C",
+                  background: "#355070",
                   color: "#ffffff",
                   fontSize: 14,
                   fontWeight: "bold",
@@ -758,7 +758,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                   padding: "12px",
                   borderRadius: 8,
                   border: "none",
-                  background: "#6aaa64",
+                  background: "#e56b6f",
                   color: "#ffffff",
                   fontSize: 14,
                   fontWeight: "bold",
@@ -806,8 +806,8 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                 flex: 1,
                 padding: "12px",
                 borderRadius: 8,
-                border: "1px solid #3a3a3c",
-                background: "transparent",
+                border: "1px solid #3A3A3C",
+                background: "#355070",
                 color: "#ffffff",
                 fontSize: 14,
                 fontWeight: "bold",
@@ -835,7 +835,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                 padding: "12px",
                 borderRadius: 8,
                 border: "none",
-                background: "#6aaa64",
+                background: "#e56b6f",
                 color: "#ffffff",
                 fontSize: 14,
                 fontWeight: "bold",

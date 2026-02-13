@@ -139,8 +139,8 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete, onHomeCli
       <header
         style={{
           padding: "10px 16px 8px",
-          borderBottom: "1px solid #3a3a3c",
-          backgroundColor: "#121213",
+          borderBottom: "1px solid #3A3A3C",
+          backgroundColor: "#212121",
           marginBottom: "12px",
         }}
       >
@@ -164,7 +164,7 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete, onHomeCli
               alignItems: "center",
               justifyContent: "center",
               borderRadius: 4,
-              border: "1px solid #3a3a3c",
+              border: "1px solid #3A3A3C",
               background: "transparent",
               cursor: "pointer",
               padding: 0,
@@ -216,7 +216,7 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete, onHomeCli
                   alignItems: "center",
                   justifyContent: "center",
                   borderRadius: 4,
-                  border: "1px solid #3a3a3c",
+                  border: "1px solid #3A3A3C",
                   background: "transparent",
                   cursor: "pointer",
                   padding: 0,
@@ -244,7 +244,7 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete, onHomeCli
                       minWidth: 18,
                       height: 18,
                       borderRadius: 9,
-                      background: "#ef5350",
+                      background: "#ED2939",
                       color: "#ffffff",
                       fontSize: 11,
                       fontWeight: "bold",
@@ -369,7 +369,7 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete, onHomeCli
                   fontSize: 12,
                   textTransform: "uppercase",
                   letterSpacing: 0.5,
-                  background: "#6aaa64",
+                  background: "#e56b6f",
                   color: "#ffffff",
                   border: "none",
                   borderRadius: 4,

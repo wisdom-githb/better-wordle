@@ -108,9 +108,9 @@ describe('formatElapsed', () => {
 
 describe('colorForStatus', () => {
   it('returns expected hex colors for tile statuses', () => {
-    expect(colorForStatus('green')).toBe('#6aaa64');
-    expect(colorForStatus('yellow')).toBe('#c9b458');
-    expect(colorForStatus('grey')).toBe('#3a3a3c');
+    expect(colorForStatus('green')).toBe('#50a339');
+    expect(colorForStatus('yellow')).toBe('#B1A04C');
+    expect(colorForStatus('grey')).toBe('#3A3A3C');
     expect(colorForStatus('none')).toBe('#818384');
     expect(colorForStatus('unknown')).toBe('#818384');
   });
@@ -118,10 +118,10 @@ describe('colorForStatus', () => {
 
 describe('colorForMiniCell', () => {
   it('returns expected hex colors for mini-cell statuses', () => {
-    expect(colorForMiniCell('green')).toBe('#6aaa64');
-    expect(colorForMiniCell('yellow')).toBe('#c9b458');
-    expect(colorForMiniCell('grey')).toBe('#3a3a3c');
-    expect(colorForMiniCell('none')).toBe('#121213');
-    expect(colorForMiniCell('unknown')).toBe('#121213');
+    expect(colorForMiniCell('green')).toBe('#50a339');
+    expect(colorForMiniCell('yellow')).toBe('#B1A04C');
+    expect(colorForMiniCell('grey')).toBe('#3A3A3C');
+    expect(colorForMiniCell('none')).toBe('#212121');
+    expect(colorForMiniCell('unknown')).toBe('#212121');
   });
 });

@@ -79,7 +79,7 @@ export default function SinglePlayerGameView({
         minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
-        backgroundColor: "#121213",
+        backgroundColor: "#212121",
         color: "#ffffff",
       }}
     >

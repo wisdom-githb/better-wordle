@@ -104,10 +104,10 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
             style={{
               padding: '12px',
               marginBottom: '16px',
-              backgroundColor: '#3a1f1f',
-              border: '1px solid #8b3a3a',
+              backgroundColor: '#372F41',
+              border: '1px solid #ED2939',
               borderRadius: '6px',
-              color: '#ff6b6b',
+              color: '#ED2939',
               fontSize: '14px'
             }}
           >
@@ -120,10 +120,10 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
             style={{
               padding: '12px',
               marginBottom: '16px',
-              backgroundColor: '#1f3a2b',
-              border: '1px solid #3c6e47',
+              backgroundColor: '#372F41',
+              border: '1px solid #50a339',
               borderRadius: '6px',
-              color: '#9ae6b4',
+              color: '#50a339',
               fontSize: '14px',
             }}
           >
@@ -174,9 +174,9 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
-          <div style={{ flex: 1, height: '1px', backgroundColor: '#3a3a3c' }} />
+          <div style={{ flex: 1, height: '1px', backgroundColor: '#3A3A3C' }} />
           <span style={{ padding: '0 12px', color: '#818384', fontSize: '14px' }}>or</span>
-          <div style={{ flex: 1, height: '1px', backgroundColor: '#3a3a3c' }} />
+          <div style={{ flex: 1, height: '1px', backgroundColor: '#3A3A3C' }} />
         </div>
 
         <form onSubmit={handleEmailSubmit}>
@@ -190,8 +190,8 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
               style={{
                 width: '100%',
                 padding: '12px',
-                backgroundColor: '#121213',
-                border: '1px solid #3a3a3c',
+                backgroundColor: '#212121',
+                border: '1px solid #3A3A3C',
                 borderRadius: '6px',
                 color: '#ffffff',
                 fontSize: '16px',
@@ -210,8 +210,8 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
               style={{
                 width: '100%',
                 padding: '12px',
-                backgroundColor: '#121213',
-                border: '1px solid #3a3a3c',
+                backgroundColor: '#212121',
+                border: '1px solid #3A3A3C',
                 borderRadius: '6px',
                 color: '#ffffff',
                 fontSize: '16px',
@@ -229,7 +229,7 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#6aaa64',
+                  color: '#e56b6f',
                   cursor: loading ? 'not-allowed' : 'pointer',
                   fontSize: '13px',
                   textDecoration: 'underline',
@@ -263,7 +263,7 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
             style={{
               background: 'none',
               border: 'none',
-              color: '#6aaa64',
+              color: '#e56b6f',
               cursor: loading ? 'not-allowed' : 'pointer',
               fontSize: '14px',
               textDecoration: 'underline'
