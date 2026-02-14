@@ -148,22 +148,26 @@ export default function SinglePlayerGameView({
           </div>
         )}
 
-        <div style={{ padding: "16px" }}>
+        <div style={{ padding: "16px", display: "flex", flexDirection: "column", alignItems: "center" }}>
           {/* Status bar: boards, guesses, timer */}
-          <GameStatusBar
-            numBoards={numBoards}
-            speedrunEnabled={speedrunEnabled}
-            isMarathonSpeedrun={isMarathonSpeedrun}
-            formatElapsed={formatElapsed}
-            stageElapsedMs={stageElapsedMs}
-            displayTotalMs={popupTotalMs || stageElapsedMs}
-            turnsUsed={turnsUsed}
-            maxTurns={maxTurns}
-          />
+          <div style={{ width: "100%", maxWidth: 600, marginBottom: 12 }}>
+            <GameStatusBar
+              numBoards={numBoards}
+              speedrunEnabled={speedrunEnabled}
+              isMarathonSpeedrun={isMarathonSpeedrun}
+              formatElapsed={formatElapsed}
+              stageElapsedMs={stageElapsedMs}
+              displayTotalMs={popupTotalMs || stageElapsedMs}
+              turnsUsed={turnsUsed}
+              maxTurns={maxTurns}
+            />
+          </div>
 
           {wordListError && (
             <div
               style={{
+                width: "100%",
+                maxWidth: 600,
                 marginTop: 12,
                 marginBottom: 12,
                 padding: "12px 16px",
@@ -189,23 +193,12 @@ export default function SinglePlayerGameView({
             </div>
           )}
 
-          {streakLabel && (
-            <div
-              style={{
-                marginTop: 8,
-                marginBottom: 8,
-                fontSize: 13,
-                color: "#d7dadc",
-              }}
-            >
-              {streakLabel}
-            </div>
-          )}
-
           <GameToast message={message} />
 
           <div
             style={{
+              width: "100%",
+              maxWidth: 600,
               display: "grid",
               gridTemplateColumns: `repeat(auto-fit, minmax(${numBoards >= 16 ? 160 : 180}px, 1fr))`,
               gap: 16,

@@ -100,6 +100,23 @@
   text-overflow: ellipsis;
 }
 
+/* Premium badge displayed to the left of username */
+.userCard-premiumBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+.userCard-premiumBadge .badgeIcon {
+  display: flex;
+}
+
+.userCard--sm .userCard-premiumBadge {
+  margin-right: 1px;
+}
+
 /* Earned badge icon (ribbon/medal); click opens modal */
 .userCard-earnedWrap {
   position: relative;
@@ -137,6 +154,7 @@
   text-align: left;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  background: #212121;
 }
 .userCard-badgesModalPanel::-webkit-scrollbar {
   display: none;

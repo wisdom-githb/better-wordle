@@ -379,14 +379,14 @@
 
 .homeBtnOutline {
   border: 1px solid #3A3A3C;
-  background: #355070;
+  background: #e56b6f;
   color: #ffffff;
   transition: all 0.2s ease;
 }
 
 .homeBtnOutline:hover {
-  background: #6d597a;
-  border-color: #6d597a;
+  background: #eaac8b;
+  border-color: #eaac8b;
 }
 
 .homeBtn:active {

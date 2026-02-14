@@ -111,8 +111,8 @@ describe('colorForStatus', () => {
     expect(colorForStatus('green')).toBe('#50a339');
     expect(colorForStatus('yellow')).toBe('#B1A04C');
     expect(colorForStatus('grey')).toBe('#3A3A3C');
-    expect(colorForStatus('none')).toBe('#818384');
-    expect(colorForStatus('unknown')).toBe('#818384');
+    expect(colorForStatus('none')).toBe('#3A3A3C');
+    expect(colorForStatus('unknown')).toBe('#3A3A3C');
   });
 });
 

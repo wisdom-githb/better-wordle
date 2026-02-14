@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import logoImage from "../../images/logo.jpg";
 import { useUserBadges, useBadgesForUser } from "../hooks/useUserBadges";
 import { useSubscription } from "../hooks/useSubscription";
 import { useDailyResetTimer } from "../hooks/useDailyResetTimer";
@@ -35,8 +36,9 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete, onHomeCli
   const { user, signOut, friendRequests, incomingChallenges, isVerifiedUser } = useAuth();
   const { userBadges } = useUserBadges(user);
   const { notificationSeenAt, markNotificationsSeen } = useNotificationSeen(user);
-  const { showSubscriptionGate } = useSubscription(user);
+  const { showSubscriptionGate, isSubscribed } = useSubscription(user);
   const earnedBadges = getAllEarnedSorted(userBadges);
+  const isPremium = isSubscribed || (userBadges && !!userBadges['premium_member']);
   const resetTime = useDailyResetTimer();
   const unseenCount = getUnseenNotificationCount(friendRequests || [], incomingChallenges || [], notificationSeenAt);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -150,6 +152,7 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete, onHomeCli
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            flexWrap: "wrap",
             gap: 12,
           }}
         >
@@ -191,12 +194,13 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete, onHomeCli
             style={{
               flex: 1,
               textAlign: "center",
-              fontWeight: "bold",
-              letterSpacing: 2,
-              fontSize: 18,
             }}
           >
-            WUZZLE GAMES
+            <img
+              src={logoImage}
+              alt="Wuzzle Games"
+              style={{ height: 80, width: "auto" }}
+            />
           </div>
 
           <div className="flexRow justifyEnd" style={{ alignItems: "center", gap: 8, minWidth: 32 }}>
@@ -358,6 +362,7 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete, onHomeCli
               onClick={() => navigate("/profile")}
               size="sm"
               earnedBadges={earnedBadges}
+              isPremium={isPremium}
             />
             {showSubscriptionGate && (
               <button
