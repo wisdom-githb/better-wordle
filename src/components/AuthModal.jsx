@@ -4,6 +4,7 @@ import Modal from './Modal';
 
 export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpComplete }) {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -53,11 +54,13 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
     setError('');
     setInfo('');
     setIsSignUp(false);
+    setIsForgotPassword(false);
     onRequestClose();
   }, [onRequestClose]);
 
   const handleToggleSignUp = useCallback(() => {
     setIsSignUp(prev => !prev);
+    setIsForgotPassword(false);
     setError('');
     setInfo('');
   }, []);
@@ -65,9 +68,15 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
   const handleForgotPassword = useCallback(async () => {
     setError('');
     setInfo('');
+    setIsForgotPassword(true);
+  }, []);
+
+  const handleSendResetEmail = useCallback(async () => {
+    setError('');
+    setInfo('');
     try {
       if (!email) {
-        setError('Please enter your email above first.');
+        setError('Please enter your email.');
         return;
       }
       await resetPassword(email);
@@ -76,6 +85,12 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
       setError(err.message || 'Failed to send password reset email');
     }
   }, [email, resetPassword]);
+
+  const handleBackToSignIn = useCallback(() => {
+    setIsForgotPassword(false);
+    setError('');
+    setInfo('');
+  }, []);
 
   const handleEmailChange = useCallback((e) => setEmail(e.target.value), []);
   const handlePasswordChange = useCallback((e) => setPassword(e.target.value), []);
@@ -90,12 +105,14 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
       <div style={{ position: 'relative', padding: '8px 0', textAlign: 'left' }}>
         <div style={{ marginBottom: '24px' }}>
           <h2 id="auth-modal-title" style={{ margin: 0, marginBottom: '8px', fontSize: '24px', fontWeight: 'bold', color: '#ffffff' }}>
-            {isSignUp ? 'Create Account' : 'Sign In'}
+            {isForgotPassword ? 'Reset Password' : isSignUp ? 'Create Account' : 'Sign In'}
           </h2>
           <p style={{ margin: 0, fontSize: '14px', color: '#d7dadc' }}>
-            {isSignUp 
-              ? 'Create an account to sync your progress' 
-              : 'Sign in to access your account'}
+            {isForgotPassword
+              ? 'Enter your email to receive a reset link'
+              : isSignUp 
+                ? 'Create an account to sync your progress' 
+                : 'Sign in to access your account'}
           </p>
         </div>
 
@@ -200,27 +217,29 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
             />
           </div>
 
-          <div style={{ marginBottom: '8px' }}>
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={handlePasswordChange}
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: '12px',
-                backgroundColor: '#212121',
-                border: '1px solid #3A3A3C',
-                borderRadius: '6px',
-                color: '#ffffff',
-                fontSize: '16px',
-                boxSizing: 'border-box'
-              }}
-            />
-          </div>
+          {!isForgotPassword && (
+            <div style={{ marginBottom: '8px' }}>
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={handlePasswordChange}
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  backgroundColor: '#212121',
+                  border: '1px solid #3A3A3C',
+                  borderRadius: '6px',
+                  color: '#ffffff',
+                  fontSize: '16px',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+          )}
 
-          {!isSignUp && (
+          {!isSignUp && !isForgotPassword && (
             <div style={{ marginBottom: '20px', textAlign: 'right' }}>
               <button
                 type="button"
@@ -241,38 +260,72 @@ export default React.memo(function AuthModal({ isOpen, onRequestClose, onSignUpC
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className={"homeBtn homeBtnGreen homeBtnLg" + (loading ? " homeBtnNeutral" : "")}
-            style={{
-              width: '100%',
-              marginBottom: '12px',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.8 : 1,
-            }}
-          >
-            {loading ? 'Please wait...' : (isSignUp ? 'Create Account' : 'Sign In')}
-          </button>
+          {isForgotPassword ? (
+            <button
+              type="button"
+              onClick={handleSendResetEmail}
+              disabled={loading}
+              className={"homeBtn homeBtnGreen homeBtnLg" + (loading ? " homeBtnNeutral" : "")}
+              style={{
+                width: '100%',
+                marginBottom: '12px',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.8 : 1,
+              }}
+            >
+              {loading ? 'Please wait...' : 'Send Reset Link'}
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={loading}
+              className={"homeBtn homeBtnGreen homeBtnLg" + (loading ? " homeBtnNeutral" : "")}
+              style={{
+                width: '100%',
+                marginBottom: '12px',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.8 : 1,
+              }}
+            >
+              {loading ? 'Please wait...' : (isSignUp ? 'Create Account' : 'Sign In')}
+            </button>
+          )}
         </form>
 
         <div style={{ textAlign: 'center' }}>
-          <button
-            onClick={handleToggleSignUp}
-            disabled={loading}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#e56b6f',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              fontSize: '14px',
-              textDecoration: 'underline'
-            }}
-          >
-            {isSignUp 
-              ? 'Already have an account? Sign in' 
-              : "Don't have an account? Sign up"}
-          </button>
+          {isForgotPassword ? (
+            <button
+              onClick={handleBackToSignIn}
+              disabled={loading}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#e56b6f',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                fontSize: '14px',
+                textDecoration: 'underline'
+              }}
+            >
+              Back to Sign In
+            </button>
+          ) : (
+            <button
+              onClick={handleToggleSignUp}
+              disabled={loading}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#e56b6f',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                fontSize: '14px',
+                textDecoration: 'underline'
+              }}
+            >
+              {isSignUp 
+                ? 'Already have an account? Sign in' 
+                : "Don't have an account? Sign up"}
+            </button>
+          )}
         </div>
 
         <button
