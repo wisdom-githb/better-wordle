@@ -199,7 +199,7 @@ export default function SiteHeader({ onOpenFeedback, onSignUpComplete, onHomeCli
             <img
               src={logoImage}
               alt="Wuzzle Games"
-              style={{ height: 100 }}
+              style={{ height: 50 }}
             />
           </div>
 
