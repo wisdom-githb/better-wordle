@@ -39,7 +39,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
 
   const [selectedFriendForChallenge, setSelectedFriendForChallenge] = React.useState(null);
   const [challengeBoards, setChallengeBoards] = React.useState(1);
-  const [challengeSpeedrun, setChallengeSpeedrun] = React.useState(false);
+  const [challengeVariant, setChallengeVariant] = React.useState('standard'); // 'standard' | 'speedrun' | 'solutionhunt'
   const [challengeMaxPlayers, setChallengeMaxPlayers] = React.useState(2);
   const [challengeIsPublic, setChallengeIsPublic] = React.useState(false);
   const [isChallengeConfigOpen, setIsChallengeConfigOpen] = React.useState(false);
@@ -336,7 +336,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                       onClick={() => {
                         setSelectedFriendForChallenge(friend);
                         setChallengeBoards(1);
-                        setChallengeSpeedrun(false);
+                        setChallengeVariant('standard');
                         setIsChallengeConfigOpen(true);
                       }}
                       style={{
@@ -611,20 +611,37 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
               </select>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <input
-                id="challenge-speedrun-checkbox"
-                type="checkbox"
-                checked={challengeSpeedrun}
-                onChange={(e) => setChallengeSpeedrun(e.target.checked)}
-                style={{ width: 18, height: 18, cursor: "pointer" }}
-              />
+            <div>
               <label
-                htmlFor="challenge-speedrun-checkbox"
-                style={{ color: "#d7dadc", fontSize: 14, cursor: "pointer" }}
+                htmlFor="challenge-variant-select"
+                style={{
+                  display: "block",
+                  marginBottom: "8px",
+                  color: "#d7dadc",
+                  fontSize: 14,
+                }}
               >
-                Speedrun Mode (Unlimited guesses, timed)
+                Game Variant
               </label>
+              <select
+                id="challenge-variant-select"
+                value={challengeVariant}
+                onChange={(e) => setChallengeVariant(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  borderRadius: 6,
+                  border: "1px solid #3A3A3C",
+                  background: "#372F41",
+                  color: "#ffffff",
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                <option value="standard">Standard (6 guesses)</option>
+                <option value="speedrun">Speedrun (Unlimited guesses, timed)</option>
+                <option value="solutionhunt">Solution Hunt (See possible words)</option>
+              </select>
             </div>
 
             <div>
@@ -719,7 +736,9 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                   try {
                     const clampedMaxPlayers = Math.max(2, Math.min(8, challengeMaxPlayers));
                     const result = await multiplayerHost.createGame({
-                      speedrun: challengeSpeedrun,
+                      variant: challengeVariant,
+                      speedrun: challengeVariant === 'speedrun',
+                      solutionHunt: challengeVariant === 'solutionhunt',
                       maxPlayers: clampedMaxPlayers,
                       isPublic: challengeIsPublic,
                       boards: challengeBoards,
@@ -731,7 +750,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                       selectedFriendForChallenge.name,
                       code,
                       challengeBoards,
-                      challengeSpeedrun,
+                      challengeVariant,
                     );
 
                     if (!ok) {
@@ -747,7 +766,7 @@ export default function FriendsModal({ isOpen, onRequestClose }) {
                     onRequestClose?.();
                     // Send challenger to the multiplayer waiting room for this challenge.
                     navigate(
-                      `/game?mode=multiplayer&code=${code}&host=true&speedrun=${challengeSpeedrun}&boards=${challengeBoards}`,
+                      `/game?mode=multiplayer&code=${code}&host=true&variant=${challengeVariant}&boards=${challengeBoards}`,
                     );
                   } catch (err) {
                     setTimedMessage(err?.message || "Failed to create challenge", 5000);

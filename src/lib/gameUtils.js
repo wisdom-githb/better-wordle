@@ -57,10 +57,13 @@ export function generateShareText(
   const lines = [];
   const isMarathon = mode === "marathon";
   const isDaily = mode === "daily";
+  const isSolutionHunt = mode === "solutionhunt";
 
   // Heading matches "Wuzzle Games - <Mode> <Variant>" from ShareText.md
   let heading = "Wuzzle Games";
-  if (isDaily && speedrunEnabled) {
+  if (isSolutionHunt) {
+    heading = "Wuzzle Games - Daily Solution Hunt";
+  } else if (isDaily && speedrunEnabled) {
     heading = "Wuzzle Games - Daily Speedrun";
   } else if (isDaily) {
     heading = "Wuzzle Games - Daily Standard";
@@ -132,8 +135,8 @@ export function generateShareText(
   }
 
   // --- Non-marathon (or marathon without stage breakdown) ---
-  if (numBoards === 1 && isDaily) {
-    // Daily single-board: show an emoji grid plus a short summary.
+  if (numBoards === 1 && (isDaily || isSolutionHunt)) {
+    // Daily/Solution Hunt single-board: show an emoji grid plus a short summary.
     const board = boards[0];
 
     // Blank line between heading and grid, as in ShareText.md examples.
@@ -150,7 +153,11 @@ export function generateShareText(
 
     lines.push("");
 
-    if (speedrunEnabled) {
+    if (isSolutionHunt) {
+      // Solution Hunt – 1 board (no speedrun)
+      lines.push(`Guesses: ${turnsUsed}/${maxTurns}`);
+      lines.push(allSolved ? "Solved!" : "Not solved!");
+    } else if (speedrunEnabled) {
       // Daily speedrun – 1 board
       const timeMs = popupTotalMs || stageElapsedMs || 0;
       lines.push(`Time: ${formatElapsed(timeMs)}`);

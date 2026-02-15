@@ -11,6 +11,7 @@ import GamePopup from "./GamePopup";
 import Keyboard from "../Keyboard";
 import SiteHeader from "../SiteHeader";
 import CommentsSection from "./CommentsSection";
+import SolutionHuntModal from "./SolutionHuntModal";
 import { KEYBOARD_HEIGHT } from "../../lib/wordle";
 
 const FeedbackModal = lazy(() => import("../FeedbackModal"));
@@ -70,6 +71,13 @@ export default function SinglePlayerGameView({
   wordListError,
   onRetryWordLists,
   countdownRemaining,
+  // Solution Hunt mode props
+  isSolutionHuntMode = false,
+  showSolutionHuntModal = false,
+  setShowSolutionHuntModal,
+  filteredSolutionWords = [],
+  totalSolutionWords = 0,
+  onSelectSolutionWord,
 }) {
   const inRouter = useInRouterContext();
 
@@ -195,6 +203,34 @@ export default function SinglePlayerGameView({
 
           <GameToast message={message} />
 
+          {/* Solution Hunt: View Possible Words button */}
+          {isSolutionHuntMode && !finished && (
+            <div style={{ width: "100%", maxWidth: 600, marginBottom: 12 }}>
+              <button
+                type="button"
+                onClick={() => setShowSolutionHuntModal(true)}
+                style={{
+                  width: "100%",
+                  padding: "12px 16px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  border: "none",
+                  borderRadius: 8,
+                  background: "#50a339",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                }}
+              >
+                <span>📋</span>
+                <span>View Possible Words ({filteredSolutionWords.length})</span>
+              </button>
+            </div>
+          )}
+
           <div
             style={{
               width: "100%",
@@ -318,6 +354,17 @@ export default function SinglePlayerGameView({
           onRequestClose={() => setShowFeedbackModal(false)}
         />
       </Suspense>
+
+      {/* Solution Hunt Modal */}
+      {isSolutionHuntMode && (
+        <SolutionHuntModal
+          isOpen={showSolutionHuntModal}
+          onRequestClose={() => setShowSolutionHuntModal(false)}
+          words={filteredSolutionWords}
+          totalWords={totalSolutionWords}
+          onSelectWord={onSelectSolutionWord}
+        />
+      )}
     </div>
   );
 }

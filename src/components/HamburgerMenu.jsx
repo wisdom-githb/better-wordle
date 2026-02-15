@@ -588,7 +588,7 @@ export default function HamburgerMenu({ onOpenFeedback, onSignUpComplete }) {
                             />
                           </div>
                           <div style={{ color: "#d7dadc", fontSize: 12 }}>
-                            {ch.boards || 1} board{(ch.boards || 1) > 1 ? "s" : ""} · {ch.speedrun ? "Speedrun" : "Standard"}
+                            {ch.boards || 1} board{(ch.boards || 1) > 1 ? "s" : ""} · {ch.variant === 'solutionhunt' ? 'Solution Hunt' : ch.variant === 'speedrun' || ch.speedrun ? 'Speedrun' : 'Standard'}
                             {expired && (
                               <span style={{ marginLeft: 8, fontSize: 11, color: "#818384", fontWeight: "600" }}>Expired</span>
                             )}
@@ -603,9 +603,10 @@ export default function HamburgerMenu({ onOpenFeedback, onSignUpComplete }) {
                                   setShowChallengesModal(false);
                                   // Navigate into the multiplayer waiting room as the guest.
                                   const boards = data.boards || 1;
-                                  const speedrun = !!data.speedrun;
+                                  // Support both new variant and legacy speedrun fields
+                                  const variant = data.variant || (data.speedrun ? 'speedrun' : 'standard');
                                   navigate(
-                                    `/game?mode=multiplayer&code=${data.gameCode}&speedrun=${speedrun}&boards=${boards}`,
+                                    `/game?mode=multiplayer&code=${data.gameCode}&variant=${variant}&boards=${boards}`,
                                   );
                                 } catch (err) {
                                   // eslint-disable-next-line no-alert

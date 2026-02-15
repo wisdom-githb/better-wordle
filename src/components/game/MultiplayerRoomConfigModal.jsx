@@ -7,8 +7,8 @@ export default function MultiplayerRoomConfigModal({
   boardOptions,
   boardsDraft,
   onChangeBoardsDraft,
-  speedrunDraft,
-  onChangeSpeedrunDraft,
+  variantDraft,
+  onChangeVariantDraft,
   onSave,
   isHost = true,
 }) {
@@ -69,26 +69,39 @@ export default function MultiplayerRoomConfigModal({
             </select>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <input
-              type="checkbox"
-              id="multiplayer-speedrun-config-checkbox"
-              checked={speedrunDraft}
-              onChange={(e) => onChangeSpeedrunDraft(e.target.checked)}
+          <div>
+            <label
+              htmlFor="multiplayer-variant-config-select"
+              style={{
+                display: "block",
+                marginBottom: "8px",
+                color: "#d7dadc",
+                fontSize: 14,
+              }}
+            >
+              Game Variant
+            </label>
+            <select
+              id="multiplayer-variant-config-select"
+              value={variantDraft}
+              onChange={(e) => onChangeVariantDraft(e.target.value)}
               disabled={!isHost}
-              style={{ 
-                cursor: isHost ? "pointer" : "not-allowed", 
-                width: "18px", 
-                height: "18px",
+              style={{
+                width: "100%",
+                padding: "10px",
+                borderRadius: 6,
+                border: "1px solid #3A3A3C",
+                background: isHost ? "#372F41" : "#212121",
+                color: isHost ? "#ffffff" : "#818384",
+                fontSize: 14,
+                cursor: isHost ? "pointer" : "not-allowed",
                 opacity: isHost ? 1 : 0.6,
               }}
-            />
-            <label
-              htmlFor="multiplayer-speedrun-config-checkbox"
-              style={{ color: "#d7dadc", fontSize: 14, cursor: "pointer", margin: 0 }}
             >
-              Speedrun Mode (Unlimited guesses, timed)
-            </label>
+              <option value="standard">Standard (6 guesses)</option>
+              <option value="speedrun">Speedrun (Unlimited guesses, timed)</option>
+              <option value="solutionhunt">Solution Hunt (See possible words)</option>
+            </select>
           </div>
 
           <div style={{ display: "flex", gap: "12px", marginTop: "12px" }}>
